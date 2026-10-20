@@ -1,0 +1,54 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+  release:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.10.0'
+      - name: Prepare isolated act release destination
+        if: env.ACT
+        run: bash .github/testing/prepare-local-remote.sh
+      - name: Version, package and release
+        id: release
+        uses: cycjimmy/semantic-release-action@d9bf53a078bd2f86aaffaec796dbb3d28f1b6f34 # v8.1.3
+        with:
+          semantic_version: 25.0.9
+          repository_url: ${{ env.ACT && 'file:///tmp/dimensional-quantities-remote.git' || '' }}
+          extra_plugins: |
+            @semantic-release/commit-analyzer@13.0.1
+            @semantic-release/release-notes-generator@14.1.1
+            @semantic-release/exec@7.1.0
+            @semantic-release/github@12.0.10
+            conventional-changelog-conventionalcommits@9.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify local release
+        if: env.ACT
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.new_release_version }}
+          RELEASE_PUBLISHED: ${{ steps.release.outputs.new_release_published }}
+        run: python3 .github/testing/verify-local-release.py

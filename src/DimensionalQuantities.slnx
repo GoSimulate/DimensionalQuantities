@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="DimensionalQuantities/DimensionalQuantities.csproj" />
+  <Project Path="DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" />
+  <Project Path="DimensionalQuantities.Tests/DimensionalQuantities.Tests.csproj" />
+  <Project Path="DimensionalQuantities.Roslyn.Tests/DimensionalQuantities.Roslyn.Tests.csproj" />
+  <Project Path="DimensionalQuantities.IntegrationTests/DimensionalQuantities.IntegrationTests.csproj" />
+</Solution>
