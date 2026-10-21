@@ -13,4 +13,12 @@
   <ItemGroup>
     <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Numerics\RationalTests.Conversions.cs">
+      <DependentUpon>RationalTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Numerics\RationalTests.Text.cs">
+      <DependentUpon>RationalTests.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>
