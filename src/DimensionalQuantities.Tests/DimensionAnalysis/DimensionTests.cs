@@ -7,6 +7,25 @@ namespace DimensionalQuantities.Tests.DimensionAnalysis;
 public sealed class DimensionTests
 {
 	[Fact]
+	public void ComponentsPairEveryExponentWithItsNamesInSiOrder()
+	{
+		Dimension original = new(1, -2, new(3, 2), 4, 0, -6, 7);
+		IEnumerable<DimensionComponent> result = original.GetComponents();
+		DimensionComponent[] expected =
+		[
+			new(1, "Length", "Metre", "Metres"),
+			new(-2, "Mass", "Kilogram", "Kilograms"),
+			new(new(3, 2), "Time", "Second", "Seconds"),
+			new(4, "Current", "Amp", "Amps"),
+			new(0, "Temperature", "Kelvin", "Kelvin"),
+			new(-6, "AmountOfSubstance", "Mole", "Moles"),
+			new(7, "LuminousIntensity", "Candela", "Candelas")
+		];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
 	public void MultiplicationOperatorCombinesDimensions()
 	{
 		Dimension original = new(ElectricCurrent: new(1, 2));
