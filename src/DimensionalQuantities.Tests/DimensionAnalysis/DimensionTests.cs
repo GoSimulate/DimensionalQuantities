@@ -13,13 +13,13 @@ public sealed class DimensionTests
 		IEnumerable<DimensionComponent> result = original.GetComponents();
 		DimensionComponent[] expected =
 		[
-			new(1, "Length", "Metre", "Metres"),
-			new(-2, "Mass", "Kilogram", "Kilograms"),
-			new(new(3, 2), "Time", "Second", "Seconds"),
-			new(4, "Current", "Amp", "Amps"),
-			new(0, "Temperature", "Kelvin", "Kelvin"),
-			new(-6, "AmountOfSubstance", "Mole", "Moles"),
-			new(7, "LuminousIntensity", "Candela", "Candelas")
+			new(1, "Length", "Metre", "Metres", "m"),
+			new(-2, "Mass", "Kilogram", "Kilograms", "kg"),
+			new(new(3, 2), "Time", "Second", "Seconds", "s"),
+			new(4, "Current", "Amp", "Amps", "A"),
+			new(0, "Temperature", "Kelvin", "Kelvin", "K"),
+			new(-6, "AmountOfSubstance", "Mole", "Moles", "mol"),
+			new(7, "LuminousIntensity", "Candela", "Candelas", "cd")
 		];
 
 		Assert.Equal(expected, result);

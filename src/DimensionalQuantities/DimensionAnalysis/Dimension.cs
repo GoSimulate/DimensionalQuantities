@@ -18,13 +18,13 @@ internal readonly record struct Dimension(
 	/// <summary>Pairs every SI exponent with its quantity and unit names, in canonical SI axis order.</summary>
 	public IEnumerable<DimensionComponent> GetComponents()
 	{
-		yield return new(Length, "Length", "Metre", "Metres");
-		yield return new(Mass, "Mass", "Kilogram", "Kilograms");
-		yield return new(Time, "Time", "Second", "Seconds");
-		yield return new(ElectricCurrent, "Current", "Amp", "Amps");
-		yield return new(Temperature, "Temperature", "Kelvin", "Kelvin");
-		yield return new(AmountOfSubstance, "AmountOfSubstance", "Mole", "Moles");
-		yield return new(LuminousIntensity, "LuminousIntensity", "Candela", "Candelas");
+		yield return new(Length, "Length", "Metre", "Metres", "m");
+		yield return new(Mass, "Mass", "Kilogram", "Kilograms", "kg");
+		yield return new(Time, "Time", "Second", "Seconds", "s");
+		yield return new(ElectricCurrent, "Current", "Amp", "Amps", "A");
+		yield return new(Temperature, "Temperature", "Kelvin", "Kelvin", "K");
+		yield return new(AmountOfSubstance, "AmountOfSubstance", "Mole", "Moles", "mol");
+		yield return new(LuminousIntensity, "LuminousIntensity", "Candela", "Candelas", "cd");
 	}
 
 	/// <summary>Adds corresponding exponents.</summary>
