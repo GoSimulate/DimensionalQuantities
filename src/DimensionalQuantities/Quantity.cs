@@ -6,10 +6,10 @@ namespace DimensionalQuantities;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public readonly record struct Quantity<TDimension>
 {
-	internal Quantity(double si)
+	internal Quantity(double valueInSiBaseUnit)
 	{
-		Si = si;
+		ValueInSiBaseUnit = valueInSiBaseUnit;
 	}
 
-	internal double Si { get; }
+	internal double ValueInSiBaseUnit { get; }
 }

@@ -19,7 +19,7 @@ public sealed class QuantityTests
 	public void ConstructionPreservesSiMagnitude(double expected)
 	{
 		Current original = new(expected);
-		double result = original.Si;
+		double result = original.ValueInSiBaseUnit;
 
 		Assert.Equal(expected, result);
 	}
