@@ -7,7 +7,7 @@ namespace DimensionalQuantities.Tests.DimensionAnalysis;
 public sealed class DimensionTests
 {
 	[Fact]
-	public void ComponentsPairEveryExponentWithItsNamesInSiOrder()
+	public void ComponentsPairNonzeroExponentsWithTheirNamesInSiOrder()
 	{
 		Dimension original = new(1, -2, new(3, 2), 4, 0, -6, 7);
 		IEnumerable<DimensionComponent> result = original.GetComponents();
@@ -17,12 +17,20 @@ public sealed class DimensionTests
 			new(-2, "Mass", "Kilogram", "Kilograms", "kg"),
 			new(new(3, 2), "Time", "Second", "Seconds", "s"),
 			new(4, "Current", "Amp", "Amps", "A"),
-			new(0, "Temperature", "Kelvin", "Kelvin", "K"),
 			new(-6, "AmountOfSubstance", "Mole", "Moles", "mol"),
 			new(7, "LuminousIntensity", "Candela", "Candelas", "cd")
 		];
 
 		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void DimensionlessHasNoComponents()
+	{
+		Dimension original = default;
+		IEnumerable<DimensionComponent> result = original.GetComponents();
+
+		Assert.Empty(result);
 	}
 
 	[Fact]

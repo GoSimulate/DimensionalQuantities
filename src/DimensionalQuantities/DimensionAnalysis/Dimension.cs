@@ -15,16 +15,43 @@ internal readonly record struct Dimension(
 	public static Dimension operator *(Dimension left, Dimension right) => left.Multiply(right);
 	public static Dimension operator /(Dimension left, Dimension right) => left.Divide(right);
 
-	/// <summary>Pairs every SI exponent with its quantity and unit names, in canonical SI axis order.</summary>
+	/// <summary>Pairs nonzero SI exponents with their quantity and unit names, in canonical SI axis order.</summary>
 	public IEnumerable<DimensionComponent> GetComponents()
 	{
-		yield return new(Length, "Length", "Metre", "Metres", "m");
-		yield return new(Mass, "Mass", "Kilogram", "Kilograms", "kg");
-		yield return new(Time, "Time", "Second", "Seconds", "s");
-		yield return new(ElectricCurrent, "Current", "Amp", "Amps", "A");
-		yield return new(Temperature, "Temperature", "Kelvin", "Kelvin", "K");
-		yield return new(AmountOfSubstance, "AmountOfSubstance", "Mole", "Moles", "mol");
-		yield return new(LuminousIntensity, "LuminousIntensity", "Candela", "Candelas", "cd");
+		if (Length != Rational.Zero)
+		{
+			yield return new(Length, "Length", "Metre", "Metres", "m");
+		}
+
+		if (Mass != Rational.Zero)
+		{
+			yield return new(Mass, "Mass", "Kilogram", "Kilograms", "kg");
+		}
+
+		if (Time != Rational.Zero)
+		{
+			yield return new(Time, "Time", "Second", "Seconds", "s");
+		}
+
+		if (ElectricCurrent != Rational.Zero)
+		{
+			yield return new(ElectricCurrent, "Current", "Amp", "Amps", "A");
+		}
+
+		if (Temperature != Rational.Zero)
+		{
+			yield return new(Temperature, "Temperature", "Kelvin", "Kelvin", "K");
+		}
+
+		if (AmountOfSubstance != Rational.Zero)
+		{
+			yield return new(AmountOfSubstance, "AmountOfSubstance", "Mole", "Moles", "mol");
+		}
+
+		if (LuminousIntensity != Rational.Zero)
+		{
+			yield return new(LuminousIntensity, "LuminousIntensity", "Candela", "Candelas", "cd");
+		}
 	}
 
 	/// <summary>Adds corresponding exponents.</summary>

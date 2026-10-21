@@ -16,11 +16,6 @@ internal static class DimensionNameGenerator
 		StringBuilder expression = new();
 		foreach (DimensionComponent component in dimension.GetComponents())
 		{
-			if (component.Exponent == Rational.Zero)
-			{
-				continue;
-			}
-
 			expression.Append(component.UnitSymbol);
 			if (component.Exponent != Rational.One)
 			{
@@ -48,7 +43,7 @@ internal static class DimensionNameGenerator
 			{
 				AppendFactor(numerator, getFactorName(component), exponent);
 			}
-			else if (exponent.Numerator.Sign < 0)
+			else
 			{
 				AppendFactor(denominator, getFactorName(component), -exponent);
 			}
