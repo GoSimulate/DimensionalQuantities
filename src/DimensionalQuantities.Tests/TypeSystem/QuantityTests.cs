@@ -1,5 +1,5 @@
 using Xunit;
-using Current = DimensionalQuantities.Quantity<DimensionalQuantities.TypeSystem.Dimension<
+using Current = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
 	DimensionalQuantities.TypeSystem.TerminalHex0,
 	DimensionalQuantities.TypeSystem.TerminalHex0,
 	DimensionalQuantities.TypeSystem.TerminalHex0,
@@ -8,7 +8,7 @@ using Current = DimensionalQuantities.Quantity<DimensionalQuantities.TypeSystem.
 	DimensionalQuantities.TypeSystem.TerminalHex0,
 	DimensionalQuantities.TypeSystem.TerminalHex0>>;
 
-namespace DimensionalQuantities.Tests;
+namespace DimensionalQuantities.Tests.TypeSystem;
 
 public sealed class QuantityTests
 {

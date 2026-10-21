@@ -1,6 +1,6 @@
 using JetBrains.Annotations;
 
-namespace DimensionalQuantities;
+namespace DimensionalQuantities.TypeSystem;
 
 /// <summary>A quantity whose dimension is encoded in its type and whose magnitude is stored in SI units.</summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
