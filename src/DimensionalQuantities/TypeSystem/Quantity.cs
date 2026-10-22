@@ -9,6 +9,10 @@ namespace DimensionalQuantities.TypeSystem;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public readonly record struct Quantity<TDimension>
 {
+	public static Quantity<TDimension> operator *(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit * scalar);
+	public static Quantity<TDimension> operator *(double scalar, Quantity<TDimension> quantity) => new(scalar * quantity.ValueInSiBaseUnit);
+	public static Quantity<TDimension> operator /(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit / scalar);
+
 	// Each closed quantity type intentionally caches its own decoded dimension.
 	// ReSharper disable once StaticMemberInGenericType
 	private static readonly Lazy<MathematicalDimension> _dimension = new(ParseDimension);

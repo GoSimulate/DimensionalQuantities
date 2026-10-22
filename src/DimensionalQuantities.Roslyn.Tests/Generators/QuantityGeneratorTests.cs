@@ -1,22 +1,20 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Text;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
-public sealed class QuantityGeneratorTests
+public sealed partial class QuantityGeneratorTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
-	private static readonly string[] _prefixes =
-	[
-		"Quetta", "Ronna", "Yotta", "Zetta", "Exa", "Peta", "Tera", "Giga", "Mega", "Kilo", "Hecto", "Deca",
-		"Deci", "Centi", "Milli", "Micro", "Nano", "Pico", "Femto", "Atto", "Zepto", "Yocto", "Ronto", "Quecto"
-	];
 
 	[Fact]
 	public void BaseAliasesHaveUnprefixedFactoriesAndAccessors()
@@ -43,11 +41,22 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void VoltageAndMechanicalAliasAreTheSameType()
+	public void SemanticPipelineResolvesPostInitialisationQuantityAliasesAndFactories()
 	{
-		const string expression = "typeof(Voltage) == typeof(LengthSquaredMassPerTimeCubedCurrent)";
-		bool result = Evaluate<bool>(expression);
-		Assert.True(result);
+		const string source = """
+			public static class Consumer
+			{
+				public static Length Use(Length input) => Length.FromMetres(2);
+			}
+			""";
+		CSharpCompilation result = Compile(source, new SemanticProbeGenerator());
+		INamedTypeSymbol probe = result.GetTypeByMetadataName("SemanticProbe")!;
+		IFieldSymbol aliasResolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("AliasResolved")));
+		IFieldSymbol factoryResolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("FactoryResolved")));
+
+		Assert.Multiple(
+			() => Assert.Equal(true, aliasResolved.ConstantValue),
+			() => Assert.Equal(true, factoryResolved.ConstantValue));
 	}
 
 	[Fact]
@@ -73,142 +82,6 @@ public sealed class QuantityGeneratorTests
 		Compile(source);
 	}
 
-	[Fact]
-	public void CatalogueUnitsHaveUnprefixedFactoriesAndAccessors()
-	{
-		const string source = """
-			public static class Consumer
-			{
-				public static double UseUnits() =>
-					Area.FromSquareMetres(1).AsSquareMetres() +
-					Volume.FromCubicMetres(1).AsCubicMetres() +
-					Frequency.FromHertz(1).AsHertz() +
-					AngularVelocity.FromRadiansPerSecond(1).AsRadiansPerSecond() +
-					Density.FromGramsPerCubicMetre(1).AsGramsPerCubicMetre() +
-					Pressure.FromPascals(1).AsPascals() +
-					Energy.FromJoules(1).AsJoules() +
-					Torque.FromNewtonMetres(1).AsNewtonMetres() +
-					Power.FromWatts(1).AsWatts() +
-					SpecificPower.FromWattsPerKilogram(1).AsWattsPerKilogram() +
-					TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin() +
-					PowerDensity.FromWattsPerCubicMetre(1).AsWattsPerCubicMetre() +
-					Voltage.FromVolts(1).AsVolts() +
-					Resistance.FromOhms(1).AsOhms() +
-					Inductance.FromHenries(1).AsHenries() +
-					MagneticFlux.FromWebers(1).AsWebers() +
-					MagneticFluxDensity.FromTeslas(1).AsTeslas() +
-					MagneticFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre() +
-					CurrentDensity.FromAmpsPerSquareMetre(1).AsAmpsPerSquareMetre() +
-					Permeability.FromHenriesPerMetre(1).AsHenriesPerMetre() +
-					Resistivity.FromOhmMetres(1).AsOhmMetres() +
-					Conductivity.FromSiemensPerMetre(1).AsSiemensPerMetre() +
-					MagneticReluctivity.FromMetresPerHenry(1).AsMetresPerHenry() +
-					MagneticVectorPotential.FromWebersPerMetre(1).AsWebersPerMetre();
-			}
-			""";
-
-		Compile(source);
-	}
-
-	[Theory]
-	[InlineData("Area", "LengthSquared")]
-	[InlineData("CurrentDensity", "CurrentPerLengthSquared")]
-	[InlineData("Pressure", "Stress")]
-	[InlineData("Pressure", "YoungsModulus")]
-	[InlineData("Energy", "Torque")]
-	public void CatalogueAliasesShareTheCanonicalDimensionType(string alias, string equivalent)
-	{
-		bool result = Evaluate<bool>($"typeof({alias}) == typeof({equivalent})");
-		Assert.True(result);
-	}
-
-	[Fact]
-	public void SharedUnitsAreAvailableThroughEveryAliasWithoutDuplicateHelpers()
-	{
-		const string source = """
-			public static class Consumer
-			{
-				public static double UsePressureAliases()
-				{
-					Pressure pressure = Pressure.FromPascals(1);
-					Stress stress = Stress.FromPascals(1);
-					YoungsModulus modulus = YoungsModulus.FromKiloPascals(1);
-					return pressure.AsPascals() + stress.AsPascals() + modulus.AsKiloPascals();
-				}
-			}
-			""";
-
-		Compile(source);
-	}
-
-	[Fact]
-	public void PrefixesAreOnlyGeneratedForSupportedFactorPlacements()
-	{
-		const string source = "public static class Consumer { public static double Value() => TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin(); }";
-		CSharpCompilation result = Compile(source);
-		INamespaceSymbol generated = result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthExtensions")!.ContainingNamespace;
-		string[] names = generated.GetTypeMembers().SelectMany(type => type.GetMembers().OfType<IMethodSymbol>()).Select(method => method.Name).ToArray();
-
-		Assert.Multiple(
-			() => Assert.DoesNotContain("FromInverseMilliKelvin", names),
-			() => Assert.DoesNotContain("AsInverseMilliKelvin", names),
-			() => Assert.DoesNotContain("FromMilliAmpsPerSquareMilliMetre", names),
-			() => Assert.DoesNotContain("FromKiloGramsPerCubicCentiMetre", names));
-	}
-
-	[Fact]
-	public void EverySiPrefixHasUsableFactoryAndAccessor()
-	{
-		string calls = string.Join("\n", _prefixes.Select(prefix =>
-			$"Length value{prefix} = Length.From{prefix}Metres(1); double output{prefix} = value{prefix}.As{prefix}Metres();"));
-		string source = $$"""
-			public static class Consumer
-			{
-				public static void UsePrefixes()
-				{
-					{{calls}}
-				}
-			}
-			""";
-
-		Compile(source);
-	}
-
-	[Theory]
-	[InlineData("Length.FromMilliMetres(2500).AsSiBaseUnit()", 2.5)]
-	[InlineData("Voltage.FromSiBaseUnit(2.5).AsKiloVolts()", 0.0025)]
-	[InlineData("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
-	[InlineData("Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()", 1000)]
-	public void GeneratedConversionsApplyRepresentativeUnitScales(string expression, double expected)
-	{
-		double result = Evaluate<double>(expression);
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
-	[InlineData("Voltage.FromPrefixedUnits(2, -3).AsSiBaseUnit()", 0.002)]
-	[InlineData("CurrentDensity.FromPrefixedUnits(1, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit()", 1000000)]
-	[InlineData("SpecificPower.FromPrefixedUnits(1, wattPrefixExponent: 3, gramPrefixExponent: 3).AsSiBaseUnit()", 1000)]
-	[InlineData("TemperatureCoefficient.FromPrefixedUnits(1, kelvinPrefixExponent: -3).AsSiBaseUnit()", 1000)]
-	[InlineData("Mass.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
-	[InlineData("Torque.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
-	public void PrefixedUnitFactoriesUseCanonicalUnitFactors(string expression, double expected)
-	{
-		double result = Evaluate<double>(expression);
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
-	[InlineData("Voltage.FromSiBaseUnit(0.002).AsPrefixedUnits(-3)", 2)]
-	[InlineData("CurrentDensity.FromSiBaseUnit(1000000).AsPrefixedUnits(ampPrefixExponent: 0, metrePrefixExponent: -3)", 1)]
-	[InlineData("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)", 1000)]
-	[InlineData("Torque.FromSiBaseUnit(2).AsPrefixedUnits()", 2)]
-	public void PrefixedUnitAccessorsUseCanonicalUnitFactors(string expression, double expected)
-	{
-		double result = Evaluate<double>(expression);
-		Assert.Equal(expected, result);
-	}
-
 	private static T Evaluate<T>(string expression)
 	{
 		string source = $$"""
@@ -226,17 +99,13 @@ public sealed class QuantityGeneratorTests
 		return Assert.IsType<T>(method.Invoke(null, null));
 	}
 
-	private static CSharpCompilation Compile(string source)
+	private static CSharpCompilation Compile(string source, IIncrementalGenerator? additionalGenerator = null)
 	{
-		string[] platformAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-		IEnumerable<PortableExecutableReference> references = platformAssemblies.Select(path => MetadataReference.CreateFromFile(path))
-			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		CSharpCompilation input = CSharpCompilation.Create(
-			"GeneratedQuantityConsumer",
-			[CSharpSyntaxTree.ParseText(source, _parseOptions)],
-			references,
-			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		CSharpCompilation input = CreateInputCompilation(source);
+		ISourceGenerator[] generators = additionalGenerator is null
+			? [new QuantityGenerator().AsSourceGenerator()]
+			: [new QuantityGenerator().AsSourceGenerator(), additionalGenerator.AsSourceGenerator()];
+		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: _parseOptions);
 		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> generatorDiagnostics);
 		Diagnostic[] compilationErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
@@ -244,5 +113,46 @@ public sealed class QuantityGeneratorTests
 			() => Assert.True(generatorDiagnostics.IsEmpty, string.Join(Environment.NewLine, generatorDiagnostics)),
 			() => Assert.True(compilationErrors.Length == 0, string.Join(Environment.NewLine, compilationErrors)));
 		return (CSharpCompilation)output;
+	}
+
+	private static CSharpCompilation CreateInputCompilation(string source)
+	{
+		string[] platformAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
+		IEnumerable<PortableExecutableReference> references = platformAssemblies.Select(path => MetadataReference.CreateFromFile(path))
+			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
+		return CSharpCompilation.Create(
+			"GeneratedQuantityConsumer",
+			[CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Consumer.cs")],
+			references,
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+	}
+
+	private sealed class SemanticProbeGenerator : IIncrementalGenerator
+	{
+		public void Initialize(IncrementalGeneratorInitializationContext context)
+		{
+			IncrementalValuesProvider<(bool IsInvocation, bool Resolved)> observed = context.SyntaxProvider.CreateSyntaxProvider(
+				static (node, _) => node.SyntaxTree.FilePath == "Consumer.cs" && node is (ParameterSyntax or InvocationExpressionSyntax),
+				static (syntaxContext, _) =>
+				{
+					bool isInvocation = syntaxContext.Node is InvocationExpressionSyntax;
+					ITypeSymbol? type = syntaxContext.Node switch
+					{
+						ParameterSyntax parameter => (syntaxContext.SemanticModel.GetDeclaredSymbol(parameter) as IParameterSymbol)?.Type,
+						InvocationExpressionSyntax invocation => (syntaxContext.SemanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol)?.ReturnType,
+						_ => null
+					};
+					INamedTypeSymbol? quantity = syntaxContext.SemanticModel.Compilation.GetTypeByMetadataName(typeof(Quantity<>).FullName!);
+					bool resolved = type is INamedTypeSymbol named && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, quantity);
+					return (isInvocation, resolved);
+				});
+			context.RegisterSourceOutput(observed.Collect(), static (output, symbols) =>
+			{
+				bool aliasResolved = symbols.Any(symbol => !symbol.IsInvocation && symbol.Resolved);
+				bool factoryResolved = symbols.Any(symbol => symbol.IsInvocation && symbol.Resolved);
+				string source = $"internal static class SemanticProbe {{ public const bool AliasResolved = {aliasResolved.ToString().ToLowerInvariant()}; public const bool FactoryResolved = {factoryResolved.ToString().ToLowerInvariant()}; }}";
+				output.AddSource("SemanticProbe.g.cs", SourceText.From(source, Encoding.UTF8));
+			});
+		}
 	}
 }

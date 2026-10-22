@@ -2,6 +2,7 @@ using System.Globalization;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Naming;
 using DimensionalQuantities.Numerics;
+using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.TypeSystem;
 using DimensionalQuantities.Units;
 
@@ -9,10 +10,10 @@ namespace DimensionalQuantities.Roslyn.Generators;
 
 internal static class QuantitySourceEmitter
 {
-	public static string Emit(IReadOnlyDictionary<Dimension, UnitDefinition[]> quantities)
+	public static string Emit(IReadOnlyList<PlannedQuantity> quantities)
 	{
 		int[] prefixes = SiPrefixes.Entries.Keys.OrderByDescending(exponent => exponent).ToArray();
-		QuantityDefinition[] definitions = quantities.Select(entry => DefineQuantity(entry.Key, entry.Value, prefixes)).ToArray();
+		QuantityDefinition[] definitions = quantities.Select(quantity => DefineQuantity(quantity, prefixes)).ToArray();
 		string aliases = string.Join("\n", definitions.SelectMany(definition => definition.Aliases.Select(alias => $"global using {alias} = {definition.TypeName};")));
 		string extensions = string.Join("\n\n", definitions.Select(RenderQuantity));
 
@@ -27,20 +28,24 @@ internal static class QuantitySourceEmitter
 			""";
 	}
 
-	private static QuantityDefinition DefineQuantity(Dimension dimension, UnitDefinition[] units, int[] prefixes)
+	private static QuantityDefinition DefineQuantity(PlannedQuantity quantity, int[] prefixes)
 	{
+		Dimension dimension = quantity.Dimension;
+		IReadOnlyList<UnitDefinition> units = quantity.Units;
 		string typeName = $"global::DimensionalQuantities.TypeSystem.Quantity<global::DimensionalQuantities.TypeSystem.Dimension<{string.Join(", ", GetExponentTypes(dimension).Select(FormatType))}>>";
 		string[] aliases = units.Select(unit => unit.QuantityName).Append(DimensionNameGenerator.GetQuantityName(dimension)).Distinct(StringComparer.Ordinal).ToArray();
 		string quantityName = units[0].QuantityName;
 		UnitExpression canonicalExpression = units[0].Expression;
 		ConversionDefinition genericConversion = new("FromPrefixedUnits", "AsPrefixedUnits", GetTermParameters(canonicalExpression), GetTermScaleExponent(canonicalExpression));
-		ConversionDefinition[] namedConversions = CollectConversions(units, prefixes)
-			.Select(conversion => new ConversionDefinition($"From{conversion.Key}", $"As{conversion.Key}", [], FormatExponent(conversion.Value)))
-			.ToArray();
+		ConversionDefinition[] namedConversions = quantity.IncludeNamedConversions
+			? CollectConversions(units, prefixes)
+				.Select(conversion => new ConversionDefinition($"From{conversion.Key}", $"As{conversion.Key}", [], FormatExponent(conversion.Value)))
+				.ToArray()
+			: [];
 		return new(quantityName, typeName, aliases, [genericConversion, .. namedConversions]);
 	}
 
-	private static IReadOnlyDictionary<string, Rational> CollectConversions(UnitDefinition[] units, int[] prefixes)
+	private static IReadOnlyDictionary<string, Rational> CollectConversions(IReadOnlyList<UnitDefinition> units, int[] prefixes)
 	{
 		Dictionary<string, Rational> conversions = new(StringComparer.Ordinal);
 		foreach ((string name, Rational scaleExponent) in units.SelectMany(unit => GetConversions(unit, prefixes)))

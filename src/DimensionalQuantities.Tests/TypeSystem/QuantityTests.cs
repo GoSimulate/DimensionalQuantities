@@ -44,6 +44,22 @@ namespace DimensionalQuantities.Tests.TypeSystem;
 
 public sealed class QuantityTests
 {
+	[Fact]
+	public void MultiplyingAndDividingByScalarsPreservesQuantityTypeAndSiMagnitude()
+	{
+		Current original = Current.FromSiBaseUnit(6);
+		Current rightProduct = original * 2;
+		Current leftProduct = 2f * original;
+		Current quotient = original / 2;
+		Current expectedProduct = Current.FromSiBaseUnit(12);
+		Current expectedQuotient = Current.FromSiBaseUnit(3);
+
+		Assert.Multiple(
+			() => Assert.Equal(expectedProduct, rightProduct),
+			() => Assert.Equal(expectedProduct, leftProduct),
+			() => Assert.Equal(expectedQuotient, quotient));
+	}
+
 	[Theory]
 	[InlineData(0)]
 	[InlineData(-0.125)]

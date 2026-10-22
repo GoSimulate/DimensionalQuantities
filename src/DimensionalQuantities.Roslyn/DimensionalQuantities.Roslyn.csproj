@@ -9,4 +9,7 @@
     <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests" />
+  </ItemGroup>
 </Project>
