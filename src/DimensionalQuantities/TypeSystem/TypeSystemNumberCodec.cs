@@ -28,7 +28,10 @@ internal static class TypeSystemNumberCodec
 
 	public static Rational Parse(Type type)
 	{
-		ArgumentNullException.ThrowIfNull(type);
+		if (type is null)
+		{
+			throw new ArgumentNullException(nameof(type));
+		}
 
 		int digit = Array.IndexOf(_terminalDigits, type);
 		if (digit >= 0)

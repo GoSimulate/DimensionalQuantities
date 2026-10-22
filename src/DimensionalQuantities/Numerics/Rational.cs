@@ -3,7 +3,7 @@ using System.Numerics;
 namespace DimensionalQuantities.Numerics;
 
 /// <summary>An exact, reduced fraction with a positive denominator. Default is zero.</summary>
-internal readonly partial record struct Rational : INumber<Rational>
+internal readonly partial record struct Rational
 {
 	// Offset storage makes the zero-initialised struct represent 0/1.
 	private readonly BigInteger _denominatorMinusOne;

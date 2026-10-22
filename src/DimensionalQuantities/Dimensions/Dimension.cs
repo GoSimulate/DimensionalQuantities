@@ -92,7 +92,10 @@ internal readonly record struct Dimension(
 	/// </summary>
 	public Dimension Root(int degree)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
+		if (degree <= 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(degree));
+		}
 
 		return Pow(new(1, degree));
 	}

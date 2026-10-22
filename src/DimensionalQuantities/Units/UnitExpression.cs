@@ -93,13 +93,13 @@ internal readonly record struct UnitExpression
 
 	public override int GetHashCode()
 	{
-		HashCode hash = new();
+		int hash = 17;
 		foreach (UnitTerm term in Terms ?? [])
 		{
-			hash.Add(term);
+			hash = unchecked(hash * 31 + term.GetHashCode());
 		}
 
-		return hash.ToHashCode();
+		return hash;
 	}
 
 	private static void AppendRootName(StringBuilder name, Rational power)

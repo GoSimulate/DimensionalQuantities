@@ -55,7 +55,10 @@ internal static class QuantitySourceEmitter
 				throw new InvalidOperationException($"Unit {name} has conflicting SI scales.");
 			}
 
-			conversions.TryAdd(name, scaleExponent);
+			if (!conversions.ContainsKey(name))
+			{
+				conversions.Add(name, scaleExponent);
+			}
 		}
 
 		return conversions;
@@ -142,7 +145,7 @@ internal static class QuantitySourceEmitter
 		return $"public double {conversion.AccessorName}({parameters}) => {variableName}.AsArbitrarySiComponents(overallScaleExponent: {conversion.ScaleExponentExpression});";
 	}
 
-	private static string FormatExponent(Rational exponent) => double.CreateChecked(exponent).ToString("R", CultureInfo.InvariantCulture) + "d";
+	private static string FormatExponent(Rational exponent) => ((double)exponent).ToString("R", CultureInfo.InvariantCulture) + "d";
 
 	private static Type[] GetExponentTypes(Dimension dimension) =>
 	[

@@ -23,7 +23,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 	{
 		string sourceProject = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "DimensionalQuantities", "DimensionalQuantities.csproj"));
 		FileInfo nupkg = PackLibrary(sourceProject, _scratch);
-		using PackageRepository repository = PackageRepository.Create(_scratch);
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
 		repository.Package(nupkg, out Package package);
 
 		string consumerDirectory = Path.Combine(_scratch, "consumer");
@@ -39,9 +39,18 @@ public sealed class PackagedGeneratorTests : IDisposable
 					Voltage voltage = Voltage.FromVolts(volts);
 					return voltage.AsVolts();
 				}
+
+				public static double MultiplyVoltageCurrent(double volts, double amps)
+				{
+					Voltage voltage = Voltage.FromVolts(volts);
+					Current current = Current.FromAmps(amps);
+					Power power = voltage * current;
+					return power.AsWatts();
+				}
 			}
 			""");
-		ProjectCreator creator = ProjectCreator.Templates.SdkCsproj(path: consumerProject, targetFramework: "net10.0")
+		ProjectCreator creator = ProjectCreator.Templates.SdkCsproj(path: consumerProject, targetFramework: "netstandard2.0")
+			.Property("LangVersion", "14.0")
 			.ItemPackageReference(package)
 			.Save();
 
@@ -51,13 +60,16 @@ public sealed class PackagedGeneratorTests : IDisposable
 			Assert.True(built, $"Consumer build failed.{Environment.NewLine}{output.GetConsoleLog()}");
 		}
 
-		string assemblyFile = Path.Combine(consumerDirectory, "bin", "Debug", "net10.0", "Consumer.dll");
+		string assemblyFile = Path.Combine(consumerDirectory, "bin", "Debug", "netstandard2.0", "Consumer.dll");
 		Assembly assembly = Assembly.LoadFrom(assemblyFile);
 		Type consumerType = assembly.GetType("ConsumerProject.Consumer") ?? throw new InvalidOperationException("Consumer type was not built.");
 		MethodInfo convertVoltage = consumerType.GetMethod("ConvertVoltage") ?? throw new InvalidOperationException("Consumer Voltage conversion was not built.");
+		MethodInfo multiplyVoltageCurrent = consumerType.GetMethod("MultiplyVoltageCurrent") ?? throw new InvalidOperationException("Consumer arithmetic was not built.");
 		double result = Assert.IsType<double>(convertVoltage.Invoke(null, [12.5]));
-		double expected = 12.5;
-		Assert.Equal(expected, result);
+		double product = Assert.IsType<double>(multiplyVoltageCurrent.Invoke(null, [12.5, 2.0]));
+		Assert.Multiple(
+			() => Assert.Equal(12.5, result),
+			() => Assert.Equal(25.0, product));
 	}
 
 	public void Dispose()

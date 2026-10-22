@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -15,8 +14,8 @@ internal static class DimensionNameGenerator
 
 	public static string GetUnitExpression(Dimension dimension)
 	{
-		ImmutableArray<DimensionComponent> components = dimension.GetComponents().ToImmutableArray();
-		if (components.IsEmpty)
+		DimensionComponent[] components = dimension.GetComponents().ToArray();
+		if (components.Length == 0)
 		{
 			throw new NotSupportedException("Dimensionless names are not defined.");
 		}
@@ -36,8 +35,8 @@ internal static class DimensionNameGenerator
 
 	private static string GetName(Dimension dimension, Func<DimensionComponent, string> getFactorName)
 	{
-		ImmutableArray<DimensionComponent> components = dimension.GetComponents().ToImmutableArray();
-		if (components.IsEmpty)
+		DimensionComponent[] components = dimension.GetComponents().ToArray();
+		if (components.Length == 0)
 		{
 			throw new NotSupportedException("Dimensionless names are not defined.");
 		}

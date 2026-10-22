@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using DimensionalQuantities.Numerics;
 using Xunit;
 
@@ -73,54 +72,31 @@ public sealed partial class RationalTests
 	}
 
 	[Fact]
-	public void CharacterSpanFormattingAndParsingRoundTrip()
+	public void StringFormattingAndParsingRoundTrip()
 	{
 		Rational original = new(-3, 4);
-		Span<char> buffer = stackalloc char[20];
-		bool formatted = original.TryFormat(buffer, out int written, default, CultureInfo.InvariantCulture);
-		bool parsed = Rational.TryParse(buffer[..written], CultureInfo.InvariantCulture, out Rational result);
-		string formattedText = new(buffer[..written]);
+		string formattedText = original.ToString(null, CultureInfo.InvariantCulture);
+		bool parsed = Rational.TryParse(formattedText, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = new(-3, 4);
 
 		Assert.Multiple(
-			() => Assert.True(formatted),
 			() => Assert.True(parsed),
 			() => Assert.Equal("-3/4", formattedText),
 			() => Assert.Equal(expected, result));
 	}
 
 	[Fact]
-	public void Utf8FormattingAndParsingHonourCulture()
+	public void FormattingAndParsingHonourCulture()
 	{
 		Rational original = new(-3, 4);
 		NumberFormatInfo provider = new() { NegativeSign = "−" };
-		Span<byte> buffer = stackalloc byte[20];
-		bool formatted = original.TryFormat(buffer, out int written, default, provider);
-		bool parsed = Rational.TryParse(buffer[..written], provider, out Rational result);
-		string formattedText = Encoding.UTF8.GetString(buffer[..written]);
+		string formattedText = original.ToString(null, provider);
+		bool parsed = Rational.TryParse(formattedText, provider, out Rational result);
 		Rational expected = new(-3, 4);
 
 		Assert.Multiple(
-			() => Assert.True(formatted),
 			() => Assert.True(parsed),
 			() => Assert.Equal("−3/4", formattedText),
 			() => Assert.Equal(expected, result));
-	}
-
-	[Fact]
-	public void FormattingReportsInsufficientDestination()
-	{
-		Rational original = new(3, 4);
-		Span<char> characters = stackalloc char[2];
-		Span<byte> bytes = stackalloc byte[2];
-
-		bool charactersFormatted = original.TryFormat(characters, out int charsWritten, default, CultureInfo.InvariantCulture);
-		bool bytesFormatted = original.TryFormat(bytes, out int bytesWritten, default, CultureInfo.InvariantCulture);
-
-		Assert.Multiple(
-			() => Assert.False(charactersFormatted),
-			() => Assert.False(bytesFormatted),
-			() => Assert.Equal(0, charsWritten),
-			() => Assert.Equal(0, bytesWritten));
 	}
 }

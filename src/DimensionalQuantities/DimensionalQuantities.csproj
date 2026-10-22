@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Authors>GoSim</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -19,13 +19,14 @@
   <ItemGroup>
     <None Include="../../LICENSE" Pack="true" PackagePath="" />
     <None Include="../../README.md" Pack="true" PackagePath="" />
-    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/net10.0/DimensionalQuantities.Roslyn.dll"
+    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="bin/$(Configuration)/net10.0/DimensionalQuantities.dll"
+    <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" PrivateAssets="all" />
+    <PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DimensionalQuantities.Tests" />

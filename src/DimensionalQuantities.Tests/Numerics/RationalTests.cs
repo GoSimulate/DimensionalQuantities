@@ -150,17 +150,6 @@ public sealed partial class RationalTests
 	}
 
 	[Fact]
-	public void GenericMathAcceptsRational()
-	{
-		Rational original = new(1, 3);
-		Rational operand = new(1, 6);
-		Rational result = Add(original, operand);
-		Rational expected = new(1, 2);
-
-		Assert.Equal(expected, result);
-	}
-
-	[Fact]
 	public void ComparisonUsesFractionValues()
 	{
 		Rational original = new(-1, 2);
@@ -285,5 +274,4 @@ public sealed partial class RationalTests
 		Assert.Equal(expected, result);
 	}
 
-	private static T Add<T>(T left, T right) where T : INumber<T> => left + right;
 }

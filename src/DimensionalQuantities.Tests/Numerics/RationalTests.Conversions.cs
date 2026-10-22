@@ -7,87 +7,71 @@ namespace DimensionalQuantities.Tests.Numerics;
 public sealed partial class RationalTests
 {
 	[Fact]
-	public void DecimalConversionPreservesExactBaseTenValue()
+	public void DecimalCastPreservesExactBaseTenValue()
 	{
 		decimal original = 0.1m;
-		Rational result = Rational.CreateChecked(original);
-		Rational expected = new(1, 10);
+		Rational result = (Rational)original;
 
 		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(original, decimal.CreateChecked(result)));
+			() => Assert.Equal(new Rational(1, 10), result),
+			() => Assert.Equal(original, (decimal)result));
 	}
 
 	[Fact]
-	public void DoubleConversionPreservesExactBinaryValue()
+	public void DoubleCastPreservesExactBinaryValue()
 	{
 		double original = 0.1d;
-		Rational result = Rational.CreateChecked(original);
-		Rational expected = new(3602879701896397, 36028797018963968);
+		Rational result = (Rational)original;
 
 		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(original, double.CreateChecked(result)));
-	}
-
-	[Fact]
-	public void GenericInputModesPreserveFiniteFractions()
-	{
-		Rational checkedResult = Rational.CreateChecked(0.125m);
-		Rational saturatingResult = Rational.CreateSaturating(0.125m);
-		Rational truncatingResult = Rational.CreateTruncating(0.125m);
-		Rational expected = new(1, 8);
-
-		Assert.Multiple(
-			() => Assert.Equal(expected, checkedResult),
-			() => Assert.Equal(expected, saturatingResult),
-			() => Assert.Equal(expected, truncatingResult));
+			() => Assert.Equal(new Rational(3602879701896397, 36028797018963968), result),
+			() => Assert.Equal(original, (double)result));
 	}
 
 	[Theory]
 	[InlineData(double.NaN)]
 	[InlineData(double.PositiveInfinity)]
 	[InlineData(double.NegativeInfinity)]
-	public void NonFiniteNumbersHaveNoRationalRepresentation(double value)
+	public void NonFiniteNumbersHaveNoRationalRepresentation(double value) =>
+		Assert.Throws<OverflowException>(() => (Rational)value);
+
+	[Fact]
+	public void IntegerCastsTruncateTowardsZeroAndCheckRange()
 	{
+		Rational fraction = new(-7, 3);
+		Rational tooLarge = new(601, 2);
+
 		Assert.Multiple(
-			() => Assert.Throws<OverflowException>(() => Rational.CreateChecked(value)),
-			() => Assert.Throws<OverflowException>(() => Rational.CreateSaturating(value)),
-			() => Assert.Throws<OverflowException>(() => Rational.CreateTruncating(value)));
+			() => Assert.Equal(-2, (int)fraction),
+			() => Assert.Equal((byte)42, (byte)new Rational(85, 2)),
+			() => Assert.Throws<OverflowException>(() => (byte)tooLarge));
 	}
 
 	[Fact]
-	public void IntegralConversionDiscardsFractionTowardsZero()
+	public void IntegerCastsCoverSignedAndUnsignedRanges()
 	{
-		Rational original = new(-7, 3);
-		int result = int.CreateChecked(original);
-		int expected = -2;
-
-		Assert.Equal(expected, result);
-	}
-
-	[Fact]
-	public void IntegralOutputModesUseTargetConversionRules()
-	{
-		Rational original = new(601, 2);
-		byte saturatingResult = byte.CreateSaturating(original);
-		byte truncatingResult = byte.CreateTruncating(original);
+		Rational value = new(42);
+		Rational negative = new(-1);
 
 		Assert.Multiple(
-			() => Assert.Equal(byte.MaxValue, saturatingResult),
-			() => Assert.Equal((byte)44, truncatingResult),
-			() => Assert.Throws<OverflowException>(() => byte.CreateChecked(original)));
+			() => Assert.Equal((sbyte)42, (sbyte)value),
+			() => Assert.Equal((short)42, (short)value),
+			() => Assert.Equal((ushort)42, (ushort)value),
+			() => Assert.Equal(42u, (uint)value),
+			() => Assert.Equal(42L, (long)value),
+			() => Assert.Equal(42UL, (ulong)value),
+			() => Assert.Throws<OverflowException>(() => (uint)negative),
+			() => Assert.Throws<OverflowException>(() => (sbyte)new Rational(128)));
 	}
 
 	[Fact]
 	public void BigIntegerRoundTripPreservesWholeValue()
 	{
 		BigInteger original = BigInteger.One << 128;
-		Rational converted = Rational.CreateChecked(original);
-		BigInteger result = BigInteger.CreateChecked(converted);
-		BigInteger expected = original;
+		Rational converted = original;
+		BigInteger result = (BigInteger)converted;
 
-		Assert.Equal(expected, result);
+		Assert.Equal(original, result);
 	}
 
 	[Fact]
@@ -96,18 +80,14 @@ public sealed partial class RationalTests
 		Rational expected = new(42);
 
 		Assert.Multiple(
-			() => Assert.Equal(expected, Rational.CreateChecked((byte)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((sbyte)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((short)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((ushort)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked(42)),
-			() => Assert.Equal(expected, Rational.CreateChecked(42u)),
-			() => Assert.Equal(expected, Rational.CreateChecked(42L)),
-			() => Assert.Equal(expected, Rational.CreateChecked(42UL)),
-			() => Assert.Equal(expected, Rational.CreateChecked((nint)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((nuint)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((Int128)42)),
-			() => Assert.Equal(expected, Rational.CreateChecked((UInt128)42)));
+			() => Assert.Equal(expected, (Rational)(byte)42),
+			() => Assert.Equal(expected, (Rational)(sbyte)42),
+			() => Assert.Equal(expected, (Rational)(short)42),
+			() => Assert.Equal(expected, (Rational)(ushort)42),
+			() => Assert.Equal(expected, (Rational)42),
+			() => Assert.Equal(expected, (Rational)42u),
+			() => Assert.Equal(expected, (Rational)42L),
+			() => Assert.Equal(expected, (Rational)42UL));
 	}
 
 	[Theory]
@@ -118,11 +98,8 @@ public sealed partial class RationalTests
 	[InlineData(double.MinValue)]
 	public void DoubleRoundTripPreservesRepresentableValues(double original)
 	{
-		Rational converted = Rational.CreateChecked(original);
-		double result = double.CreateChecked(converted);
-		double expected = original;
-
-		Assert.Equal(expected, result);
+		Rational converted = (Rational)original;
+		Assert.Equal(original, (double)converted);
 	}
 
 	[Theory]
@@ -131,32 +108,15 @@ public sealed partial class RationalTests
 	[InlineData(-0.1f)]
 	public void SingleRoundTripPreservesRepresentableValues(float original)
 	{
-		Rational converted = Rational.CreateChecked(original);
-		float result = float.CreateChecked(converted);
-		float expected = original;
-
-		Assert.Equal(expected, result);
-	}
-
-	[Fact]
-	public void HalfRoundTripPreservesRepresentableValues()
-	{
-		Half original = Half.Epsilon;
-		Rational converted = Rational.CreateChecked(original);
-		Half result = Half.CreateChecked(converted);
-		Half expected = original;
-
-		Assert.Equal(expected, result);
+		Rational converted = (Rational)original;
+		Assert.Equal(original, (float)converted);
 	}
 
 	[Fact]
 	public void BinaryConversionRoundsMidpointToEven()
 	{
 		Rational original = new((BigInteger.One << 53) + 1, BigInteger.One << 53);
-		double result = double.CreateChecked(original);
-		double expected = 1.0;
-
-		Assert.Equal(expected, result);
+		Assert.Equal(1.0, (double)original);
 	}
 
 	[Fact]
@@ -164,35 +124,34 @@ public sealed partial class RationalTests
 	{
 		BigInteger scale = BigInteger.One << 2000;
 		Rational original = new(scale + 1, 2 * scale + 1);
-		double result = double.CreateChecked(original);
-		double expected = 0.5;
+		Assert.Equal(0.5, (double)original);
+	}
 
-		Assert.Equal(expected, result);
+	[Fact]
+	public void BinaryConversionRoundsAtSubnormalBoundary()
+	{
+		Rational halfwayToMinimum = new(1, BigInteger.One << 1075);
+		Rational halfwayToSecond = new(3, BigInteger.One << 1075);
+
+		Assert.Multiple(
+			() => Assert.Equal(0.0, (double)halfwayToMinimum),
+			() => Assert.Equal(2 * double.Epsilon, (double)halfwayToSecond));
 	}
 
 	[Fact]
 	public void DecimalConversionRoundsRepeatingFractions()
 	{
 		Rational original = new(1, 3);
-		decimal result = decimal.CreateChecked(original);
-		decimal expected = 1m / 3m;
-
-		Assert.Equal(expected, result);
+		Assert.Equal(1m / 3m, (decimal)original);
 	}
 
 	[Fact]
-	public void DecimalOutputModesRespectTargetRange()
+	public void DecimalCastRejectsOutOfRangeValue()
 	{
 		Rational original = new(new BigInteger(decimal.MaxValue) + 1);
-		decimal saturatingResult = decimal.CreateSaturating(original);
-		decimal truncatingResult = decimal.CreateTruncating(original);
-		decimal expected = decimal.MaxValue;
-
-		Assert.Multiple(
-			() => Assert.Equal(expected, saturatingResult),
-			() => Assert.Equal(expected, truncatingResult),
-			() => Assert.Throws<OverflowException>(() => decimal.CreateChecked(original)));
+		Assert.Throws<OverflowException>(() => (decimal)original);
 	}
+
 	[Theory]
 	[InlineData(1.5)]
 	[InlineData(-0.125)]
@@ -200,30 +159,10 @@ public sealed partial class RationalTests
 	public void RealComplexInputsPreserveFractions(double real)
 	{
 		Complex original = new(real, 0);
-		Rational checkedResult = Rational.CreateChecked(original);
-		Rational saturatingResult = Rational.CreateSaturating(original);
-		Rational truncatingResult = Rational.CreateTruncating(original);
-		Rational expected = Rational.CreateChecked(real);
-
+		Rational converted = (Rational)original;
 		Assert.Multiple(
-			() => Assert.Equal(expected, checkedResult),
-			() => Assert.Equal(expected, saturatingResult),
-			() => Assert.Equal(expected, truncatingResult));
-	}
-
-	[Fact]
-	public void ComplexOutputsPreserveFractionalRealPart()
-	{
-		Rational original = new(3, 2);
-		Complex checkedResult = Complex.CreateChecked(original);
-		Complex saturatingResult = Complex.CreateSaturating(original);
-		Complex truncatingResult = Complex.CreateTruncating(original);
-		Complex expected = new(1.5, 0);
-
-		Assert.Multiple(
-			() => Assert.Equal(expected, checkedResult),
-			() => Assert.Equal(expected, saturatingResult),
-			() => Assert.Equal(expected, truncatingResult));
+			() => Assert.Equal((Rational)real, converted),
+			() => Assert.Equal(original, (Complex)converted));
 	}
 
 	[Theory]
@@ -232,10 +171,6 @@ public sealed partial class RationalTests
 	public void NonRealComplexInputsAreRejected(double imaginary)
 	{
 		Complex original = new(1.5, imaginary);
-
-		Assert.Multiple(
-			() => Assert.Throws<RationalNumberCantHaveComplexComponentsException>(() => Rational.CreateChecked(original)),
-			() => Assert.Throws<RationalNumberCantHaveComplexComponentsException>(() => Rational.CreateSaturating(original)),
-			() => Assert.Throws<RationalNumberCantHaveComplexComponentsException>(() => Rational.CreateTruncating(original)));
+		Assert.Throws<RationalNumberCantHaveComplexComponentsException>(() => (Rational)original);
 	}
 }
