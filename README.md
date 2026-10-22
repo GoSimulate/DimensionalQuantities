@@ -1,5 +1,11 @@
 # DimensionalQuantities
 
+[![CI](https://img.shields.io/github/actions/workflow/status/GoSimulate/DimensionalQuantities/ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/GoSimulate/DimensionalQuantities/actions/workflows/ci.yml)
+[![CD](https://img.shields.io/github/actions/workflow/status/GoSimulate/DimensionalQuantities/cd.yml?branch=main&style=for-the-badge&logo=github&label=CD)](https://github.com/GoSimulate/DimensionalQuantities/actions/workflows/cd.yml)
+[![NuGet](https://img.shields.io/nuget/v/DimensionalQuantities?style=for-the-badge&logo=nuget)](https://www.nuget.org/packages/DimensionalQuantities/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/DimensionalQuantities?style=for-the-badge)](https://www.nuget.org/packages/DimensionalQuantities/)
+[![License](https://img.shields.io/github/license/GoSimulate/DimensionalQuantities?style=for-the-badge)](LICENSE)
+
 A C# library for dimensional quantities, with generated type aliases, SI unit conversions, and compile-time dimensional arithmetic.
 
 > [!WARNING]
