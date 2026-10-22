@@ -1,10 +1,12 @@
+using DimensionalQuantities.Units;
+
 namespace DimensionalQuantities.DimensionAnalysis;
 
 /// <summary>Recognised names and units for engineering dimensions.</summary>
 internal static class EngineeringCatalogue
 {
-	private static readonly UnitExpression _density = new(new(AtomicUnits.Gram, PrefixExponent: 3), new(AtomicUnits.Metre, -3));
-	private static readonly UnitExpression _specificPower = new(new(AtomicUnits.Watt), new(AtomicUnits.Gram, -1, 3));
+	private static readonly UnitExpression _density = new(new(AtomicUnits.Gram, PrefixExponent: SiPrefixes.Kilo), new(AtomicUnits.Metre, -3));
+	private static readonly UnitExpression _specificPower = new(new(AtomicUnits.Watt), new(AtomicUnits.Gram, -1, SiPrefixes.Kilo));
 	private static readonly UnitExpression _powerDensity = new(new(AtomicUnits.Watt), new(AtomicUnits.Metre, -3));
 	private static readonly UnitExpression _magneticFieldStrength = new(new(AtomicUnits.Amp), new(AtomicUnits.Metre, -1));
 	private static readonly UnitExpression _currentDensity = new(new(AtomicUnits.Amp), new(AtomicUnits.Metre, -2));
@@ -14,7 +16,7 @@ internal static class EngineeringCatalogue
 		{ new(Length: 2), [new("Area", [new(AtomicUnits.Metre, 2)])] },
 		{ new(Length: 3), [new("Volume", [new(AtomicUnits.Metre, 3)])] },
 		{ new(Time: -1), [new("Frequency", [new(AtomicUnits.Hertz)]), new("AngularVelocity", [new(AtomicUnits.Radian), new(AtomicUnits.Second, -1)])] },
-		{ new(Length: -3, Mass: 1), [new("Density", _density, [_density.WithPrefix(0, 0).WithPrefix(1, -2)])] },
+		{ new(Length: -3, Mass: 1), [new("Density", _density, [new(new(AtomicUnits.Gram), new(AtomicUnits.Metre, Power: -3, PrefixExponent: SiPrefixes.Centi))])] },
 		{
 			new(Length: -1, Mass: 1, Time: -2),
 			[
@@ -41,7 +43,7 @@ internal static class EngineeringCatalogue
 			]
 		},
 		{ new(Length: -1, ElectricCurrent: 1), [new("MagneticFieldStrength", _magneticFieldStrength), new("CoerciveFieldStrength", _magneticFieldStrength)] },
-		{ new(Length: -2, ElectricCurrent: 1), [new("CurrentDensity", _currentDensity, [_currentDensity.WithPrefix(1, -3)])] },
+		{ new(Length: -2, ElectricCurrent: 1), [new("CurrentDensity", _currentDensity, [new(new(AtomicUnits.Amp), new(AtomicUnits.Metre, Power: -2, PrefixExponent: SiPrefixes.Milli))])] },
 		{ new(Length: 1, Mass: 1, Time: -2, ElectricCurrent: -2), [new("Permeability", [new(AtomicUnits.Henry), new(AtomicUnits.Metre, -1)])] },
 		{ new(Length: 3, Mass: 1, Time: -3, ElectricCurrent: -2), [new("Resistivity", [new(AtomicUnits.Ohm), new(AtomicUnits.Metre)])] },
 		{ new(Length: -3, Mass: -1, Time: 3, ElectricCurrent: 2), [new("Conductivity", [new(AtomicUnits.Siemens), new(AtomicUnits.Metre, -1)])] },
