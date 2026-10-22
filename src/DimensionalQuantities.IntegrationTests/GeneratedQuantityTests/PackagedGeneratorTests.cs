@@ -19,7 +19,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 	}
 
 	[Fact]
-	public void PackagedGeneratorCreatesVoltageThatRoundtripsInConsumer()
+	public void PackagedGeneratorConvertsPrefixedVoltageInConsumer()
 	{
 		string sourceProject = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "DimensionalQuantities", "DimensionalQuantities.csproj"));
 		FileInfo nupkg = PackLibrary(sourceProject, _scratch);
@@ -34,11 +34,11 @@ public sealed class PackagedGeneratorTests : IDisposable
 
 			public static class Consumer
 			{
-				public static double Roundtrip(double value)
+				public static double Convert(double milliVolts)
 				{
-					Voltage original = Voltage.FromVolts(value);
+					Voltage original = Voltage.FromMilliVolts(milliVolts);
 					LengthSquaredMassPerTimeCubedCurrent equivalent = original;
-					return equivalent.AsVolts();
+					return equivalent.AsKiloVolts();
 				}
 			}
 			""");
@@ -55,9 +55,9 @@ public sealed class PackagedGeneratorTests : IDisposable
 		string assemblyFile = Path.Combine(consumerDirectory, "bin", "Debug", "net10.0", "Consumer.dll");
 		Assembly assembly = Assembly.LoadFrom(assemblyFile);
 		Type consumerType = assembly.GetType("ConsumerProject.Consumer") ?? throw new InvalidOperationException("Consumer type was not built.");
-		MethodInfo roundtrip = consumerType.GetMethod("Roundtrip") ?? throw new InvalidOperationException("Consumer roundtrip was not built.");
-		double result = Assert.IsType<double>(roundtrip.Invoke(null, [12.5]));
-		double expected = 12.5;
+		MethodInfo convert = consumerType.GetMethod("Convert") ?? throw new InvalidOperationException("Consumer conversion was not built.");
+		double result = Assert.IsType<double>(convert.Invoke(null, [12500]));
+		double expected = 0.0125;
 
 		Assert.Equal(expected, result);
 	}
