@@ -8,7 +8,7 @@ packages = list(Path("artifacts/packages").glob("*.nupkg"))
 assert len(packages) == 1, packages
 with zipfile.ZipFile(packages[0]) as package:
     names = package.namelist()
-    assert "lib/net10.0/DimensionalQuantities.dll" in names
+    assert "lib/netstandard2.0/DimensionalQuantities.dll" in names
     assert "analyzers/dotnet/cs/DimensionalQuantities.Roslyn.dll" in names
     assert not any("Microsoft.CodeAnalysis" in name for name in names)
     specification = ET.fromstring(package.read("DimensionalQuantities.nuspec"))

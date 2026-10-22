@@ -4,68 +4,43 @@ namespace DimensionalQuantities.Numerics;
 
 internal readonly partial record struct Rational
 {
-	public static Rational CreateChecked<TOther>(TOther value) where TOther : INumberBase<TOther> =>
-		TryConvertFrom(value, out Rational result) || TOther.TryConvertToChecked(value, out result) ? result : throw new NotSupportedException($"Cannot convert {typeof(TOther)} to Rational.");
+	public static implicit operator Rational(byte value) => new(value);
+	public static implicit operator Rational(sbyte value) => new(value);
+	public static implicit operator Rational(short value) => new(value);
+	public static implicit operator Rational(ushort value) => new(value);
+	public static implicit operator Rational(uint value) => new(value);
+	public static implicit operator Rational(long value) => new(value);
+	public static implicit operator Rational(ulong value) => new(value);
+	public static implicit operator Rational(BigInteger value) => new(value);
 
-	public static Rational CreateSaturating<TOther>(TOther value) where TOther : INumberBase<TOther> =>
-		TryConvertFrom(value, out Rational result) || TOther.TryConvertToSaturating(value, out result) ? result : throw new NotSupportedException($"Cannot convert {typeof(TOther)} to Rational.");
-
-	public static Rational CreateTruncating<TOther>(TOther value) where TOther : INumberBase<TOther> =>
-		TryConvertFrom(value, out Rational result) || TOther.TryConvertToTruncating(value, out result) ? result : throw new NotSupportedException($"Cannot convert {typeof(TOther)} to Rational.");
-
-	// All finite built-in inputs are represented exactly, so incoming conversion
-	// modes coincide. Infinity and NaN have no rational representation.
-	static bool INumberBase<Rational>.TryConvertFromChecked<TOther>(TOther value, out Rational result) => TryConvertFrom(value, out result);
-	static bool INumberBase<Rational>.TryConvertFromSaturating<TOther>(TOther value, out Rational result) => TryConvertFrom(value, out result);
-	static bool INumberBase<Rational>.TryConvertFromTruncating<TOther>(TOther value, out Rational result) => TryConvertFrom(value, out result);
-
-	private static bool TryConvertFrom<TOther>(TOther value, out Rational result) where TOther : INumberBase<TOther>
+	public static explicit operator Rational(float value) => FromDouble(value);
+	public static explicit operator Rational(double value) => FromDouble(value);
+	public static explicit operator Rational(decimal value) => FromDecimal(value);
+	public static explicit operator Rational(Complex value)
 	{
-		switch (value)
+		if (value.Imaginary != 0)
 		{
-			case Rational rational:
-				result = rational;
-				return true;
-			case Complex number:
-				if (number.Imaginary != 0)
-				{
-					throw new RationalNumberCantHaveComplexComponentsException();
-				}
-
-				result = FromDouble(number.Real);
-				return true;
-			case decimal number:
-				result = FromDecimal(number);
-				return true;
-			case double number:
-				result = FromDouble(number);
-				return true;
-			case float number:
-				result = FromDouble(number);
-				return true;
-			case Half number:
-				result = FromDouble((double)number);
-				return true;
+			throw new RationalNumberCantHaveComplexComponentsException();
 		}
 
-		if (IsBuiltInInteger<TOther>())
-		{
-			result = new(BigInteger.CreateChecked(value));
-			return true;
-		}
-
-		result = Zero;
-		return false;
+		return FromDouble(value.Real);
 	}
 
-	private static bool IsBuiltInInteger<T>() =>
-		typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte) ||
-		typeof(T) == typeof(short) || typeof(T) == typeof(ushort) ||
-		typeof(T) == typeof(int) || typeof(T) == typeof(uint) ||
-		typeof(T) == typeof(long) || typeof(T) == typeof(ulong) ||
-		typeof(T) == typeof(nint) || typeof(T) == typeof(nuint) ||
-		typeof(T) == typeof(Int128) || typeof(T) == typeof(UInt128) ||
-		typeof(T) == typeof(char) || typeof(T) == typeof(BigInteger);
+	public static explicit operator byte(Rational value) => checked((byte)value.WholePart);
+	public static explicit operator sbyte(Rational value) => checked((sbyte)value.WholePart);
+	public static explicit operator short(Rational value) => checked((short)value.WholePart);
+	public static explicit operator ushort(Rational value) => checked((ushort)value.WholePart);
+	public static explicit operator int(Rational value) => checked((int)value.WholePart);
+	public static explicit operator uint(Rational value) => checked((uint)value.WholePart);
+	public static explicit operator long(Rational value) => checked((long)value.WholePart);
+	public static explicit operator ulong(Rational value) => checked((ulong)value.WholePart);
+	public static explicit operator BigInteger(Rational value) => value.WholePart;
+	public static explicit operator double(Rational value) => value.ToBinaryFloat(53, -1022, 1023);
+	public static explicit operator float(Rational value) => (float)value.ToBinaryFloat(24, -126, 127);
+	public static explicit operator decimal(Rational value) => value.ToDecimal();
+	public static explicit operator Complex(Rational value) => new((double)value, 0);
+
+	private BigInteger WholePart => Numerator / Denominator;
 
 	private static Rational FromDecimal(decimal value)
 	{
@@ -82,12 +57,12 @@ internal readonly partial record struct Rational
 
 	private static Rational FromDouble(double value)
 	{
-		if (!double.IsFinite(value))
+		if (double.IsNaN(value) || double.IsInfinity(value))
 		{
 			throw new OverflowException("NaN and infinity cannot be represented as a Rational.");
 		}
 
-		ulong bits = BitConverter.DoubleToUInt64Bits(value);
+		ulong bits = unchecked((ulong)BitConverter.DoubleToInt64Bits(value));
 		int exponentBits = (int)((bits >> 52) & 0x7ff);
 		BigInteger significand = bits & 0x000f_ffff_ffff_ffff;
 		int exponent = -1074;
@@ -104,63 +79,6 @@ internal readonly partial record struct Rational
 		return exponent >= 0 ? new(significand << exponent) : new(significand, BigInteger.One << -exponent);
 	}
 
-	static bool INumberBase<Rational>.TryConvertToChecked<TOther>(Rational value, out TOther result) => TryConvertTo(value, ConversionMode.Checked, out result);
-	static bool INumberBase<Rational>.TryConvertToSaturating<TOther>(Rational value, out TOther result) => TryConvertTo(value, ConversionMode.Saturating, out result);
-	static bool INumberBase<Rational>.TryConvertToTruncating<TOther>(Rational value, out TOther result) => TryConvertTo(value, ConversionMode.Truncating, out result);
-
-	private enum ConversionMode { Checked, Saturating, Truncating }
-
-	private static bool TryConvertTo<TOther>(Rational value, ConversionMode mode, out TOther result) where TOther : INumberBase<TOther>
-	{
-		if (typeof(TOther) == typeof(Rational))
-		{
-			result = (TOther)(object)value;
-			return true;
-		}
-		if (typeof(TOther) == typeof(Complex))
-		{
-			result = (TOther)(object)new Complex(value.ToBinaryFloat(53, -1022, 1023), 0);
-			return true;
-		}
-		if (typeof(TOther) == typeof(double))
-		{
-			result = (TOther)(object)value.ToBinaryFloat(53, -1022, 1023);
-			return true;
-		}
-		if (typeof(TOther) == typeof(float))
-		{
-			result = (TOther)(object)(float)value.ToBinaryFloat(24, -126, 127);
-			return true;
-		}
-		if (typeof(TOther) == typeof(Half))
-		{
-			result = (TOther)(object)(Half)value.ToBinaryFloat(11, -14, 15);
-			return true;
-		}
-		if (typeof(TOther) == typeof(decimal))
-		{
-			result = (TOther)(object)value.ToDecimal(mode);
-			return true;
-		}
-
-		if (!IsBuiltInInteger<TOther>())
-		{
-			result = TOther.Zero;
-			return false;
-		}
-
-		// Integral targets discard the fractional part towards zero; the target
-		// type owns overflow, saturation and truncation of the resulting integer.
-		BigInteger whole = value.Numerator / value.Denominator;
-		result = mode switch
-		{
-			ConversionMode.Checked => TOther.CreateChecked(whole),
-			ConversionMode.Saturating => TOther.CreateSaturating(whole),
-			_ => TOther.CreateTruncating(whole)
-		};
-		return true;
-	}
-
 	// Round the fraction directly to the target precision. Converting numerator
 	// and denominator separately would lose accuracy or produce infinity/infinity.
 	private double ToBinaryFloat(int precision, int minimumExponent, int maximumExponent)
@@ -172,7 +90,7 @@ internal readonly partial record struct Rational
 
 		BigInteger numerator = BigInteger.Abs(Numerator);
 		BigInteger denominator = Denominator;
-		long exponent = numerator.GetBitLength() - denominator.GetBitLength();
+		long exponent = GetBitLength(numerator) - GetBitLength(denominator);
 		if (exponent > maximumExponent + 1L)
 		{
 			return Numerator.Sign * double.PositiveInfinity;
@@ -192,26 +110,59 @@ internal readonly partial record struct Rational
 		int shift = (int)Math.Max(exponent - precision + 1, minimumExponent - precision + 1);
 		BigInteger rounded = shift >= 0 ? RoundQuotient(numerator, denominator << shift) : RoundQuotient(numerator << -shift, denominator);
 
-		if (rounded.GetBitLength() + shift - 1 > maximumExponent)
+		if (GetBitLength(rounded) + shift - 1 > maximumExponent)
 		{
 			return Numerator.Sign * double.PositiveInfinity;
 		}
 
-		return Numerator.Sign * Math.ScaleB((double)rounded, shift);
+		return Numerator.Sign * ScaleRoundedBinary(rounded, shift);
 	}
 
-	private decimal ToDecimal(ConversionMode mode)
+	private static long GetBitLength(BigInteger value)
+	{
+		byte[] bytes = value.ToByteArray();
+		int top = bytes.Length - 1;
+		while (top > 0 && bytes[top] == 0)
+		{
+			top--;
+		}
+
+		byte mostSignificant = bytes[top];
+		int bits = 0;
+		while (mostSignificant != 0)
+		{
+			bits++;
+			mostSignificant >>= 1;
+		}
+
+		return 8L * top + bits;
+	}
+
+	private static double ScaleRoundedBinary(BigInteger rounded, int shift)
+	{
+		long bitLength = GetBitLength(rounded);
+		long exponent = bitLength - 1 + shift;
+		ulong bits;
+		if (exponent >= -1022)
+		{
+			BigInteger significand = bitLength <= 53 ? rounded << (int)(53 - bitLength) : rounded >> (int)(bitLength - 53);
+			bits = ((ulong)(exponent + 1023) << 52) | ((ulong)significand & 0x000f_ffff_ffff_ffff);
+		}
+		else
+		{
+			bits = (ulong)(rounded << (shift + 1074));
+		}
+
+		return BitConverter.Int64BitsToDouble(unchecked((long)bits));
+	}
+
+	private decimal ToDecimal()
 	{
 		BigInteger numerator = BigInteger.Abs(Numerator);
 		BigInteger maximum = new(decimal.MaxValue);
 		if (numerator > maximum * Denominator)
 		{
-			if (mode == ConversionMode.Checked)
-			{
-				throw new OverflowException("Rational exceeds the decimal range.");
-			}
-
-			return Numerator.Sign < 0 ? decimal.MinValue : decimal.MaxValue;
+			throw new OverflowException("Rational exceeds the decimal range.");
 		}
 
 		for (int scale = 28; scale >= 0; scale--)

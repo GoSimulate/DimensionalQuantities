@@ -13,7 +13,7 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 
 ## Usage
 
-Requires .NET 10 and C# 14. The `DimensionalQuantities` NuGet package includes both the runtime library and its source generator.
+The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes both the runtime library and its source generator.
 
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);

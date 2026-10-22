@@ -73,7 +73,7 @@ public readonly record struct Quantity<TDimension>
 			+ (time - SiBasePrefixExponents.Time) * dimension.Time + (electricCurrent - SiBasePrefixExponents.ElectricCurrent) * dimension.ElectricCurrent
 			+ (temperature - SiBasePrefixExponents.Temperature) * dimension.Temperature + (amountOfSubstance - SiBasePrefixExponents.AmountOfSubstance) * dimension.AmountOfSubstance
 			+ (luminousIntensity - SiBasePrefixExponents.LuminousIntensity) * dimension.LuminousIntensity;
-		return double.CreateChecked(exponent) + overall;
+		return (double)exponent + overall;
 	}
 
 	private static MathematicalDimension ParseDimension()
