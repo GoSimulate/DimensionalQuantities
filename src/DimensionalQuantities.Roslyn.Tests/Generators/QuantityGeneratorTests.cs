@@ -420,6 +420,88 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Null(output.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")));
 	}
 
+	[Theory]
+	[InlineData("Current.FromAmps(2) + Current.FromMilliAmps(500)", "AsAmps", 2.5)]
+	[InlineData("Current.FromAmps(2) - Current.FromMilliAmps(500)", "AsAmps", 1.5)]
+	[InlineData("-Current.FromMilliAmps(500)", "AsAmps", -0.5)]
+	[InlineData("Energy.FromJoules(2) + Torque.FromNewtonMetres(3)", "AsJoules", 5)]
+	public void SameDimensionArithmeticUsesCoreOperatorsWithoutGeneratedOverloads(string expression, string accessor, double expected)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value() => ({{expression}}).{{accessor}}();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+		CSharpCompilation compilation = Compile(source);
+
+		Assert.Multiple(
+			() => Assert.Equal(expected, result),
+			() => Assert.Null(compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")));
+	}
+
+	[Theory]
+	[InlineData("firstSquared + secondSquared", 52)]
+	[InlineData("firstSquared - secondSquared", 20)]
+	[InlineData("-firstSquared", -36)]
+	public void SameDimensionArithmeticThroughInferredLocalsCompilesAndExecutes(string expression, double expected)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Current first = Current.FromAmps(3);
+					Current second = Current.FromAmps(2);
+					Resistance resistance = Resistance.FromOhms(4);
+					var firstSquared = first * first;
+					var secondSquared = second * second;
+					var combined = {{expression}};
+					var heating = combined * resistance;
+					return ((Power)heating).AsWatts();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) + Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromOhms(4)).AsWatts()", 52)]
+	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) - Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromOhms(4)).AsWatts()", 20)]
+	[InlineData("(-(Current.FromAmps(3) * Current.FromAmps(3))).AsSiBaseUnit()", -9)]
+	public void SameDimensionArithmeticAroundNestedProductsCompilesAndExecutes(string expression, double expected)
+	{
+		double result = Evaluate<double>(expression);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("current + length")]
+	[InlineData("current - length")]
+	[InlineData("current + 2")]
+	[InlineData("2 - current")]
+	public void InvalidSameDimensionArithmeticRemainsACompilerError(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value(Current current, Length length) => {{expression}};
+			}
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = output.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Equal("CS0019", Assert.Single(errors).Id));
+	}
+
 	private static T Evaluate<T>(string expression)
 	{
 		string source = $$"""

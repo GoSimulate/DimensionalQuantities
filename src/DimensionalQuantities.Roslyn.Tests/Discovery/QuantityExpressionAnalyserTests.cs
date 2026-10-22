@@ -332,6 +332,134 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData("var squared = current * current; var combined = squared + squared;", "combined * resistance")]
+	[InlineData("var squared = current * current; var combined = squared - squared;", "combined * resistance")]
+	[InlineData("var squared = current * current; var combined = -squared;", "combined * resistance")]
+	[InlineData("var squared = current * current;", "(-(squared + squared)) * resistance")]
+	public void SameDimensionArithmeticPropagatesInferredLocalDimensions(string declarations, string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Resistance resistance)
+				{
+					{{declarations}}
+					return {{expression}};
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension resistance = new(Length: 2, Mass: 1, Time: -3, ElectricCurrent: -2);
+		Dimension power = new(Length: 2, Mass: 1, Time: -3);
+		ArithmeticOperation product = new(ArithmeticOperationKind.Multiply, current, current, squared);
+		ArithmeticOperation heating = new(ArithmeticOperationKind.Multiply, squared, resistance, power);
+		ArithmeticOperation[] expected = [product, heating];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("current + length")]
+	[InlineData("current - length")]
+	[InlineData("current + 2")]
+	[InlineData("2 + current")]
+	[InlineData("current - 2")]
+	[InlineData("2 - current")]
+	[InlineData("current + missing")]
+	public void InvalidSumsDoNotSupplyDimensionsToEnclosingArithmetic(string sum)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Length length, Time time) => ({{sum}}) * time;
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+
+		Assert.Empty(result);
+	}
+
+	[Theory]
+	[InlineData("squared + area")]
+	[InlineData("squared - area")]
+	public void InvalidInferredSumsRetainChildOperationsWithoutInferringAResult(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Length length, Time time)
+				{
+					var squared = current * current;
+					var area = length * length;
+					var invalid = {{expression}};
+					return invalid * time;
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension length = new(Length: 1);
+		ArithmeticOperation[] expected =
+		[
+			new(ArithmeticOperationKind.Multiply, current, current, new(ElectricCurrent: 2)),
+			new(ArithmeticOperationKind.Multiply, length, length, new(Length: 2))
+		];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("(2 - 3) * current * time")]
+	[InlineData("-(2 + 3) * current * time")]
+	[InlineData("(-current) * time")]
+	public void ScalarSumsAndNegationPreserveDimensions(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Time time) => {{expression}};
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, current, time, new(Time: 1, ElectricCurrent: 1));
+
+		Assert.Equal(expected, Assert.Single(result));
+	}
+
+	[Theory]
+	[InlineData("(wrapper + wrapper) * time")]
+	[InlineData("(wrapper - wrapper) * time")]
+	[InlineData("(-wrapper) * time")]
+	public void BoundOperatorReturnTypesRemainAuthoritative(string expression)
+	{
+		string source = $$"""
+			public sealed class Wrapper
+			{
+				public static Current operator +(Wrapper left, Wrapper right) => Current.FromAmps(2);
+				public static Current operator -(Wrapper left, Wrapper right) => Current.FromAmps(1);
+				public static Current operator -(Wrapper value) => Current.FromAmps(-1);
+			}
+			public static class Consumer
+			{
+				public static object Test(Wrapper wrapper, Time time)
+				{
+					return {{expression}};
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, current, time, new(Time: 1, ElectricCurrent: 1));
+
+		Assert.Equal(expected, Assert.Single(result));
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");

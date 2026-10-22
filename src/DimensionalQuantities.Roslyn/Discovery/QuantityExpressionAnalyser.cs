@@ -56,7 +56,19 @@ internal sealed class QuantityExpressionAnalyser
 			{
 				Operand left = AnalyseExpression(binary.Left);
 				Operand right = AnalyseExpression(binary.Right);
-				return Combine(binary, left, right);
+				if (binary.IsKind(SyntaxKind.AddExpression) || binary.IsKind(SyntaxKind.SubtractExpression))
+				{
+					return AnalyseSum(binary, left, right);
+				}
+
+				return CombineProduct(binary, left, right);
+			}
+
+			if (expression is PrefixUnaryExpressionSyntax unary && unary.IsKind(SyntaxKind.UnaryMinusExpression))
+			{
+				Operand operand = AnalyseExpression(unary.Operand);
+				Operand bound = ClassifyLeaf(unary);
+				return bound.Kind != OperandKind.Unsupported ? bound : operand;
 			}
 
 			return ClassifyLeaf(expression);
@@ -117,7 +129,24 @@ internal sealed class QuantityExpressionAnalyser
 			}
 		}
 
-		private Operand Combine(BinaryExpressionSyntax binary, Operand left, Operand right)
+		private Operand AnalyseSum(BinaryExpressionSyntax binary, Operand left, Operand right)
+		{
+			Operand bound = ClassifyLeaf(binary);
+			if (bound.Kind != OperandKind.Unsupported)
+			{
+				return bound;
+			}
+
+			if (left.Kind == OperandKind.Scalar && right.Kind == OperandKind.Scalar)
+			{
+				return new(OperandKind.Scalar);
+			}
+
+			return left.Kind == OperandKind.Quantity && right.Kind == OperandKind.Quantity && left.Dimension == right.Dimension
+				? left : default;
+		}
+
+		private Operand CombineProduct(BinaryExpressionSyntax binary, Operand left, Operand right)
 		{
 			if (left.Kind == OperandKind.Scalar && right.Kind == OperandKind.Scalar)
 			{
@@ -155,7 +184,8 @@ internal sealed class QuantityExpressionAnalyser
 			return default;
 		}
 
-		private static bool IsSupported(BinaryExpressionSyntax binary) => binary.IsKind(SyntaxKind.MultiplyExpression) || binary.IsKind(SyntaxKind.DivideExpression);
+		private static bool IsSupported(BinaryExpressionSyntax binary) => binary.IsKind(SyntaxKind.MultiplyExpression) || binary.IsKind(SyntaxKind.DivideExpression)
+			|| binary.IsKind(SyntaxKind.AddExpression) || binary.IsKind(SyntaxKind.SubtractExpression);
 
 		private enum OperandKind
 		{

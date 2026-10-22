@@ -44,6 +44,47 @@ namespace DimensionalQuantities.Tests.TypeSystem;
 
 public sealed class QuantityTests
 {
+	[Theory]
+	[InlineData(3, 2, 5)]
+	[InlineData(-3, 2, -1)]
+	[InlineData(3, -3, 0)]
+	public void AdditionPreservesDimensionAndAddsSiMagnitudes(double first, double second, double expectedValue)
+	{
+		Current original = Current.FromSiBaseUnit(first);
+		Current other = Current.FromSiBaseUnit(second);
+		Current result = original + other;
+		Current expected = Current.FromSiBaseUnit(expectedValue);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(3, 2, 1)]
+	[InlineData(2, 3, -1)]
+	[InlineData(-3, -3, 0)]
+	public void SubtractionPreservesDimensionAndSubtractsSiMagnitudes(double first, double second, double expectedValue)
+	{
+		Current original = Current.FromSiBaseUnit(first);
+		Current other = Current.FromSiBaseUnit(second);
+		Current result = original - other;
+		Current expected = Current.FromSiBaseUnit(expectedValue);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(3, -3)]
+	[InlineData(-3, 3)]
+	[InlineData(0, 0)]
+	public void NegationPreservesDimensionAndReversesSign(double value, double expectedValue)
+	{
+		SquareRootLength original = SquareRootLength.FromSiBaseUnit(value);
+		SquareRootLength result = -original;
+		SquareRootLength expected = SquareRootLength.FromSiBaseUnit(expectedValue);
+
+		Assert.Equal(expected, result);
+	}
+
 	[Fact]
 	public void MultiplyingAndDividingByScalarsPreservesQuantityTypeAndSiMagnitude()
 	{
