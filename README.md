@@ -66,7 +66,7 @@ Aliases with the same dimensions share a type. For example, `Energy` and `Torque
 
 ### Current scope
 
-Arithmetic discovery currently supports multiplication and division with known quantity operands, scalar factors, and nested expressions. Roots, powers, dimensionless results and inference through unresolved intermediate local variables are not yet supported by discovery.
+Arithmetic discovery currently supports multiplication and division with known quantity operands, scalar factors, nested expressions, and intermediate `var` locals inferred through their initialisers. Roots, powers, dimensionless results and inference through unresolved explicit type names are not yet supported by discovery.
 
 The library is under active development; the API and supported expression patterns are still evolving.
 
