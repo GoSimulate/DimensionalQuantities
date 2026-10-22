@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" />
     <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" />
   </ItemGroup>
   <ItemGroup>

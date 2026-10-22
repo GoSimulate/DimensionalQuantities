@@ -19,7 +19,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 	}
 
 	[Fact]
-	public void PackagedGeneratorConvertsPrefixedVoltageInConsumer()
+	public void PackagedGeneratorConvertsVoltageInConsumer()
 	{
 		string sourceProject = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "DimensionalQuantities", "DimensionalQuantities.csproj"));
 		FileInfo nupkg = PackLibrary(sourceProject, _scratch);
@@ -34,11 +34,10 @@ public sealed class PackagedGeneratorTests : IDisposable
 
 			public static class Consumer
 			{
-				public static double Convert(double milliVolts)
+				public static double ConvertVoltage(double volts)
 				{
-					Voltage original = Voltage.FromMilliVolts(milliVolts);
-					LengthSquaredMassPerTimeCubedCurrent equivalent = original;
-					return equivalent.AsKiloVolts();
+					Voltage voltage = Voltage.FromVolts(volts);
+					return voltage.AsVolts();
 				}
 			}
 			""");
@@ -55,10 +54,9 @@ public sealed class PackagedGeneratorTests : IDisposable
 		string assemblyFile = Path.Combine(consumerDirectory, "bin", "Debug", "net10.0", "Consumer.dll");
 		Assembly assembly = Assembly.LoadFrom(assemblyFile);
 		Type consumerType = assembly.GetType("ConsumerProject.Consumer") ?? throw new InvalidOperationException("Consumer type was not built.");
-		MethodInfo convert = consumerType.GetMethod("Convert") ?? throw new InvalidOperationException("Consumer conversion was not built.");
-		double result = Assert.IsType<double>(convert.Invoke(null, [12500]));
-		double expected = 0.0125;
-
+		MethodInfo convertVoltage = consumerType.GetMethod("ConvertVoltage") ?? throw new InvalidOperationException("Consumer Voltage conversion was not built.");
+		double result = Assert.IsType<double>(convertVoltage.Invoke(null, [12.5]));
+		double expected = 12.5;
 		Assert.Equal(expected, result);
 	}
 

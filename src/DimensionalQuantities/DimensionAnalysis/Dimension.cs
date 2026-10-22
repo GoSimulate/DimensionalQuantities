@@ -12,6 +12,14 @@ internal readonly record struct Dimension(
 	Rational AmountOfSubstance = default,
 	Rational LuminousIntensity = default)
 {
+	private static readonly UnitDefinition _lengthUnit = new("Length", "Metre", "Metres", "m");
+	private static readonly UnitDefinition _massUnit = new("Mass", "Kilogram", "Kilograms", "kg", "Gram", "Grams", "g", 3);
+	private static readonly UnitDefinition _timeUnit = new("Time", "Second", "Seconds", "s");
+	private static readonly UnitDefinition _electricCurrentUnit = new("Current", "Amp", "Amps", "A");
+	private static readonly UnitDefinition _temperatureUnit = new("Temperature", "Kelvin", "Kelvin", "K");
+	private static readonly UnitDefinition _amountOfSubstanceUnit = new("AmountOfSubstance", "Mole", "Moles", "mol");
+	private static readonly UnitDefinition _luminousIntensityUnit = new("LuminousIntensity", "Candela", "Candelas", "cd");
+
 	public static Dimension operator *(Dimension left, Dimension right) => left.Multiply(right);
 	public static Dimension operator /(Dimension left, Dimension right) => left.Divide(right);
 
@@ -20,37 +28,37 @@ internal readonly record struct Dimension(
 	{
 		if (Length != Rational.Zero)
 		{
-			yield return new(Length, "Length", "Metre", "Metres", "m");
+			yield return new(Length, _lengthUnit);
 		}
 
 		if (Mass != Rational.Zero)
 		{
-			yield return new(Mass, "Mass", "Kilogram", "Kilograms", "kg");
+			yield return new(Mass, _massUnit);
 		}
 
 		if (Time != Rational.Zero)
 		{
-			yield return new(Time, "Time", "Second", "Seconds", "s");
+			yield return new(Time, _timeUnit);
 		}
 
 		if (ElectricCurrent != Rational.Zero)
 		{
-			yield return new(ElectricCurrent, "Current", "Amp", "Amps", "A");
+			yield return new(ElectricCurrent, _electricCurrentUnit);
 		}
 
 		if (Temperature != Rational.Zero)
 		{
-			yield return new(Temperature, "Temperature", "Kelvin", "Kelvin", "K");
+			yield return new(Temperature, _temperatureUnit);
 		}
 
 		if (AmountOfSubstance != Rational.Zero)
 		{
-			yield return new(AmountOfSubstance, "AmountOfSubstance", "Mole", "Moles", "mol");
+			yield return new(AmountOfSubstance, _amountOfSubstanceUnit);
 		}
 
 		if (LuminousIntensity != Rational.Zero)
 		{
-			yield return new(LuminousIntensity, "LuminousIntensity", "Candela", "Candelas", "cd");
+			yield return new(LuminousIntensity, _luminousIntensityUnit);
 		}
 	}
 
@@ -83,10 +91,7 @@ internal readonly record struct Dimension(
 	/// </summary>
 	public Dimension Root(int degree)
 	{
-		if (degree <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(degree));
-		}
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
 
 		return Pow(new(1, degree));
 	}
