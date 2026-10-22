@@ -9,6 +9,9 @@ namespace DimensionalQuantities.TypeSystem;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public readonly record struct Quantity<TDimension>
 {
+	public static Quantity<TDimension> operator +(Quantity<TDimension> left, Quantity<TDimension> right) => new(left.ValueInSiBaseUnit + right.ValueInSiBaseUnit);
+	public static Quantity<TDimension> operator -(Quantity<TDimension> left, Quantity<TDimension> right) => new(left.ValueInSiBaseUnit - right.ValueInSiBaseUnit);
+	public static Quantity<TDimension> operator -(Quantity<TDimension> quantity) => new(-quantity.ValueInSiBaseUnit);
 	public static Quantity<TDimension> operator *(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit * scalar);
 	public static Quantity<TDimension> operator *(double scalar, Quantity<TDimension> quantity) => new(scalar * quantity.ValueInSiBaseUnit);
 	public static Quantity<TDimension> operator /(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit / scalar);

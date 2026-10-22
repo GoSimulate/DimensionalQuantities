@@ -46,7 +46,7 @@ event.write_text(json.dumps({"ref": "refs/heads/main", "after": head,
                      "base": {"ref": "main", "sha": head}}}))
 base = ["act", "--directory", str(fixture), "--eventpath", str(event),
         "--secret-file", "/dev/null", "--var-file", "/dev/null", "--env-file", "/dev/null",
-        "--platform", "ubuntu-latest=catthehacker/ubuntu:act-latest", "--pull=false",
+        "--platform", "blacksmith-2vcpu-ubuntu-2404=catthehacker/ubuntu:act-latest", "--pull=false",
         "--env", "ACT=true", "--env", "DQ_EXPECTED_VERSION=" + expected,
         "--env", "DQ_EXPECTED_NOTES=" + note]
 print("Disposable checkout:", fixture, flush=True)
