@@ -8,3 +8,4 @@ TestResults/
 *.snupkg
 artifacts/
 node_modules/
+HANDOFF*.md

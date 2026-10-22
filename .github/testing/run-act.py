@@ -53,4 +53,4 @@ print("Disposable checkout:", fixture, flush=True)
 if args.workflow in ("ci", "both"):
     subprocess.run([*base, "pull_request", "-W", ".github/workflows/ci.yml"], cwd=fixture, check=True)
 if args.workflow in ("release", "both"):
-    subprocess.run([*base, "push", "-W", ".github/workflows/release.yml"], cwd=fixture, check=True)
+    subprocess.run([*base, "push", "-W", ".github/workflows/cd.yml"], cwd=fixture, check=True)

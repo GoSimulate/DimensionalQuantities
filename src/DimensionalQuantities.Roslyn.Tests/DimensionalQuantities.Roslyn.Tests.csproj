@@ -11,9 +11,14 @@
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" />
     <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Generators/QuantityGeneratorTests.Arithmetic.cs" DependentUpon="QuantityGeneratorTests.cs" />
+    <Compile Update="Generators/QuantityGeneratorTests.Incremental.cs" DependentUpon="QuantityGeneratorTests.cs" />
   </ItemGroup>
 </Project>

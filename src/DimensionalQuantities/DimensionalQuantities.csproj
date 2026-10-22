@@ -1,13 +1,43 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <Authors>GoSim</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
     <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+  <Target Name="BuildRoslynForPack" BeforeTargets="_GetPackageFiles" Condition="'$(NoBuild)' != 'true'">
+    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
   <ItemGroup>
-    <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-                      ReferenceOutputAssembly="false" PrivateAssets="all" />
-    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.dll"
+    <None Include="../../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/net10.0/DimensionalQuantities.Roslyn.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="bin/$(Configuration)/net10.0/DimensionalQuantities.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DimensionalQuantities.Tests" />
+    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn" />
+    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Numerics\Rational.Conversions.cs">
+      <DependentUpon>Rational.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Numerics\Rational.Text.cs">
+      <DependentUpon>Rational.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 </Project>
