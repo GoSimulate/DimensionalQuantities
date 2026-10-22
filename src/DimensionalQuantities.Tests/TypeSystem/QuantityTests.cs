@@ -18,8 +18,8 @@ public sealed class QuantityTests
 	[InlineData(1234.5)]
 	public void ConstructionPreservesSiMagnitude(double expected)
 	{
-		Current original = new(expected);
-		double result = original.ValueInSiBaseUnit;
+		Current original = Current.FromSiBaseUnit(expected);
+		double result = original.AsSiBaseUnit();
 
 		Assert.Equal(expected, result);
 	}

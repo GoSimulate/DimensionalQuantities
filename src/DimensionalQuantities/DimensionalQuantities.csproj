@@ -4,10 +4,18 @@
     <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+  <Target Name="BuildRoslynForPack" BeforeTargets="_GetPackageFiles" Condition="'$(NoBuild)' != 'true'">
+    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
   <ItemGroup>
-    <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-                      ReferenceOutputAssembly="false" PrivateAssets="all" />
     <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/net10.0/DimensionalQuantities.Roslyn.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="bin/$(Configuration)/net10.0/DimensionalQuantities.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
@@ -15,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DimensionalQuantities.Tests" />
+    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Numerics\Rational.Conversions.cs">
