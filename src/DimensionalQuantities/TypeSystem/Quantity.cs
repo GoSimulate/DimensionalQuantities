@@ -1,7 +1,7 @@
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Units;
 using JetBrains.Annotations;
-using MathematicalDimension = DimensionalQuantities.DimensionAnalysis.Dimension;
+using MathematicalDimension = DimensionalQuantities.Dimensions.Dimension;
 
 namespace DimensionalQuantities.TypeSystem;
 

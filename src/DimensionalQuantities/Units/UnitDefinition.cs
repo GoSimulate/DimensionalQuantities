@@ -1,4 +1,4 @@
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Units;
 
 internal readonly record struct UnitDefinition
 {

@@ -1,6 +1,4 @@
-using DimensionalQuantities.Units;
-
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Units;
 
 internal static class AtomicUnits
 {

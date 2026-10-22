@@ -1,5 +1,6 @@
 using System.Text;
-using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Units;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 

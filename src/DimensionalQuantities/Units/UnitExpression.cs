@@ -2,9 +2,8 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using DimensionalQuantities.Numerics;
-using DimensionalQuantities.Units;
 
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Units;
 
 internal readonly record struct UnitExpression
 {

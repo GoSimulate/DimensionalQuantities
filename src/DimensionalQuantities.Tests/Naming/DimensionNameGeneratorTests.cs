@@ -1,7 +1,8 @@
-using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Naming;
 using Xunit;
 
-namespace DimensionalQuantities.Tests.DimensionAnalysis;
+namespace DimensionalQuantities.Tests.Naming;
 
 public sealed class DimensionNameGeneratorTests
 {

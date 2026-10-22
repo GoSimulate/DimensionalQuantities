@@ -1,6 +1,6 @@
 using DimensionalQuantities.Numerics;
 
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Units;
 
 internal readonly record struct UnitTerm
 {

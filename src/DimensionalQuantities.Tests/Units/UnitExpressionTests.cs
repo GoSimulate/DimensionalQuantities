@@ -1,8 +1,8 @@
-using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Units;
 using DimensionalQuantities.Numerics;
 using Xunit;
 
-namespace DimensionalQuantities.Tests.DimensionAnalysis;
+namespace DimensionalQuantities.Tests.Units;
 
 public sealed class UnitExpressionTests
 {

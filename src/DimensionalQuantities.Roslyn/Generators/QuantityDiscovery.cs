@@ -1,4 +1,5 @@
-using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Units;
 
 namespace DimensionalQuantities.Roslyn.Generators;
 

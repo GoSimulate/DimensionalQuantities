@@ -2,9 +2,10 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Numerics;
 
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Naming;
 
 internal static class DimensionNameGenerator
 {

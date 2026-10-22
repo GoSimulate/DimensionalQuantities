@@ -1,7 +1,7 @@
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Units;
 
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Dimensions;
 
 /// <summary>An internal value describing the seven rational SI exponents.</summary>
 internal readonly record struct Dimension(

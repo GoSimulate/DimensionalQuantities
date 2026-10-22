@@ -1,6 +1,6 @@
-using DimensionalQuantities.Units;
+using DimensionalQuantities.Dimensions;
 
-namespace DimensionalQuantities.DimensionAnalysis;
+namespace DimensionalQuantities.Units;
 
 /// <summary>Recognised names and units for engineering dimensions.</summary>
 internal static class EngineeringCatalogue
