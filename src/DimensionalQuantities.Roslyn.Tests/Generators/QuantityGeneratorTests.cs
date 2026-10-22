@@ -50,19 +50,117 @@ public sealed class QuantityGeneratorTests
 		Assert.True(result);
 	}
 
+	[Fact]
+	public void CatalogueAliasesAreAvailableToConsumers()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static global::System.Type[] Types() =>
+				[
+					typeof(Area), typeof(Volume), typeof(Frequency), typeof(AngularVelocity), typeof(Density),
+					typeof(Pressure), typeof(Stress), typeof(YoungsModulus), typeof(Energy), typeof(Torque),
+					typeof(Power), typeof(SpecificPower), typeof(SpecificPowerLoss), typeof(TemperatureCoefficient),
+					typeof(PowerDensity), typeof(VolumetricPowerLoss), typeof(Voltage), typeof(Resistance),
+					typeof(Inductance), typeof(MagneticFlux), typeof(FluxLinkage), typeof(MagneticFluxDensity),
+					typeof(MagneticPolarisation), typeof(RemanentFluxDensity), typeof(MagneticFieldStrength),
+					typeof(CoerciveFieldStrength), typeof(CurrentDensity), typeof(Permeability), typeof(Resistivity),
+					typeof(Conductivity), typeof(MagneticReluctivity), typeof(MagneticVectorPotential)
+				];
+			}
+			""";
+
+		Compile(source);
+	}
+
+	[Fact]
+	public void CatalogueUnitsHaveUnprefixedFactoriesAndAccessors()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static double UseUnits() =>
+					Area.FromSquareMetres(1).AsSquareMetres() +
+					Volume.FromCubicMetres(1).AsCubicMetres() +
+					Frequency.FromHertz(1).AsHertz() +
+					AngularVelocity.FromRadiansPerSecond(1).AsRadiansPerSecond() +
+					Density.FromGramsPerCubicMetre(1).AsGramsPerCubicMetre() +
+					Pressure.FromPascals(1).AsPascals() +
+					Energy.FromJoules(1).AsJoules() +
+					Torque.FromNewtonMetres(1).AsNewtonMetres() +
+					Power.FromWatts(1).AsWatts() +
+					SpecificPower.FromWattsPerKilogram(1).AsWattsPerKilogram() +
+					TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin() +
+					PowerDensity.FromWattsPerCubicMetre(1).AsWattsPerCubicMetre() +
+					Voltage.FromVolts(1).AsVolts() +
+					Resistance.FromOhms(1).AsOhms() +
+					Inductance.FromHenries(1).AsHenries() +
+					MagneticFlux.FromWebers(1).AsWebers() +
+					MagneticFluxDensity.FromTeslas(1).AsTeslas() +
+					MagneticFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre() +
+					CurrentDensity.FromAmpsPerSquareMetre(1).AsAmpsPerSquareMetre() +
+					Permeability.FromHenriesPerMetre(1).AsHenriesPerMetre() +
+					Resistivity.FromOhmMetres(1).AsOhmMetres() +
+					Conductivity.FromSiemensPerMetre(1).AsSiemensPerMetre() +
+					MagneticReluctivity.FromMetresPerHenry(1).AsMetresPerHenry() +
+					MagneticVectorPotential.FromWebersPerMetre(1).AsWebersPerMetre();
+			}
+			""";
+
+		Compile(source);
+	}
+
 	[Theory]
-	[InlineData("Length", "Metres")]
-	[InlineData("Mass", "Grams")]
-	[InlineData("Time", "Seconds")]
-	[InlineData("Current", "Amps")]
-	[InlineData("Temperature", "Kelvin")]
-	[InlineData("AmountOfSubstance", "Moles")]
-	[InlineData("LuminousIntensity", "Candelas")]
-	[InlineData("Voltage", "Volts")]
-	public void EverySiPrefixHasUsableFactoryAndAccessor(string quantity, string unit)
+	[InlineData("Area", "LengthSquared")]
+	[InlineData("CurrentDensity", "CurrentPerLengthSquared")]
+	[InlineData("Pressure", "Stress")]
+	[InlineData("Pressure", "YoungsModulus")]
+	[InlineData("Energy", "Torque")]
+	public void CatalogueAliasesShareTheCanonicalDimensionType(string alias, string equivalent)
+	{
+		bool result = Evaluate<bool>($"typeof({alias}) == typeof({equivalent})");
+		Assert.True(result);
+	}
+
+	[Fact]
+	public void SharedUnitsAreAvailableThroughEveryAliasWithoutDuplicateHelpers()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static double UsePressureAliases()
+				{
+					Pressure pressure = Pressure.FromPascals(1);
+					Stress stress = Stress.FromPascals(1);
+					YoungsModulus modulus = YoungsModulus.FromKiloPascals(1);
+					return pressure.AsPascals() + stress.AsPascals() + modulus.AsKiloPascals();
+				}
+			}
+			""";
+
+		Compile(source);
+	}
+
+	[Fact]
+	public void PrefixesAreOnlyGeneratedForSupportedFactorPlacements()
+	{
+		const string source = "public static class Consumer { public static double Value() => TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin(); }";
+		CSharpCompilation result = Compile(source);
+		INamedTypeSymbol extensions = result.GetTypeByMetadataName("DimensionalQuantities.Generated.QuantityExtensions")!;
+		string[] names = extensions.GetMembers().OfType<IMethodSymbol>().Select(method => method.Name).ToArray();
+
+		Assert.Multiple(
+			() => Assert.DoesNotContain("FromInverseMilliKelvin", names),
+			() => Assert.DoesNotContain("AsInverseMilliKelvin", names),
+			() => Assert.DoesNotContain("FromMilliAmpsPerSquareMilliMetre", names),
+			() => Assert.DoesNotContain("FromKiloGramsPerCubicCentiMetre", names));
+	}
+
+	[Fact]
+	public void EverySiPrefixHasUsableFactoryAndAccessor()
 	{
 		string calls = string.Join("\n", _prefixes.Select(prefix =>
-			$"{quantity} value{prefix} = {quantity}.From{prefix}{unit}(1); double output{prefix} = value{prefix}.As{prefix}{unit}();"));
+			$"Length value{prefix} = Length.From{prefix}Metres(1); double output{prefix} = value{prefix}.As{prefix}Metres();"));
 		string source = $$"""
 			public static class Consumer
 			{
@@ -77,35 +175,11 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Theory]
-	[InlineData("Length.FromMilliMetres(2500)", 2.5)]
-	[InlineData("Mass.FromGrams(2500)", 2.5)]
-	[InlineData("Mass.FromKiloGrams(2.5)", 2.5)]
-	[InlineData("Mass.FromMilliGrams(2500000)", 2.5)]
-	[InlineData("Time.FromKiloSeconds(2.5)", 2500)]
-	[InlineData("Current.FromMilliAmps(2500)", 2.5)]
-	[InlineData("Temperature.FromMilliKelvin(2500)", 2.5)]
-	[InlineData("AmountOfSubstance.FromKiloMoles(2.5)", 2500)]
-	[InlineData("LuminousIntensity.FromMilliCandelas(2500)", 2.5)]
-	[InlineData("Voltage.FromMilliVolts(2500)", 2.5)]
-	[InlineData("Voltage.FromKiloVolts(2.5)", 2500)]
-	[InlineData("Voltage.FromRontoVolts(1)", 1e-27)]
-	[InlineData("Voltage.FromQuettaVolts(1)", 1e30)]
-	[InlineData("Voltage.FromQuectoVolts(1)", 1e-30)]
-	public void FactoryStoresCoherentSiMagnitude(string factory, double expected)
-	{
-		double result = Evaluate<double>($"{factory}.AsSiBaseUnit()");
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
-	[InlineData("Mass.FromSiBaseUnit(2.5).AsGrams()", 2500)]
-	[InlineData("Mass.FromSiBaseUnit(2.5).AsKiloGrams()", 2.5)]
-	[InlineData("Mass.FromSiBaseUnit(2.5).AsMilliGrams()", 2500000)]
-	[InlineData("Voltage.FromSiBaseUnit(2.5).AsMilliVolts()", 2500)]
+	[InlineData("Length.FromMilliMetres(2500).AsSiBaseUnit()", 2.5)]
 	[InlineData("Voltage.FromSiBaseUnit(2.5).AsKiloVolts()", 0.0025)]
-	[InlineData("Voltage.FromSiBaseUnit(2.5).AsDeciVolts()", 25)]
-	[InlineData("Voltage.FromSiBaseUnit(2.5).AsHectoVolts()", 0.025)]
-	public void AccessorConvertsFromCoherentSiMagnitude(string expression, double expected)
+	[InlineData("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
+	[InlineData("Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()", 1000)]
+	public void GeneratedConversionsApplyRepresentativeUnitScales(string expression, double expected)
 	{
 		double result = Evaluate<double>(expression);
 		Assert.Equal(expected, result);

@@ -10,7 +10,7 @@ internal static class DimensionNameGenerator
 {
 	public static string GetQuantityName(Dimension dimension) => GetName(dimension, static component => component.Unit.QuantityName);
 
-	public static string GetUnitName(Dimension dimension) => GetName(dimension, static component => component.Unit.SiUnitNamePlural);
+	public static string GetUnitName(Dimension dimension) => GetName(dimension, static component => component.Unit.Expression.GetName());
 
 	public static string GetUnitExpression(Dimension dimension)
 	{
@@ -23,7 +23,7 @@ internal static class DimensionNameGenerator
 		StringBuilder expression = new();
 		foreach (DimensionComponent component in components)
 		{
-			expression.Append(component.Unit.SiUnitSymbol);
+			expression.Append(component.Unit.Expression.GetSymbol());
 			if (component.Exponent != Rational.One)
 			{
 				expression.Append("<sup>").Append(component.Exponent.ToString(null, CultureInfo.InvariantCulture)).Append("</sup>");

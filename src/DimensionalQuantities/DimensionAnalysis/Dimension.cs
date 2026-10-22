@@ -12,13 +12,13 @@ internal readonly record struct Dimension(
 	Rational AmountOfSubstance = default,
 	Rational LuminousIntensity = default)
 {
-	private static readonly UnitDefinition _lengthUnit = new("Length", "Metre", "Metres", "m");
-	private static readonly UnitDefinition _massUnit = new("Mass", "Kilogram", "Kilograms", "kg", "Gram", "Grams", "g", 3);
-	private static readonly UnitDefinition _timeUnit = new("Time", "Second", "Seconds", "s");
-	private static readonly UnitDefinition _electricCurrentUnit = new("Current", "Amp", "Amps", "A");
-	private static readonly UnitDefinition _temperatureUnit = new("Temperature", "Kelvin", "Kelvin", "K");
-	private static readonly UnitDefinition _amountOfSubstanceUnit = new("AmountOfSubstance", "Mole", "Moles", "mol");
-	private static readonly UnitDefinition _luminousIntensityUnit = new("LuminousIntensity", "Candela", "Candelas", "cd");
+	private static readonly UnitDefinition _lengthUnit = new("Length", [new(AtomicUnits.Metre)]);
+	private static readonly UnitDefinition _massUnit = new("Mass", [new(AtomicUnits.Gram, PrefixExponent: 3)]);
+	private static readonly UnitDefinition _timeUnit = new("Time", [new(AtomicUnits.Second)]);
+	private static readonly UnitDefinition _electricCurrentUnit = new("Current", [new(AtomicUnits.Amp)]);
+	private static readonly UnitDefinition _temperatureUnit = new("Temperature", [new(AtomicUnits.Kelvin)]);
+	private static readonly UnitDefinition _amountOfSubstanceUnit = new("AmountOfSubstance", [new(AtomicUnits.Mole)]);
+	private static readonly UnitDefinition _luminousIntensityUnit = new("LuminousIntensity", [new(AtomicUnits.Candela)]);
 
 	public static Dimension operator *(Dimension left, Dimension right) => left.Multiply(right);
 	public static Dimension operator /(Dimension left, Dimension right) => left.Divide(right);
