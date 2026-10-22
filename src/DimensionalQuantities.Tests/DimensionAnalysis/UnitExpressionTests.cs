@@ -1,4 +1,5 @@
 using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Numerics;
 using Xunit;
 
 namespace DimensionalQuantities.Tests.DimensionAnalysis;
@@ -13,6 +14,20 @@ public sealed class UnitExpressionTests
 	public void GetNameFormatsAtomicPowers(int power, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power));
+		string result = original.GetName();
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(1, 2, "SquareRootMetres")]
+	[InlineData(3, 2, "SquareRootCubicMetres")]
+	[InlineData(2, 3, "CubeRootSquareMetres")]
+	[InlineData(1, 4, "Root4Metres")]
+	[InlineData(-1, 2, "InverseSquareRootMetre")]
+	public void GetNameFormatsFractionalPowers(int numerator, int denominator, string expected)
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator)));
 		string result = original.GetName();
 
 		Assert.Equal(expected, result);
@@ -61,7 +76,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetNameFormatsKilogramsWithFixedPrefixCasing()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, PrefixExponent: 3));
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3));
 		string result = original.GetName();
 		string expected = "Kilograms";
 
@@ -71,7 +86,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetNameCapitalisesThePrefixOfAVariableFactor()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, PrefixExponent: 3));
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3));
 		string result = original.GetName(variableFactorIndex: 0);
 		string expected = "KiloGrams";
 
@@ -92,7 +107,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetNameFormatsReferenceAwareMassDensityDenominator()
 	{
-		UnitExpression reference = new(new UnitTerm(AtomicUnits.Gram, PrefixExponent: 3), new UnitTerm(AtomicUnits.Metre, -3));
+		UnitExpression reference = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3), new UnitTerm(AtomicUnits.Metre, -3));
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram), new UnitTerm(AtomicUnits.Metre, -3, -2));
 		string result = original.GetName(reference);
 		string expected = "GramsPerCubicCentiMetre";
@@ -108,6 +123,18 @@ public sealed class UnitExpressionTests
 	public void GetSymbolFormatsUnitPowerAndPrefix(int power, int prefixExponent, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power, prefixExponent));
+		string result = original.GetSymbol();
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(1, 2, "m¹⁄²")]
+	[InlineData(3, 2, "m³⁄²")]
+	[InlineData(-1, 2, "m⁻¹⁄²")]
+	public void GetSymbolFormatsFractionalPowers(int numerator, int denominator, string expected)
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator)));
 		string result = original.GetSymbol();
 
 		Assert.Equal(expected, result);
@@ -136,7 +163,30 @@ public sealed class UnitExpressionTests
 	public void GetSiScaleExponentAppliesMetrePrefixPowerAndSign(int power, int prefixExponent, int expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power, prefixExponent));
-		int result = original.GetSiScaleExponent();
+		Rational result = original.GetSiScaleExponent();
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(1, 2, -3, -3, 2)]
+	[InlineData(-1, 2, -3, 3, 2)]
+	[InlineData(3, 2, -3, -9, 2)]
+	public void GetSiScaleExponentAppliesFractionalPower(int numerator, int denominator, int prefixExponent, int expectedNumerator, int expectedDenominator)
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator), prefixExponent));
+		Rational result = original.GetSiScaleExponent();
+		Rational expected = new(expectedNumerator, expectedDenominator);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void GetSiScaleExponentCombinesFractionalGramOffsetAndPrefixedDenominator()
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, new Rational(1, 2)), new UnitTerm(AtomicUnits.Second, -1, -3));
+		Rational result = original.GetSiScaleExponent();
+		Rational expected = new(3, 2);
 
 		Assert.Equal(expected, result);
 	}
@@ -149,8 +199,8 @@ public sealed class UnitExpressionTests
 	[InlineData(-30, -30)]
 	public void GetSiScaleExponentAppliesVoltagePrefix(int prefixExponent, int expected)
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Volt, PrefixExponent: prefixExponent));
-		int result = original.GetSiScaleExponent();
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Volt, prefixExponent: prefixExponent));
+		Rational result = original.GetSiScaleExponent();
 
 		Assert.Equal(expected, result);
 	}
@@ -161,8 +211,8 @@ public sealed class UnitExpressionTests
 	[InlineData(-3, -6)]
 	public void GetSiScaleExponentAccountsForGramBasePrefixOffset(int prefixExponent, int expected)
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, PrefixExponent: prefixExponent));
-		int result = original.GetSiScaleExponent();
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: prefixExponent));
+		Rational result = original.GetSiScaleExponent();
 
 		Assert.Equal(expected, result);
 	}
@@ -172,8 +222,8 @@ public sealed class UnitExpressionTests
 	{
 		UnitExpression ampPerSquareMillimetre = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2, -3));
 		UnitExpression gramPerCubicCentimetre = new(new UnitTerm(AtomicUnits.Gram), new UnitTerm(AtomicUnits.Metre, -3, -2));
-		int currentDensityResult = ampPerSquareMillimetre.GetSiScaleExponent();
-		int massDensityResult = gramPerCubicCentimetre.GetSiScaleExponent();
+		Rational currentDensityResult = ampPerSquareMillimetre.GetSiScaleExponent();
+		Rational massDensityResult = gramPerCubicCentimetre.GetSiScaleExponent();
 
 		Assert.Multiple(
 			() => Assert.Equal(6, currentDensityResult),
@@ -184,8 +234,8 @@ public sealed class UnitExpressionTests
 	public void GetSiScaleExponentCancelsKilogramInWattsPerKilogram()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Watt), new UnitTerm(AtomicUnits.Gram, -1, 3));
-		int result = original.GetSiScaleExponent();
-		int expected = 0;
+		Rational result = original.GetSiScaleExponent();
+		Rational expected = Rational.Zero;
 
 		Assert.Equal(expected, result);
 	}
@@ -193,9 +243,9 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetSiScaleExponentIncludesKilowattPrefix()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Watt, PrefixExponent: 3), new UnitTerm(AtomicUnits.Gram, -1, 3));
-		int result = original.GetSiScaleExponent();
-		int expected = 3;
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Watt, prefixExponent: 3), new UnitTerm(AtomicUnits.Gram, -1, 3));
+		Rational result = original.GetSiScaleExponent();
+		Rational expected = 3;
 
 		Assert.Equal(expected, result);
 	}

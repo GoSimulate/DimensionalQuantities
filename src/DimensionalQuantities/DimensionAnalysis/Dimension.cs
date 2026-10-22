@@ -1,4 +1,5 @@
 using DimensionalQuantities.Numerics;
+using DimensionalQuantities.Units;
 
 namespace DimensionalQuantities.DimensionAnalysis;
 
@@ -12,13 +13,13 @@ internal readonly record struct Dimension(
 	Rational AmountOfSubstance = default,
 	Rational LuminousIntensity = default)
 {
-	private static readonly UnitDefinition _lengthUnit = new("Length", [new(AtomicUnits.Metre)]);
-	private static readonly UnitDefinition _massUnit = new("Mass", [new(AtomicUnits.Gram, PrefixExponent: 3)]);
-	private static readonly UnitDefinition _timeUnit = new("Time", [new(AtomicUnits.Second)]);
-	private static readonly UnitDefinition _electricCurrentUnit = new("Current", [new(AtomicUnits.Amp)]);
-	private static readonly UnitDefinition _temperatureUnit = new("Temperature", [new(AtomicUnits.Kelvin)]);
-	private static readonly UnitDefinition _amountOfSubstanceUnit = new("AmountOfSubstance", [new(AtomicUnits.Mole)]);
-	private static readonly UnitDefinition _luminousIntensityUnit = new("LuminousIntensity", [new(AtomicUnits.Candela)]);
+	private static readonly UnitDefinition _lengthUnit = new("Length", [new(AtomicUnits.Metre, prefixExponent: SiBasePrefixExponents.Length)]);
+	private static readonly UnitDefinition _massUnit = new("Mass", [new(AtomicUnits.Gram, prefixExponent: SiBasePrefixExponents.Mass)]);
+	private static readonly UnitDefinition _timeUnit = new("Time", [new(AtomicUnits.Second, prefixExponent: SiBasePrefixExponents.Time)]);
+	private static readonly UnitDefinition _electricCurrentUnit = new("Current", [new(AtomicUnits.Amp, prefixExponent: SiBasePrefixExponents.ElectricCurrent)]);
+	private static readonly UnitDefinition _temperatureUnit = new("Temperature", [new(AtomicUnits.Kelvin, prefixExponent: SiBasePrefixExponents.Temperature)]);
+	private static readonly UnitDefinition _amountOfSubstanceUnit = new("AmountOfSubstance", [new(AtomicUnits.Mole, prefixExponent: SiBasePrefixExponents.AmountOfSubstance)]);
+	private static readonly UnitDefinition _luminousIntensityUnit = new("LuminousIntensity", [new(AtomicUnits.Candela, prefixExponent: SiBasePrefixExponents.LuminousIntensity)]);
 
 	public static Dimension operator *(Dimension left, Dimension right) => left.Multiply(right);
 	public static Dimension operator /(Dimension left, Dimension right) => left.Divide(right);

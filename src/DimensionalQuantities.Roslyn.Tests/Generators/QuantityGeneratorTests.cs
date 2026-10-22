@@ -146,8 +146,8 @@ public sealed class QuantityGeneratorTests
 	{
 		const string source = "public static class Consumer { public static double Value() => TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin(); }";
 		CSharpCompilation result = Compile(source);
-		INamedTypeSymbol extensions = result.GetTypeByMetadataName("DimensionalQuantities.Generated.QuantityExtensions")!;
-		string[] names = extensions.GetMembers().OfType<IMethodSymbol>().Select(method => method.Name).ToArray();
+		INamespaceSymbol generated = result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthExtensions")!.ContainingNamespace;
+		string[] names = generated.GetTypeMembers().SelectMany(type => type.GetMembers().OfType<IMethodSymbol>()).Select(method => method.Name).ToArray();
 
 		Assert.Multiple(
 			() => Assert.DoesNotContain("FromInverseMilliKelvin", names),
@@ -180,6 +180,30 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
 	[InlineData("Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()", 1000)]
 	public void GeneratedConversionsApplyRepresentativeUnitScales(string expression, double expected)
+	{
+		double result = Evaluate<double>(expression);
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("Voltage.FromPrefixedUnits(2, -3).AsSiBaseUnit()", 0.002)]
+	[InlineData("CurrentDensity.FromPrefixedUnits(1, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit()", 1000000)]
+	[InlineData("SpecificPower.FromPrefixedUnits(1, wattPrefixExponent: 3, gramPrefixExponent: 3).AsSiBaseUnit()", 1000)]
+	[InlineData("TemperatureCoefficient.FromPrefixedUnits(1, kelvinPrefixExponent: -3).AsSiBaseUnit()", 1000)]
+	[InlineData("Mass.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
+	[InlineData("Torque.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
+	public void PrefixedUnitFactoriesUseCanonicalUnitFactors(string expression, double expected)
+	{
+		double result = Evaluate<double>(expression);
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("Voltage.FromSiBaseUnit(0.002).AsPrefixedUnits(-3)", 2)]
+	[InlineData("CurrentDensity.FromSiBaseUnit(1000000).AsPrefixedUnits(ampPrefixExponent: 0, metrePrefixExponent: -3)", 1)]
+	[InlineData("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)", 1000)]
+	[InlineData("Torque.FromSiBaseUnit(2).AsPrefixedUnits()", 2)]
+	public void PrefixedUnitAccessorsUseCanonicalUnitFactors(string expression, double expected)
 	{
 		double result = Evaluate<double>(expression);
 		Assert.Equal(expected, result);

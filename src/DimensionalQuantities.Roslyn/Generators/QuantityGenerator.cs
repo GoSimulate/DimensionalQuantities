@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using DimensionalQuantities.DimensionAnalysis;
+using DimensionalQuantities.Numerics;
 using DimensionalQuantities.TypeSystem;
 using DimensionalQuantities.Units;
 using Microsoft.CodeAnalysis;
@@ -48,19 +49,20 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 
 			namespace DimensionalQuantities.Generated;
 
-			internal static class QuantityExtensions
-			{
-			{{extensions}}}
+			{{extensions}}
 			""";
 	}
 
 	private static void AppendDimension(StringBuilder aliases, StringBuilder extensions, int[] prefixes, Dimension dimension, UnitDefinition[] units)
 	{
 		AppendAliases(aliases, dimension, units);
-		IReadOnlyDictionary<string, int> conversions = CollectConversions(units, prefixes);
+		IReadOnlyDictionary<string, Rational> conversions = CollectConversions(units, prefixes);
 		string quantityName = units[0].QuantityName;
-		AppendFactories(extensions, quantityName, conversions);
-		AppendAccessors(extensions, quantityName, conversions);
+		UnitExpression canonicalExpression = units[0].Expression;
+		extensions.Append("internal static class ").Append(quantityName).AppendLine("Extensions").AppendLine("{");
+		AppendFactories(extensions, quantityName, canonicalExpression, conversions);
+		AppendAccessors(extensions, quantityName, canonicalExpression, conversions);
+		extensions.AppendLine("}").AppendLine();
 	}
 
 	private static void AppendAliases(StringBuilder aliases, Dimension dimension, UnitDefinition[] units)
@@ -74,12 +76,12 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static IReadOnlyDictionary<string, int> CollectConversions(UnitDefinition[] units, int[] prefixes)
+	private static IReadOnlyDictionary<string, Rational> CollectConversions(UnitDefinition[] units, int[] prefixes)
 	{
-		Dictionary<string, int> conversions = new(StringComparer.Ordinal);
-		foreach ((string name, int scaleExponent) in units.SelectMany(unit => GetConversions(unit, prefixes)))
+		Dictionary<string, Rational> conversions = new(StringComparer.Ordinal);
+		foreach ((string name, Rational scaleExponent) in units.SelectMany(unit => GetConversions(unit, prefixes)))
 		{
-			if (conversions.TryGetValue(name, out int existingExponent) && existingExponent != scaleExponent)
+			if (conversions.TryGetValue(name, out Rational existingExponent) && existingExponent != scaleExponent)
 			{
 				throw new InvalidOperationException($"Unit {name} has conflicting SI scales.");
 			}
@@ -90,11 +92,11 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		return conversions;
 	}
 
-	private static void AppendFactories(StringBuilder extensions, string quantityName, IReadOnlyDictionary<string, int> conversions)
+	private static void AppendFactories(StringBuilder extensions, string quantityName, UnitExpression canonicalExpression, IReadOnlyDictionary<string, Rational> conversions)
 	{
-		extensions.Append("\textension(").Append(quantityName).AppendLine(")")
-			.AppendLine("\t{");
-		foreach ((string name, int scaleExponent) in conversions)
+		extensions.Append("\textension(").Append(quantityName).AppendLine(")").AppendLine("\t{");
+		AppendGenericFactory(extensions, quantityName, canonicalExpression);
+		foreach ((string name, Rational scaleExponent) in conversions)
 		{
 			AppendFactory(extensions, quantityName, name, scaleExponent);
 		}
@@ -102,12 +104,12 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		extensions.AppendLine("\t}").AppendLine();
 	}
 
-	private static void AppendAccessors(StringBuilder extensions, string quantityName, IReadOnlyDictionary<string, int> conversions)
+	private static void AppendAccessors(StringBuilder extensions, string quantityName, UnitExpression canonicalExpression, IReadOnlyDictionary<string, Rational> conversions)
 	{
 		string variableName = char.ToLowerInvariant(quantityName[0]) + quantityName[1..];
-		extensions.Append("\textension(").Append(quantityName).Append(' ').Append(variableName).AppendLine(")")
-			.AppendLine("\t{");
-		foreach ((string name, int scaleExponent) in conversions)
+		extensions.Append("\textension(").Append(quantityName).Append(' ').Append(variableName).AppendLine(")").AppendLine("\t{");
+		AppendGenericAccessor(extensions, variableName, canonicalExpression);
+		foreach ((string name, Rational scaleExponent) in conversions)
 		{
 			AppendAccessor(extensions, variableName, name, scaleExponent);
 		}
@@ -115,13 +117,13 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		extensions.AppendLine("\t}").AppendLine();
 	}
 
-	private static IEnumerable<(string Name, int ScaleExponent)> GetConversions(UnitDefinition unit, int[] prefixes)
+	private static IEnumerable<(string Name, Rational ScaleExponent)> GetConversions(UnitDefinition unit, int[] prefixes)
 		=> GetStandardConversions(unit.Expression, prefixes).Concat(unit.AdditionalConversions
 			.Select(expression => (expression.GetName(unit.Expression), expression.GetSiScaleExponent())));
 
-	private static IEnumerable<(string Name, int ScaleExponent)> GetStandardConversions(UnitExpression expression, int[] prefixes)
+	private static IEnumerable<(string Name, Rational ScaleExponent)> GetStandardConversions(UnitExpression expression, int[] prefixes)
 	{
-		int firstNumerator = Array.FindIndex(expression.Terms, term => term.Power > 0);
+		int firstNumerator = Array.FindIndex(expression.Terms, term => term.Power > Rational.Zero);
 		if (firstNumerator < 0)
 		{
 			yield return (expression.GetName(), expression.GetSiScaleExponent());
@@ -135,28 +137,87 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendFactory(StringBuilder source, string quantityName, string unitName, int exponent)
+	private static void AppendGenericFactory(StringBuilder source, string quantityName, UnitExpression expression)
+	{
+		source.Append("\t\tpublic static ").Append(quantityName).Append(" FromPrefixedUnits(double value");
+		AppendTermParameters(source, expression);
+		source.Append(") => ").Append(quantityName).Append(".FromArbitrarySiComponents(value, overallScaleExponent: ");
+		AppendTermScaleExponent(source, expression);
+		source.AppendLine(");");
+	}
+
+	private static void AppendGenericAccessor(StringBuilder source, string variableName, UnitExpression expression)
+	{
+		source.Append("\t\tpublic double AsPrefixedUnits(");
+		AppendTermParameters(source, expression, false);
+		source.Append(") => ").Append(variableName).Append(".AsArbitrarySiComponents(overallScaleExponent: ");
+		AppendTermScaleExponent(source, expression);
+		source.AppendLine(");");
+	}
+
+	private static void AppendTermParameters(StringBuilder source, UnitExpression expression, bool leadingComma = true)
+	{
+		for (int index = 0; index < expression.Terms.Length; index++)
+		{
+			UnitTerm term = expression.Terms[index];
+			source.Append(index > 0 || leadingComma ? ", " : "").Append("int ").Append(GetPrefixParameterName(term))
+				.Append(" = ").Append(term.PrefixExponent.ToString(CultureInfo.InvariantCulture));
+		}
+	}
+
+	private static void AppendTermScaleExponent(StringBuilder source, UnitExpression expression)
+	{
+		for (int index = 0; index < expression.Terms.Length; index++)
+		{
+			if (index > 0)
+			{
+				source.Append(" + ");
+			}
+
+			UnitTerm term = expression.Terms[index];
+			string parameterName = GetPrefixParameterName(term);
+			source.Append("((double)").Append(parameterName);
+			if (term.Unit.SiBasePrefixExponent != 0)
+			{
+				source.Append(" - ").Append(term.Unit.SiBasePrefixExponent.ToString(CultureInfo.InvariantCulture));
+			}
+
+			source.Append(')');
+			if (term.Power != Rational.One)
+			{
+				source.Append(" * ").Append(term.Power.Denominator.IsOne
+					? term.Power.Numerator.ToString(CultureInfo.InvariantCulture)
+					: "(" + term.Power.Numerator.ToString(CultureInfo.InvariantCulture) + "d / " + term.Power.Denominator.ToString(CultureInfo.InvariantCulture) + "d)");
+			}
+		}
+	}
+
+	private static string GetPrefixParameterName(UnitTerm term) => char.ToLowerInvariant(term.Unit.NameSingular[0]) + term.Unit.NameSingular[1..] + "PrefixExponent";
+
+	private static void AppendFactory(StringBuilder source, string quantityName, string unitName, Rational exponent)
 	{
 		source.Append("\t\tpublic static ").Append(quantityName).Append(" From").Append(unitName)
-			.Append("(double value) => ").Append(quantityName).Append(".FromSiBaseUnit(value");
-		if (exponent != 0)
+			.Append("(double value) => ").Append(quantityName).Append(".FromArbitrarySiComponents(value");
+		if (exponent != Rational.Zero)
 		{
-			source.Append(" * 1e").Append(exponent.ToString(CultureInfo.InvariantCulture));
+			source.Append(", overallScaleExponent: ").Append(FormatExponent(exponent));
 		}
 
 		source.AppendLine(");");
 	}
 
-	private static void AppendAccessor(StringBuilder source, string variableName, string unitName, int exponent)
+	private static void AppendAccessor(StringBuilder source, string variableName, string unitName, Rational exponent)
 	{
-		source.Append("\t\tpublic double As").Append(unitName).Append("() => ").Append(variableName).Append(".AsSiBaseUnit()");
-		if (exponent != 0)
+		source.Append("\t\tpublic double As").Append(unitName).Append("() => ").Append(variableName).Append(".AsArbitrarySiComponents(");
+		if (exponent != Rational.Zero)
 		{
-			source.Append(" / 1e").Append(exponent.ToString(CultureInfo.InvariantCulture));
+			source.Append("overallScaleExponent: ").Append(FormatExponent(exponent));
 		}
 
-		source.AppendLine(";");
+		source.AppendLine(");");
 	}
+
+	private static string FormatExponent(Rational exponent) => double.CreateChecked(exponent).ToString("R", CultureInfo.InvariantCulture) + "d";
 
 	private static Type[] GetExponentTypes(Dimension dimension) =>
 	[

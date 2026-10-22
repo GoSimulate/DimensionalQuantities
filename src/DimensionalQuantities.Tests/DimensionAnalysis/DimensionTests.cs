@@ -14,7 +14,7 @@ public sealed class DimensionTests
 		DimensionComponent[] expected =
 		[
 			new(1, new("Length", [new(AtomicUnits.Metre)])),
-			new(-2, new("Mass", [new(AtomicUnits.Gram, PrefixExponent: 3)])),
+			new(-2, new("Mass", [new(AtomicUnits.Gram, prefixExponent: 3)])),
 			new(new(3, 2), new("Time", [new(AtomicUnits.Second)])),
 			new(4, new("Current", [new(AtomicUnits.Amp)])),
 			new(-6, new("AmountOfSubstance", [new(AtomicUnits.Mole)])),

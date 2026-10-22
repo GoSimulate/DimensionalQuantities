@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text;
+using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Units;
 
 namespace DimensionalQuantities.DimensionAnalysis;
@@ -20,21 +22,32 @@ internal readonly record struct UnitExpression
 		return new(terms);
 	}
 
-	public int GetSiScaleExponent() => Terms.Sum(term => (term.PrefixExponent - term.Unit.SiBasePrefixExponent) * term.Power);
+	public Rational GetSiScaleExponent()
+	{
+		Rational exponent = Rational.Zero;
+		foreach (UnitTerm term in Terms)
+		{
+			exponent += (term.PrefixExponent - term.Unit.SiBasePrefixExponent) * term.Power;
+		}
+
+		return exponent;
+	}
 
 	public string GetName(UnitExpression? reference = null, int variableFactorIndex = -1)
 	{
 		StringBuilder numerator = new();
 		StringBuilder denominator = new();
-		bool hasNumerator = Terms.Any(term => term.Power > 0);
-		bool hasDenominator = Terms.Any(term => term.Power < 0);
-		int lastNumerator = Array.FindLastIndex(Terms, term => term.Power > 0);
+		bool hasNumerator = Terms.Any(term => term.Power > Rational.Zero);
+		bool hasDenominator = Terms.Any(term => term.Power < Rational.Zero);
+		int lastNumerator = Array.FindLastIndex(Terms, term => term.Power > Rational.Zero);
 
 		for (int index = 0; index < Terms.Length; index++)
 		{
 			UnitTerm term = Terms[index];
-			StringBuilder destination = term.Power > 0 ? numerator : denominator;
-			AppendPowerName(destination, Math.Abs(term.Power));
+			StringBuilder destination = term.Power > Rational.Zero ? numerator : denominator;
+			Rational power = Rational.Abs(term.Power);
+			AppendRootName(destination, power);
+			AppendPowerName(destination, power.Numerator);
 			bool generatedPrefix = index == variableFactorIndex ||
 				(reference is { } original && term.PrefixExponent != original.Terms[index].PrefixExponent);
 			AppendUnitName(destination, term, index == lastNumerator, generatedPrefix);
@@ -52,20 +65,20 @@ internal readonly record struct UnitExpression
 	{
 		StringBuilder numerator = new();
 		StringBuilder denominator = new();
-		bool hasNumerator = Terms.Any(term => term.Power > 0);
-		bool hasDenominator = Terms.Any(term => term.Power < 0);
+		bool hasNumerator = Terms.Any(term => term.Power > Rational.Zero);
+		bool hasDenominator = Terms.Any(term => term.Power < Rational.Zero);
 		foreach (UnitTerm term in Terms)
 		{
-			StringBuilder destination = term.Power > 0 ? numerator : denominator;
+			StringBuilder destination = term.Power > Rational.Zero ? numerator : denominator;
 			if (term.PrefixExponent != 0)
 			{
 				destination.Append(SiPrefixes.Entries[term.PrefixExponent].Symbol);
 			}
 
 			destination.Append(term.Unit.Symbol);
-			if (Math.Abs(term.Power) != 1 || !hasNumerator)
+			if (Rational.Abs(term.Power) != Rational.One || !hasNumerator)
 			{
-				AppendSuperscript(destination, hasNumerator ? Math.Abs(term.Power) : term.Power);
+				AppendSuperscript(destination, hasNumerator ? Rational.Abs(term.Power) : term.Power);
 			}
 		}
 
@@ -90,7 +103,23 @@ internal readonly record struct UnitExpression
 		return hash.ToHashCode();
 	}
 
-	private static void AppendPowerName(StringBuilder name, int power)
+	private static void AppendRootName(StringBuilder name, Rational power)
+	{
+		if (power.Denominator == 2)
+		{
+			name.Append("SquareRoot");
+		}
+		else if (power.Denominator == 3)
+		{
+			name.Append("CubeRoot");
+		}
+		else if (power.Denominator > 3)
+		{
+			name.Append("Root").Append(power.Denominator.ToString(CultureInfo.InvariantCulture));
+		}
+	}
+
+	private static void AppendPowerName(StringBuilder name, BigInteger power)
 	{
 		if (power == 2)
 		{
@@ -119,17 +148,26 @@ internal readonly record struct UnitExpression
 		name.Append(generatedPrefix ? unitName : char.ToLowerInvariant(unitName[0]) + unitName[1..]);
 	}
 
-	private static void AppendSuperscript(StringBuilder symbol, int exponent)
+	private static void AppendSuperscript(StringBuilder symbol, Rational exponent)
 	{
 		const string digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
-		if (exponent < 0)
+		if (exponent < Rational.Zero)
 		{
 			symbol.Append('⁻');
 		}
 
-		foreach (char digit in Math.Abs(exponent).ToString(CultureInfo.InvariantCulture))
+		foreach (char digit in BigInteger.Abs(exponent.Numerator).ToString(CultureInfo.InvariantCulture))
 		{
 			symbol.Append(digits[digit - '0']);
+		}
+
+		if (exponent.Denominator != BigInteger.One)
+		{
+			symbol.Append('⁄');
+			foreach (char digit in exponent.Denominator.ToString(CultureInfo.InvariantCulture))
+			{
+				symbol.Append(digits[digit - '0']);
+			}
 		}
 	}
 }
