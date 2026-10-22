@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <Authors>GoSim</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
     <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
@@ -13,6 +17,8 @@
              Properties="Configuration=$(Configuration)" />
   </Target>
   <ItemGroup>
+    <None Include="../../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../../README.md" Pack="true" PackagePath="" />
     <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/net10.0/DimensionalQuantities.Roslyn.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <None Include="bin/$(Configuration)/net10.0/DimensionalQuantities.dll"

@@ -19,22 +19,29 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24.10.0'
       - name: Prepare isolated act release destination
         if: env.ACT
         run: bash .github/testing/prepare-local-remote.sh
+      - name: NuGet trusted publishing login
+        if: ${{ !env.ACT }}
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ vars.NUGET_USER }}
       - name: Version, package and release
         id: release
-        uses: cycjimmy/semantic-release-action@d9bf53a078bd2f86aaffaec796dbb3d28f1b6f34 # v8.1.3
+        uses: cycjimmy/semantic-release-action@v8.1.3
         with:
           semantic_version: 25.0.9
           repository_url: ${{ env.ACT && 'file:///tmp/dimensional-quantities-remote.git' || '' }}
@@ -46,6 +53,7 @@ jobs:
             conventional-changelog-conventionalcommits@9.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
       - name: Verify local release
         if: env.ACT
         env:
