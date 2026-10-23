@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Numerics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -16,7 +17,7 @@ internal sealed class QuantityExpressionAnalyser
 		_semanticModel = semanticModel;
 	}
 
-	public ImmutableArray<ArithmeticOperation> Analyse(ExpressionSyntax expression, CancellationToken cancellationToken)
+	public QuantityExpressionAnalysis Analyse(ExpressionSyntax expression, CancellationToken cancellationToken)
 	{
 		Analysis analysis = new(_semanticModel, cancellationToken);
 		return analysis.Analyse(expression);
@@ -26,8 +27,10 @@ internal sealed class QuantityExpressionAnalyser
 	{
 		private readonly SemanticModel _semanticModel;
 		private readonly QuantityTypeReader _typeReader;
+		private readonly PowerDiscovery _powerDiscovery;
 		private readonly CancellationToken _cancellationToken;
 		private readonly ImmutableArray<ArithmeticOperation>.Builder _operations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
+		private readonly ImmutableArray<PowerOperation>.Builder _powerOperations = ImmutableArray.CreateBuilder<PowerOperation>();
 		private readonly Dictionary<ILocalSymbol, Operand> _locals = new(SymbolEqualityComparer.Default);
 		private readonly HashSet<ILocalSymbol> _inProgress = new(SymbolEqualityComparer.Default);
 
@@ -35,13 +38,14 @@ internal sealed class QuantityExpressionAnalyser
 		{
 			_semanticModel = semanticModel;
 			_typeReader = new(semanticModel.Compilation);
+			_powerDiscovery = new(semanticModel);
 			_cancellationToken = cancellationToken;
 		}
 
-		public ImmutableArray<ArithmeticOperation> Analyse(ExpressionSyntax expression)
+		public QuantityExpressionAnalysis Analyse(ExpressionSyntax expression)
 		{
 			AnalyseExpression(expression);
-			return _operations.ToImmutable();
+			return new(_operations.ToImmutable(), _powerOperations.ToImmutable());
 		}
 
 		private Operand AnalyseExpression(ExpressionSyntax expression)
@@ -50,6 +54,20 @@ internal sealed class QuantityExpressionAnalyser
 			if (expression is ParenthesizedExpressionSyntax parenthesized)
 			{
 				return AnalyseExpression(parenthesized.Expression);
+			}
+
+			if (expression is InvocationExpressionSyntax invocation
+				&& _powerDiscovery.TryRead(invocation, out Rational exponent, out string exponentTypeName, _cancellationToken))
+			{
+				Operand operand = AnalyseExpression(invocation.ArgumentList.Arguments[0].Expression);
+				if (operand.Kind != OperandKind.Quantity)
+				{
+					return default;
+				}
+
+				Dimension result = operand.Dimension.Pow(exponent);
+				_powerOperations.Add(new(operand.Dimension, exponent, result, exponentTypeName));
+				return result == default ? new(OperandKind.Scalar) : new(OperandKind.Quantity, result);
 			}
 
 			if (expression is BinaryExpressionSyntax binary && IsSupported(binary))

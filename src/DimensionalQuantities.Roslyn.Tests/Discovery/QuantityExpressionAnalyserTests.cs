@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.TypeSystem;
@@ -541,13 +542,50 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Equal(expected, result);
 	}
 
+	[Fact]
+	public void TracksDimensionsThroughProductsPowersAndLocalVariables()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static object Test(Current current, Time time)
+				{
+					var squared = current * current;
+					var cubed = Power<Fraction<TerminalHex3, TerminalHex2>>.Of(squared);
+					return cubed * time;
+				}
+			}
+			""";
+		CSharpCompilation compilation = Compile(source);
+		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
+		ReturnStatementSyntax statement = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<ReturnStatementSyntax>().Single();
+		QuantityExpressionAnalyser analyser = new(compilation.GetSemanticModel(tree));
+		QuantityExpressionAnalysis result = analyser.Analyse(statement.Expression!, TestContext.Current.CancellationToken);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension cubed = new(ElectricCurrent: 3);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation[] expectedArithmetic =
+		[
+			new(ArithmeticOperationKind.Multiply, current, current, squared),
+			new(ArithmeticOperationKind.Multiply, cubed, time, new(Time: 1, ElectricCurrent: 3))
+		];
+		PowerOperation expectedPower = new(squared, new Rational(3, 2), cubed,
+			"global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex3, global::DimensionalQuantities.TypeSystem.TerminalHex2>");
+
+		Assert.Multiple(
+			() => Assert.Equal(expectedArithmetic, result.ArithmeticOperations),
+			() => Assert.Equal(expectedPower, Assert.Single(result.PowerOperations)));
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
 		ArrowExpressionClauseSyntax expressionBody = tree.GetRoot().DescendantNodes().OfType<ArrowExpressionClauseSyntax>().Single();
 		SemanticModel semanticModel = compilation.GetSemanticModel(tree);
 		QuantityExpressionAnalyser analyser = new(semanticModel);
-		return analyser.Analyse(expressionBody.Expression, TestContext.Current.CancellationToken);
+		return analyser.Analyse(expressionBody.Expression, TestContext.Current.CancellationToken).ArithmeticOperations;
 	}
 
 	private static CSharpCompilation Compile(string source)
@@ -569,6 +607,6 @@ public sealed class QuantityExpressionAnalyserTests
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
 		ReturnStatementSyntax statement = tree.GetRoot().DescendantNodes().OfType<ReturnStatementSyntax>().Single();
 		QuantityExpressionAnalyser analyser = new(compilation.GetSemanticModel(tree));
-		return analyser.Analyse(statement.Expression!, TestContext.Current.CancellationToken);
+		return analyser.Analyse(statement.Expression!, TestContext.Current.CancellationToken).ArithmeticOperations;
 	}
 }
