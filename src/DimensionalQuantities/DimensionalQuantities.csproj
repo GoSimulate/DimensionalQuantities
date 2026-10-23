@@ -9,12 +9,7 @@
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
   <Target Name="BuildRoslynForPack" BeforeTargets="_GetPackageFiles" Condition="'$(NoBuild)' != 'true'">
-    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-             Targets="Restore"
-             Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)" />
+    <Exec Command="dotnet build &quot;$(MSBuildThisFileDirectory)../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj&quot; -c $(Configuration)" />
   </Target>
   <ItemGroup>
     <None Include="../../LICENSE" Pack="true" PackagePath="" />
