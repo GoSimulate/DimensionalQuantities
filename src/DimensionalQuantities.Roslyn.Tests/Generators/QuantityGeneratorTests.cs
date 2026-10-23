@@ -258,14 +258,13 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void GeneratorIgnoresUnrelatedIncompleteAndDimensionlessArithmetic()
+	public void GeneratorIgnoresUnrelatedAndIncompleteArithmetic()
 	{
 		const string source = """
 			public static class Consumer
 			{
 				public static int Number(int left, int right) => left * right;
 				public static object Incomplete(Length length) => length * Missing;
-				public static object Dimensionless(Length length) => length / length;
 			}
 			""";
 		CSharpCompilation input = CreateInputCompilation(source);
@@ -500,6 +499,47 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(diagnostics),
 			() => Assert.Equal("CS0019", Assert.Single(errors).Id));
+	}
+
+	[Theory]
+	[InlineData("Length.FromMetres(3) / Length.FromMilliMetres(500)", 6)]
+	[InlineData("Energy.FromJoules(6) / Torque.FromNewtonMetres(2)", 3)]
+	[InlineData("Current.FromAmps(3) * (2 / Current.FromAmps(3))", 2)]
+	[InlineData("(2 / Current.FromAmps(3)) * Current.FromAmps(3)", 2)]
+	[InlineData("(Current.FromAmps(3) * Current.FromAmps(3)) / (Current.FromAmps(2) * Current.FromAmps(2))", 2.25)]
+	[InlineData("(Length.FromMetres(3) / Length.FromMetres(1)) + (Current.FromAmps(4) / Current.FromAmps(2))", 5)]
+	public void CancelledDimensionsCompileAndExecuteAsDouble(string expression, double expected)
+	{
+		double result = Evaluate<double>(expression);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("var ratio = first / second;", "(ratio * time).AsSeconds()", 6)]
+	[InlineData("var firstSquared = first * first; var secondSquared = second * second; var ratio = firstSquared / secondSquared;", "(ratio * time).AsSeconds()", 9)]
+	[InlineData("var inverse = 2 / first; var ratio = first * inverse; var copy = ratio;", "(copy * time).AsSeconds()", 8)]
+	[InlineData("var inverse = 2 / first; var ratio = first * inverse;", "(time / ratio).AsSeconds()", 2)]
+	[InlineData("var inverse = 2 / first; var ratio = first * inverse; var scaled = (ratio + 1) * first;", "(scaled * time).AsSiBaseUnit()", 36)]
+	[InlineData("var ratio = first / second; var inverseTime = ratio / time;", "inverseTime.AsSiBaseUnit()", 0.375)]
+	public void CancelledLocalsCanBeUsedAsScalarOperands(string declarations, string expression, double expected)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Current first = Current.FromAmps(3);
+					Current second = Current.FromAmps(2);
+					Time time = Time.FromSeconds(4);
+					{{declarations}}
+					return {{expression}};
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result);
 	}
 
 	private static T Evaluate<T>(string expression)

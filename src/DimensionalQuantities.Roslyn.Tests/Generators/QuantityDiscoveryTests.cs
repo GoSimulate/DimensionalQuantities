@@ -31,6 +31,20 @@ public sealed class QuantityDiscoveryTests
 	}
 
 	[Fact]
+	public void CancellingProductPlansOperandsWithoutADimensionlessQuantity()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension inverse = new(ElectricCurrent: -1);
+		ArithmeticOperation operation = new(ArithmeticOperationKind.Multiply, current, inverse, default);
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([operation, operation]);
+
+		Assert.Multiple(
+			() => Assert.Equal(operation, Assert.Single(result.Operations)),
+			() => Assert.Equal(inverse, Assert.Single(result.AdditionalQuantities).Dimension),
+			() => Assert.DoesNotContain(result.KnownQuantities, quantity => quantity.Dimension == default));
+	}
+
+	[Fact]
 	public void UnknownQuantityUsesSiComponentPowersAndBasePrefixes()
 	{
 		Dimension mass = new(Mass: 1);

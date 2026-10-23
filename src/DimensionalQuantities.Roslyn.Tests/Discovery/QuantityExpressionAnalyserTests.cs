@@ -90,8 +90,7 @@ public sealed class QuantityExpressionAnalyserTests
 	[InlineData("a * 1m")]
 	[InlineData("a * \"text\"")]
 	[InlineData("a + b")]
-	[InlineData("a / a")]
-	public void DiscoverySkipsUnsupportedOrDimensionlessExpressions(string expression)
+	public void DiscoverySkipsUnsupportedExpressions(string expression)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -265,7 +264,6 @@ public sealed class QuantityExpressionAnalyserTests
 	[InlineData("var value = other * current; var other = value * current;")]
 	[InlineData("object value = current * current;")]
 	[InlineData("Missing value = current * current;")]
-	[InlineData("var value = current / current;")]
 	public void DoesNotInferUnsupportedOrCyclicLocals(string declaration)
 	{
 		string source = $$"""
@@ -458,6 +456,89 @@ public sealed class QuantityExpressionAnalyserTests
 		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, current, time, new(Time: 1, ElectricCurrent: 1));
 
 		Assert.Equal(expected, Assert.Single(result));
+	}
+
+	[Theory]
+	[InlineData("(length / length) * current * time")]
+	[InlineData("current * (length / length) * time")]
+	[InlineData("current / (length / length) * time")]
+	[InlineData("(-(length / length) + 2) * current * time")]
+	public void RatiosActAsScalarsInLaterArithmetic(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Length length, Current current, Time time) => {{expression}};
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, current, time, new(Time: 1, ElectricCurrent: 1));
+
+		Assert.Equal(expected, Assert.Single(result));
+	}
+
+	[Theory]
+	[InlineData("ratio * length * time")]
+	[InlineData("length / ratio * time")]
+	[InlineData("(ratio + 2) * length * time")]
+	public void RatiosOfInferredLocalsPreserveChildOperationsAndSupplyScalars(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Length length, Time time)
+				{
+					var squared = current * current;
+					var ratio = squared / squared;
+					return {{expression}};
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension length = new(Length: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation[] expected =
+		[
+			new(ArithmeticOperationKind.Multiply, current, current, new(ElectricCurrent: 2)),
+			new(ArithmeticOperationKind.Multiply, length, time, new(Length: 1, Time: 1))
+		];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("var cancelled = current * inverse;", "cancelled * length * time")]
+	[InlineData("var cancelled = current * inverse; var copy = cancelled;", "copy * length * time")]
+	[InlineData("var cancelled = current * inverse;", "(cancelled - 2) * length * time")]
+	public void InverseProductsProduceScalarsForLaterArithmetic(string declaration, string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Test(Current current, Length length, Time time)
+				{
+					var inverse = 2 / current;
+					{{declaration}}
+					return {{expression}};
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension inverse = new(ElectricCurrent: -1);
+		Dimension length = new(Length: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation[] expected =
+		[
+			new(ArithmeticOperationKind.ScalarDivide, default, current, inverse),
+			new(ArithmeticOperationKind.Multiply, current, inverse, default),
+			new(ArithmeticOperationKind.Multiply, length, time, new(Length: 1, Time: 1))
+		];
+
+		Assert.Equal(expected, result);
 	}
 
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)

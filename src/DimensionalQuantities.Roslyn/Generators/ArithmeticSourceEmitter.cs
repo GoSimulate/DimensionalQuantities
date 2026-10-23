@@ -21,6 +21,18 @@ internal static class ArithmeticSourceEmitter
 	private static string RenderOperator(ArithmeticOperation operation, QuantityGenerationPlan plan)
 	{
 		string right = plan.GetQuantityName(operation.Right);
+		if (operation.Kind == ArithmeticOperationKind.Multiply && operation.Result == default)
+		{
+			string cancellingLeft = plan.GetQuantityName(operation.Left);
+			return $$"""
+				extension({{cancellingLeft}})
+				{
+					public static double operator *({{cancellingLeft}} left, {{right}} right) =>
+						left.AsSiBaseUnit() * right.AsSiBaseUnit();
+				}
+				""";
+		}
+
 		string result = plan.GetQuantityName(operation.Result);
 		if (operation.Kind == ArithmeticOperationKind.ScalarDivide)
 		{

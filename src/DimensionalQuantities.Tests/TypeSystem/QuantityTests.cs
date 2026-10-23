@@ -45,6 +45,19 @@ namespace DimensionalQuantities.Tests.TypeSystem;
 public sealed class QuantityTests
 {
 	[Theory]
+	[InlineData(6, 2, 3)]
+	[InlineData(-6, 2, -3)]
+	[InlineData(0, 2, 0)]
+	public void DividingMatchingDimensionsReturnsDouble(double numerator, double denominator, double expected)
+	{
+		SquareRootLength original = SquareRootLength.FromSiBaseUnit(numerator);
+		SquareRootLength divisor = SquareRootLength.FromSiBaseUnit(denominator);
+		double result = original / divisor;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
 	[InlineData(3, 2, 5)]
 	[InlineData(-3, 2, -1)]
 	[InlineData(3, -3, 0)]

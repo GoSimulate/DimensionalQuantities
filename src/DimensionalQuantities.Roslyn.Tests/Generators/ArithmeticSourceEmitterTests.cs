@@ -52,6 +52,30 @@ public sealed class ArithmeticSourceEmitterTests
 			() => Assert.Equal(4, divided));
 	}
 
+	[Theory]
+	[InlineData("Current.FromAmps(3) * InverseCurrent.FromSiBaseUnit(2)", false)]
+	[InlineData("InverseCurrent.FromSiBaseUnit(2) * Current.FromAmps(3)", true)]
+	public void CancellingProductEmitsAnOperatorReturningDouble(string expression, bool inverseFirst)
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension inverse = new(ElectricCurrent: -1);
+		ArithmeticOperation operation = inverseFirst
+			? new(ArithmeticOperationKind.Multiply, inverse, current, default)
+			: new(ArithmeticOperationKind.Multiply, current, inverse, default);
+		QuantityGenerationPlan plan = QuantityDiscovery.Discover([operation]);
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value() => {{expression}};
+			}
+			""";
+		Assembly assembly = CompileAndEmit(source, plan);
+		double result = (double)assembly.GetType("Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
+		double expected = 6;
+
+		Assert.Equal(expected, result);
+	}
+
 	private static Assembly CompileAndEmit(string source, QuantityGenerationPlan plan)
 	{
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
