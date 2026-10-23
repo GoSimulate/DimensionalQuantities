@@ -15,6 +15,7 @@ public readonly record struct Quantity<TDimension>
 	public static Quantity<TDimension> operator *(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit * scalar);
 	public static Quantity<TDimension> operator *(double scalar, Quantity<TDimension> quantity) => new(scalar * quantity.ValueInSiBaseUnit);
 	public static Quantity<TDimension> operator /(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit / scalar);
+	public static double operator /(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit / right.ValueInSiBaseUnit;
 
 	// Each closed quantity type intentionally caches its own decoded dimension.
 	// ReSharper disable once StaticMemberInGenericType

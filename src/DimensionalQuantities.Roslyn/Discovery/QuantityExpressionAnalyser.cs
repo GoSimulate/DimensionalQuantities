@@ -174,11 +174,18 @@ internal sealed class QuantityExpressionAnalyser
 			{
 				ArithmeticOperationKind kind = binary.IsKind(SyntaxKind.MultiplyExpression) ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide;
 				Dimension result = kind == ArithmeticOperationKind.Multiply ? left.Dimension * right.Dimension : left.Dimension / right.Dimension;
-				if (result != default)
+				if (result == default && kind == ArithmeticOperationKind.Divide)
 				{
-					_operations.Add(new(kind, left.Dimension, right.Dimension, result));
-					return new(OperandKind.Quantity, result);
+					return new(OperandKind.Scalar);
 				}
+
+				_operations.Add(new(kind, left.Dimension, right.Dimension, result));
+				if (result == default)
+				{
+					return new(OperandKind.Scalar);
+				}
+
+				return new(OperandKind.Quantity, result);
 			}
 
 			return default;
