@@ -13,6 +13,16 @@ public sealed class QuantityTypeReaderTests
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
 
 	[Fact]
+	public void MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
+	{
+		CSharpCompilation compilation = CSharpCompilation.Create("MissingRuntimeConsumer");
+
+		InvalidOperationException result = Assert.Throws<InvalidOperationException>(() => new QuantityTypeReader(compilation));
+
+		Assert.Contains(typeof(Quantity<>).FullName!, result.Message);
+	}
+
+	[Fact]
 	public void ReaderDecodesEveryAxisAndRationalMarker()
 	{
 		const string source = """

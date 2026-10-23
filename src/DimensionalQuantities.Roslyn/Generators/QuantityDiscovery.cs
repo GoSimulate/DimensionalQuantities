@@ -8,13 +8,17 @@ namespace DimensionalQuantities.Roslyn.Generators;
 
 internal static class QuantityDiscovery
 {
-	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations)
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations) => Discover(operations, []);
+
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations)
 	{
 		List<PlannedQuantity> knownQuantities = [];
 		List<PlannedQuantity> additionalQuantities = [];
 		HashSet<Dimension> dimensions = [];
 		HashSet<(ArithmeticOperationKind Kind, Dimension Left, Dimension Right)> seenOperations = [];
 		List<ArithmeticOperation> orderedOperations = [];
+		HashSet<(Dimension Operand, string ExponentTypeName)> seenPowers = [];
+		List<PowerOperation> orderedPowers = [];
 		Dimension[] baseDimensions =
 		[
 			new(Length: 1),
@@ -51,7 +55,19 @@ internal static class QuantityDiscovery
 			AddUnknown(operation.Result);
 		}
 
-		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray());
+		foreach (PowerOperation operation in powerOperations)
+		{
+			if (!seenPowers.Add((operation.Operand, operation.ExponentTypeName)))
+			{
+				continue;
+			}
+
+			orderedPowers.Add(operation);
+			AddUnknown(operation.Operand);
+			AddUnknown(operation.Result);
+		}
+
+		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray());
 
 		void AddUnknown(Dimension dimension)
 		{

@@ -542,6 +542,157 @@ public sealed class QuantityGeneratorTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData("TerminalHex2", 3, 9)]
+	[InlineData("TerminalHex3", 3, 27)]
+	[InlineData("TerminalHex1", 3, 3)]
+	[InlineData("Hex<TerminalHex0, TerminalHex1>", 2, 65536)]
+	[InlineData("Negative<TerminalHex2>", 2, 0.25)]
+	[InlineData("Fraction<TerminalHex1, TerminalHex2>", 9, 3)]
+	[InlineData("Fraction<TerminalHex2, TerminalHex4>", 9, 3)]
+	[InlineData("Fraction<TerminalHex1, TerminalHex3>", -8, -2)]
+	[InlineData("Fraction<TerminalHex2, TerminalHex3>", -8, 4)]
+	[InlineData("Fraction<Negative<TerminalHex1>, TerminalHex3>", -8, -0.5)]
+	public void EncodedPowersCompileAndExecute(string exponent, double value, double expected)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value() => Power<{{exponent}}>.Of(Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}})).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void PowersReturnExistingQuantityTypesWhenCalledThroughAliases()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			using Two = DimensionalQuantities.TypeSystem.TerminalHex2;
+			using Half = DimensionalQuantities.TypeSystem.Fraction<DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex2>;
+			using Squaring = DimensionalQuantities.TypeSystem.Power<DimensionalQuantities.TypeSystem.TerminalHex2>;
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Length length = Length.FromMetres(3);
+					Area first = Power<Two>.Of(length);
+					Area second = Squaring.Of(length);
+					Length root = Power<Half>.Of(first);
+					Length equivalent = Power<Fraction<TerminalHex2, TerminalHex4>>.Of(second);
+					Volume volume = Power<TerminalHex3>.Of(length);
+					return first.AsSiBaseUnit() + second.AsSiBaseUnit() + root.AsSiBaseUnit() + equivalent.AsSiBaseUnit() + volume.AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+		double expected = 51;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("var squared = Power<TerminalHex2>.Of(current); var result = squared * resistance;", "((Power)result).AsWatts()", 36)]
+	[InlineData("var squared = current * current; var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(squared);", "((Current)result).AsAmps()", 3)]
+	[InlineData("var squared = Power<TerminalHex2>.Of(current); var copy = squared; var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(copy);", "((Current)result).AsAmps()", 3)]
+	[InlineData("var result = Power<TerminalHex2>.Of(current * resistance);", "result.AsSiBaseUnit()", 144)]
+	[InlineData("var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Power<TerminalHex2>.Of(current));", "((Current)result).AsAmps()", 3)]
+	[InlineData("var identity = Power<TerminalHex0>.Of(current); var result = identity * current * resistance;", "((Voltage)result).AsVolts()", 12)]
+	public void PowersWorkWithArithmeticAndLocalVariables(string declarations, string expression, double expected)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Current current = Current.FromAmps(3);
+					Resistance resistance = Resistance.FromOhms(4);
+					{{declarations}}
+					return {{expression}};
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void ZerothPowerReturnsDouble()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value() => Power<TerminalHex0>.Of(Length.FromMetres(3));
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(1, result);
+	}
+
+	[Fact]
+	public void UnresolvedEnglishExponentNamesRemainCompilerErrors()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static object Value(Length length) => Power<Seventeen>.Of(length);
+			}
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("Seventeen", StringComparison.Ordinal)));
+	}
+
+	[Fact]
+	public void EditingAndRemovingPowerCallsRemovesObsoleteGeneratedTypes()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static object Value(Current current) => Power<TerminalHex2>.Of(current);
+			}
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		SyntaxTree originalTree = input.SyntaxTrees.Single();
+		SyntaxTree editedTree = CSharpSyntaxTree.ParseText(source.Replace("TerminalHex2", "TerminalHex3", StringComparison.Ordinal), _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation originalOutput, out ImmutableArray<Diagnostic> originalDiagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(originalDiagnostics),
+			() => Assert.Empty(originalOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.NotNull(originalOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")));
+
+		CSharpCompilation editedInput = input.ReplaceSyntaxTree(originalTree, editedTree);
+		driver = driver.RunGeneratorsAndUpdateCompilation(editedInput, out Compilation editedOutput, out ImmutableArray<Diagnostic> editedDiagnostics, TestContext.Current.CancellationToken);
+		Assert.Multiple(
+			() => Assert.Empty(editedDiagnostics),
+			() => Assert.Empty(editedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
+			() => Assert.NotNull(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentCubedExtensions")));
+
+		CSharpCompilation emptyInput = editedInput.RemoveSyntaxTrees(editedTree);
+		driver.RunGeneratorsAndUpdateCompilation(emptyInput, out Compilation emptyOutput, out ImmutableArray<Diagnostic> emptyDiagnostics, TestContext.Current.CancellationToken);
+		Assert.Multiple(
+			() => Assert.Empty(emptyDiagnostics),
+			() => Assert.Empty(emptyOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentCubedExtensions")));
+	}
+
 	private static T Evaluate<T>(string expression)
 	{
 		string source = $$"""

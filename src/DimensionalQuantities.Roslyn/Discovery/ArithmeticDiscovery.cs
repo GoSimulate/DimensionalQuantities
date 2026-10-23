@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis;
@@ -23,7 +22,7 @@ internal static class ArithmeticDiscovery
 		return node.Parent is not BinaryExpressionSyntax parent || !IsSupported(parent);
 	}
 
-	public static ImmutableArray<ArithmeticOperation> Analyse(ExpressionSyntax expression, SemanticModel semanticModel, CancellationToken cancellationToken)
+	public static QuantityExpressionAnalysis Analyse(ExpressionSyntax expression, SemanticModel semanticModel, CancellationToken cancellationToken)
 	{
 		QuantityExpressionAnalyser analyser = new(semanticModel);
 		return analyser.Analyse(expression, cancellationToken);

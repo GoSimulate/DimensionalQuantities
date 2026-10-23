@@ -1,4 +1,5 @@
 using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.Units;
@@ -42,6 +43,27 @@ public sealed class QuantityDiscoveryTests
 			() => Assert.Equal(operation, Assert.Single(result.Operations)),
 			() => Assert.Equal(inverse, Assert.Single(result.AdditionalQuantities).Dimension),
 			() => Assert.DoesNotContain(result.KnownQuantities, quantity => quantity.Dimension == default));
+	}
+
+	[Fact]
+	public void EquivalentExponentsKeepTheirOverloadsAndShareOneResultType()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension rootCurrent = new(ElectricCurrent: new Rational(1, 2));
+		PowerOperation half = new(current, new Rational(1, 2), rootCurrent,
+			"global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>");
+		PowerOperation twoQuarters = half with
+		{
+			ExponentTypeName = "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>"
+		};
+		PowerOperation zero = new(current, Rational.Zero, default, "global::DimensionalQuantities.TypeSystem.TerminalHex0");
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [half, half, twoQuarters, zero]);
+		PowerOperation[] expected = [half, twoQuarters, zero];
+
+		Assert.Multiple(
+			() => Assert.Equal(expected, result.PowerOperations),
+			() => Assert.Equal(rootCurrent, Assert.Single(result.AdditionalQuantities).Dimension),
+			() => Assert.Empty(result.Operations));
 	}
 
 	[Fact]
