@@ -29,6 +29,24 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			static (syntaxContext, cancellationToken) => new QuantityExpressionAnalyser(syntaxContext.SemanticModel)
 				.Analyse((InvocationExpressionSyntax)syntaxContext.Node, cancellationToken));
 
+		IncrementalValuesProvider<EnglishExponentAlias?> englishAliases = context.SyntaxProvider.CreateSyntaxProvider(
+			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
+			static (syntaxContext, cancellationToken) => new EnglishExponentDiscovery(syntaxContext.SemanticModel)
+				.TryRead((InvocationExpressionSyntax)syntaxContext.Node, out EnglishExponentAlias alias, cancellationToken)
+					? (EnglishExponentAlias?)alias : null);
+		IncrementalValuesProvider<EnglishExponentAlias> requestedAliases = englishAliases
+			.Where(static alias => alias.HasValue)
+			.Select(static (alias, _) => alias.GetValueOrDefault());
+
+		context.RegisterSourceOutput(requestedAliases.Collect(), static (output, aliases) =>
+		{
+			if (!aliases.IsEmpty)
+			{
+				string aliasSource = EnglishExponentAliasEmitter.Emit(aliases);
+				output.AddSource("EnglishExponents.g.cs", SourceText.From(aliasSource, Encoding.UTF8));
+			}
+		});
+
 		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), static (output, discovered) =>
 		{
 			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
