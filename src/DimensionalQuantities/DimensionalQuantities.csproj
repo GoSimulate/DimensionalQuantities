@@ -1,44 +1,47 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <Authors>GoSim</Authors>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
-    <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
-    <RepositoryType>git</RepositoryType>
-  </PropertyGroup>
-  <ItemGroup>
-    <None Include="../../LICENSE" Pack="true" PackagePath="" />
-    <None Include="../../README.md" Pack="true" PackagePath="" />
-    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.pdb"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="../DimensionalQuantities.Roslyn.CodeFixes/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.CodeFixes.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="../DimensionalQuantities.Roslyn.CodeFixes/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.CodeFixes.pdb"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.pdb"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" PrivateAssets="all" />
-    <PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
-  </ItemGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="DimensionalQuantities.Tests" />
-    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn" />
-    <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Update="Numerics\Rational.Conversions.cs">
-      <DependentUpon>Rational.cs</DependentUpon>
-    </Compile>
-    <Compile Update="Numerics\Rational.Text.cs">
-      <DependentUpon>Rational.cs</DependentUpon>
-    </Compile>
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <Authors>GoSim</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
+        <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
+        <RepositoryType>git</RepositoryType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <Deterministic>true</Deterministic>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+    <ItemGroup>
+        <None Include="../../LICENSE" Pack="true" PackagePath=""/>
+        <None Include="../../README.md" Pack="true" PackagePath=""/>
+        <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="../DimensionalQuantities.Roslyn.CodeFixes/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="../DimensionalQuantities.Roslyn.CodeFixes/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.CodeFixes.pdb"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.pdb"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" PrivateAssets="all"/>
+        <PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all"/>
+    </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="DimensionalQuantities.Tests"/>
+        <InternalsVisibleTo Include="DimensionalQuantities.Roslyn"/>
+        <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Update="Numerics\Rational.Conversions.cs">
+            <DependentUpon>Rational.cs</DependentUpon>
+        </Compile>
+        <Compile Update="Numerics\Rational.Text.cs">
+            <DependentUpon>Rational.cs</DependentUpon>
+        </Compile>
+    </ItemGroup>
 </Project>
