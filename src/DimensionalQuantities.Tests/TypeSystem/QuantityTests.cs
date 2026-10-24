@@ -45,6 +45,119 @@ namespace DimensionalQuantities.Tests.TypeSystem;
 public sealed class QuantityTests
 {
 	[Theory]
+	[InlineData(2, 3, true, false, true, false)]
+	[InlineData(3, 2, false, true, false, true)]
+	[InlineData(-2, -2, false, false, true, true)]
+	[InlineData(double.PositiveInfinity, 3, false, true, false, true)]
+	public void RelationalOperatorsCompareMatchingDimensions(double leftValue, double rightValue, bool less, bool greater, bool lessOrEqual, bool greaterOrEqual)
+	{
+		Current left = Current.FromSiBaseUnit(leftValue);
+		Current right = Current.FromSiBaseUnit(rightValue);
+
+		Assert.Multiple(
+			() => Assert.Equal(less, left < right),
+			() => Assert.Equal(greater, left > right),
+			() => Assert.Equal(lessOrEqual, left <= right),
+			() => Assert.Equal(greaterOrEqual, left >= right));
+	}
+
+	[Fact]
+	public void RelationalOperatorsReturnFalseForNanOnEitherSide()
+	{
+		Current nan = Current.FromSiBaseUnit(double.NaN);
+		Current finite = Current.FromSiBaseUnit(1);
+
+		Assert.Multiple(
+			() => Assert.False(nan < finite),
+			() => Assert.False(nan > finite),
+			() => Assert.False(nan <= finite),
+			() => Assert.False(nan >= finite),
+			() => Assert.False(finite < nan),
+			() => Assert.False(finite > nan),
+			() => Assert.False(finite <= nan),
+			() => Assert.False(finite >= nan));
+	}
+
+	[Theory]
+	[InlineData(-3, 3)]
+	[InlineData(3, 3)]
+	[InlineData(double.NegativeInfinity, double.PositiveInfinity)]
+	public void AbsReturnsQuantityWithAbsoluteSiMagnitude(double value, double expectedValue)
+	{
+		Current original = Current.FromSiBaseUnit(value);
+		Current result = Current.Abs(original);
+		Current expected = Current.FromSiBaseUnit(expectedValue);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(2, 3, 2, 3)]
+	[InlineData(3, 2, 2, 3)]
+	[InlineData(-2, -2, -2, -2)]
+	public void MinAndMaxReturnMatchingDimension(double leftValue, double rightValue, double expectedMinValue, double expectedMaxValue)
+	{
+		Current left = Current.FromSiBaseUnit(leftValue);
+		Current right = Current.FromSiBaseUnit(rightValue);
+		Current minResult = Current.Min(left, right);
+		Current maxResult = Current.Max(left, right);
+		Current expectedMin = Current.FromSiBaseUnit(expectedMinValue);
+		Current expectedMax = Current.FromSiBaseUnit(expectedMaxValue);
+
+		Assert.Multiple(
+			() => Assert.Equal(expectedMin, minResult),
+			() => Assert.Equal(expectedMax, maxResult));
+	}
+
+	[Theory]
+	[InlineData(-2, 0, 10, 0)]
+	[InlineData(5, 0, 10, 5)]
+	[InlineData(12, 0, 10, 10)]
+	public void ClampReturnsQuantityWithinBounds(double value, double minValue, double maxValue, double expectedValue)
+	{
+		Current original = Current.FromSiBaseUnit(value);
+		Current min = Current.FromSiBaseUnit(minValue);
+		Current max = Current.FromSiBaseUnit(maxValue);
+		Current result = Current.Clamp(original, min, max);
+		Current expected = Current.FromSiBaseUnit(expectedValue);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void ClampRejectsReversedBounds()
+	{
+		Current original = Current.FromSiBaseUnit(5);
+		Current min = Current.FromSiBaseUnit(10);
+		Current max = Current.FromSiBaseUnit(0);
+
+		Assert.Throws<ArgumentException>(() => Current.Clamp(original, min, max));
+	}
+
+	[Fact]
+	public void HelpersFollowDoubleNanAndSignedZeroBehavior()
+	{
+		Current nan = Current.FromSiBaseUnit(double.NaN);
+		Current finite = Current.FromSiBaseUnit(1);
+		Current negativeZero = Current.FromSiBaseUnit(-0.0);
+		Current positiveZero = Current.FromSiBaseUnit(0.0);
+		Current absResult = Current.Abs(negativeZero);
+		Current clampResult = Current.Clamp(negativeZero, negativeZero, positiveZero);
+		Current nanMinimumResult = Current.Clamp(Current.FromSiBaseUnit(2), nan, finite);
+		Current nanMaximumResult = Current.Clamp(Current.FromSiBaseUnit(-1), positiveZero, nan);
+
+		Assert.Multiple(
+			() => Assert.True(double.IsNaN(Current.Abs(nan).AsSiBaseUnit())),
+			() => Assert.True(double.IsNaN(Current.Min(nan, finite).AsSiBaseUnit())),
+			() => Assert.True(double.IsNaN(Current.Max(finite, nan).AsSiBaseUnit())),
+			() => Assert.True(double.IsNaN(Current.Clamp(nan, negativeZero, finite).AsSiBaseUnit())),
+			() => Assert.Equal(finite, nanMinimumResult),
+			() => Assert.Equal(positiveZero, nanMaximumResult),
+			() => Assert.Equal(0L, BitConverter.DoubleToInt64Bits(absResult.AsSiBaseUnit())),
+			() => Assert.Equal(long.MinValue, BitConverter.DoubleToInt64Bits(clampResult.AsSiBaseUnit())));
+	}
+
+	[Theory]
 	[InlineData(6, 2, 3)]
 	[InlineData(-6, 2, -3)]
 	[InlineData(0, 2, 0)]

@@ -16,6 +16,14 @@ public readonly record struct Quantity<TDimension>
 	public static Quantity<TDimension> operator *(double scalar, Quantity<TDimension> quantity) => new(scalar * quantity.ValueInSiBaseUnit);
 	public static Quantity<TDimension> operator /(Quantity<TDimension> quantity, double scalar) => new(quantity.ValueInSiBaseUnit / scalar);
 	public static double operator /(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit / right.ValueInSiBaseUnit;
+	/// <summary>Compares two quantities of the same dimension by their SI magnitudes.</summary>
+	public static bool operator <(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit < right.ValueInSiBaseUnit;
+	/// <summary>Compares two quantities of the same dimension by their SI magnitudes.</summary>
+	public static bool operator >(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit > right.ValueInSiBaseUnit;
+	/// <summary>Compares two quantities of the same dimension by their SI magnitudes.</summary>
+	public static bool operator <=(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit <= right.ValueInSiBaseUnit;
+	/// <summary>Compares two quantities of the same dimension by their SI magnitudes.</summary>
+	public static bool operator >=(Quantity<TDimension> left, Quantity<TDimension> right) => left.ValueInSiBaseUnit >= right.ValueInSiBaseUnit;
 
 	// Each closed quantity type intentionally caches its own decoded dimension.
 	// ReSharper disable once StaticMemberInGenericType
@@ -23,6 +31,36 @@ public readonly record struct Quantity<TDimension>
 
 	/// <summary>Creates a quantity from a magnitude expressed in coherent SI base units for its dimension.</summary>
 	public static Quantity<TDimension> FromSiBaseUnit(double value) => new(value);
+
+	/// <summary>Returns the absolute magnitude of a quantity.</summary>
+	public static Quantity<TDimension> Abs(Quantity<TDimension> quantity) => new(Math.Abs(quantity.ValueInSiBaseUnit));
+
+	/// <summary>Returns the smaller of two quantities of the same dimension.</summary>
+	public static Quantity<TDimension> Min(Quantity<TDimension> left, Quantity<TDimension> right) => new(Math.Min(left.ValueInSiBaseUnit, right.ValueInSiBaseUnit));
+
+	/// <summary>Returns the larger of two quantities of the same dimension.</summary>
+	public static Quantity<TDimension> Max(Quantity<TDimension> left, Quantity<TDimension> right) => new(Math.Max(left.ValueInSiBaseUnit, right.ValueInSiBaseUnit));
+
+	/// <summary>Restricts a quantity to the inclusive range between two quantities of the same dimension.</summary>
+	public static Quantity<TDimension> Clamp(Quantity<TDimension> value, Quantity<TDimension> min, Quantity<TDimension> max)
+	{
+		if (min > max)
+		{
+			throw new ArgumentException("The minimum must be less than or equal to the maximum.", nameof(min));
+		}
+
+		if (value < min)
+		{
+			return min;
+		}
+
+		if (value > max)
+		{
+			return max;
+		}
+
+		return value;
+	}
 
 	/// <summary>Creates a quantity from SI base components with the selected decimal prefixes.</summary>
 	public static Quantity<TDimension> FromArbitrarySiComponents(
