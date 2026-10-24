@@ -1357,6 +1357,193 @@ public sealed class QuantityGeneratorTests
 		Assert.Equal(24, result);
 	}
 
+	[Fact]
+	public void TypeOnlyDeclarationsGenerateQuantitiesInPublicApisAndCollections()
+	{
+		const string source = """
+			public record Measurement(LengthCurrent Value);
+			public class Consumer
+			{
+				public LengthCurrent Field;
+				public LengthCurrent Property { get; set; }
+				public System.Collections.Generic.List<LengthCurrent> Values { get; } = new();
+				public LengthCurrent[] Copy(LengthCurrent[] values) => values;
+				public LengthCurrent Identity(LengthCurrent value) => value;
+			}
+			""";
+		CSharpCompilation result = Compile(source);
+
+		Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
+	}
+
+	[Fact]
+	public void TypeOnlyParameterSuppliesDimensionsToArithmeticWithoutAnInitialiser()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Multiply(LengthCurrent input, Time time) => input * time;
+				public static double Value() => Multiply(LengthCurrent.FromSiBaseUnit(6), Time.FromSeconds(4)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("public static LengthCurrent Field;", "Field")]
+	[InlineData("public static LengthCurrent Field = default;", "Field")]
+	[InlineData("public static LengthCurrent Property { get; } = new();", "Property")]
+	[InlineData("public static LengthCurrent Property { get; set; }", "Property")]
+	[InlineData("public static LengthCurrent[] Values = new LengthCurrent[1];", "Values[0]")]
+	[InlineData("public static System.Collections.Generic.List<LengthCurrent> Values = new() { default };", "Values[0]")]
+	public void TypeOnlyMemberAndCollectionValuesParticipateInArithmetic(string declaration, string operand)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				{{declaration}}
+				public static double Value() => ({{operand}} * Time.FromSeconds(4)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(0, result);
+	}
+
+	[Theory]
+	[InlineData("new LengthCurrent[1]")]
+	[InlineData("new System.Collections.Generic.List<LengthCurrent> { default }")]
+	public void InferredCollectionsRetainTheirExplicitElementDimensions(string initializer)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					var values = {{initializer}};
+					return (values[0] * Time.FromSeconds(4)).AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(0, result);
+	}
+
+	[Fact]
+	public void SourceIndexerCanDeclareAnIntermediateQuantityResult()
+	{
+		const string source = """
+			public sealed class Measurements
+			{
+				public LengthCurrent this[int index] => LengthCurrent.FromSiBaseUnit(6);
+			}
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Measurements values = new();
+					return (values[0] * Time.FromSeconds(4)).AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void ExplicitLocalCanBeAssignedAfterItsDeclaration()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					LengthCurrent value;
+					value = LengthCurrent.FromSiBaseUnit(6);
+					return (value * Time.FromSeconds(4)).AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("default")]
+	[InlineData("new()")]
+	public void ExplicitDefaultQuantityLocalParticipatesInArithmetic(string initializer)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					LengthCurrent value = {{initializer}};
+					return (value * Time.FromSeconds(4)).AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(0, result);
+	}
+
+	[Theory]
+	[InlineData("public class LengthCurrent { }")]
+	[InlineData("using LengthCurrent = System.Int32;")]
+	public void ExistingTypesAndAliasesAreNotReplacedByQuantityNames(string declaration)
+	{
+		string source = $$"""{{declaration}} class Consumer { object Value(LengthCurrent value) => value; }""";
+		CSharpCompilation result = Compile(source);
+
+		Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
+	}
+
+	[Fact]
+	public void QuantityLookingVariableNamesDoNotRequestTypes()
+	{
+		const string source = "class Consumer { int Value() { int LengthCurrent = 7; return LengthCurrent; } }";
+		CSharpCompilation result = Compile(source);
+
+		Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
+	}
+
+	[Fact]
+	public void TypeNameDiscoveryPreservesExplicitAliasesInOtherFiles()
+	{
+		const string source = "class First { public LengthCurrent Value; }";
+		const string aliasSource = "using LengthCurrent = System.Int32; class Second { public int Value(LengthCurrent value) => value; }";
+		CSharpCompilation input = CreateInputCompilation(source).AddSyntaxTrees(CSharpSyntaxTree.ParseText(aliasSource, _parseOptions, path: "Alias.cs", cancellationToken: TestContext.Current.CancellationToken));
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Contains(errors, error => error.Id == "CS0246" && error.Location.SourceTree?.FilePath == "Consumer.cs"),
+			() => Assert.DoesNotContain(errors, error => error.Location.SourceTree?.FilePath == "Alias.cs"));
+	}
+
+	[Fact]
+	public void RemovingTypeOnlyDeclarationsRemovesTheirQuantities()
+	{
+		const string source = "class Consumer { public LengthCurrent Identity(LengthCurrent value) => value; }";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
+		driver.RunGeneratorsAndUpdateCompilation(input.RemoveAllSyntaxTrees(), out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.NotNull(original.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Empty(diagnostics));
+	}
+
 	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
 	{
 		QuantityTypeReader reader = new(compilation);

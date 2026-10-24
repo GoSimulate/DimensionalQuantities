@@ -40,7 +40,7 @@ internal sealed class EnglishExponentDiscovery
 		if (exponentSymbol.Symbol is not null || !exponentSymbol.CandidateSymbols.IsEmpty
 			|| _semanticModel.GetAliasInfo(exponentName, cancellationToken) is not null
 			|| !name.StartsWith("Number", StringComparison.Ordinal)
-			|| IsReservedByExplicitAlias(name, cancellationToken)
+			|| ExplicitAliasReservation.IsReserved(_semanticModel.Compilation, name, cancellationToken)
 			|| !EnglishRationalParser.TryParse(name.Substring("Number".Length), out Rational value))
 		{
 			return false;
@@ -49,21 +49,6 @@ internal sealed class EnglishExponentDiscovery
 		Type encoded = TypeSystemNumberCodec.CreateType(value);
 		alias = new(name, value, TypeSystemTypeNameFormatter.Format(encoded));
 		return true;
-	}
-
-	private bool IsReservedByExplicitAlias(string name, CancellationToken cancellationToken)
-	{
-		foreach (SyntaxTree tree in _semanticModel.Compilation.SyntaxTrees)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			if (tree.GetRoot(cancellationToken) is CompilationUnitSyntax root
-				&& root.Usings.Any(directive => directive.Alias?.Name.Identifier.ValueText == name))
-			{
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	private static bool TryGetExponentName(ExpressionSyntax receiver, [NotNullWhen(true)] out IdentifierNameSyntax? exponentName)

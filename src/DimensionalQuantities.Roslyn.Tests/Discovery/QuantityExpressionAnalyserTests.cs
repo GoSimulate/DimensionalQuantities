@@ -795,6 +795,57 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Contains(expected, result);
 	}
 
+	[Fact]
+	public void UnrelatedIndexerResultIsNotInferredFromTheContainersTypeArgument()
+	{
+		const string source = """
+			public class Box<T> { public Missing.LengthCurrent this[int index] { get { return default; } } }
+			public class Consumer
+			{
+				public object Value(Box<LengthCurrent> values, Time time) => values[0] * time;
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+
+		Assert.Empty(result);
+	}
+
+	[Theory]
+	[InlineData("Missing.LengthCurrent[]")]
+	[InlineData("global::LengthCurrent[]")]
+	[InlineData("System.Collections.Generic.IReadOnlyList<global::LengthCurrent>")]
+	[InlineData("System.Collections.Generic.List<Missing.LengthCurrent>")]
+	public void QualifiedUnresolvedCollectionElementsDoNotRequestQuantityArithmetic(string collectionType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{collectionType}} values, Time time) => values[0] * time;
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+
+		Assert.Empty(result);
+	}
+
+	[Theory]
+	[InlineData("LengthCurrent[]")]
+	[InlineData("System.Collections.Generic.List<LengthCurrent>")]
+	[InlineData("System.Collections.Generic.IReadOnlyList<LengthCurrent>")]
+	public void CollectionElementsWithCanonicalTypesParticipateInArithmetic(string collectionType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{collectionType}} values, Time time) => values[0] * time;
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = Analyse(Compile(source));
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, new(Length: 1, ElectricCurrent: 1), new(Time: 1), new(Length: 1, Time: 1, ElectricCurrent: 1));
+
+		Assert.Equal(expected, Assert.Single(result));
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");

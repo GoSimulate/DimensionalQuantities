@@ -170,9 +170,35 @@ internal sealed class QuantityExpressionAnalyser
 				}
 			}
 
+			if (expression is ElementAccessExpressionSyntax elementAccess
+				&& TryReadUnresolvedElement(elementAccess, model, type, out Dimension elementDimension))
+			{
+				return new(QuantityOperandKind.Quantity, elementDimension);
+			}
+
 			return expression is IdentifierNameSyntax or MemberAccessExpressionSyntax or InvocationExpressionSyntax
 				&& model.GetSymbolInfo(expression, _cancellationToken).Symbol is ISymbol symbol
 				? _declarations.Resolve(symbol) : default;
+		}
+
+		private bool TryReadUnresolvedElement(ElementAccessExpressionSyntax access, SemanticModel model, ITypeSymbol? type, out Dimension dimension)
+		{
+			dimension = default;
+			if (type is not IErrorTypeSymbol error)
+			{
+				return false;
+			}
+
+			ITypeSymbol? receiverType = model.GetTypeInfo(access.Expression, _cancellationToken).Type;
+			IPropertySymbol? indexer = model.GetSymbolInfo(access, _cancellationToken).Symbol as IPropertySymbol;
+			ITypeSymbol? elementType = receiverType is IArrayTypeSymbol array
+				? array.ElementType
+				: indexer is { IsIndexer: true }
+					? indexer.Type : null;
+			return elementType is IErrorTypeSymbol elementError && SymbolEqualityComparer.Default.Equals(elementError, error)
+				&& (_declarations.TryReadCollectionElementType(indexer, elementError, out dimension)
+					|| _declarations.TryReadCollectionElementType(model.GetSymbolInfo(access.Expression, _cancellationToken).Symbol,
+						elementError, out dimension));
 		}
 
 		private SemanticModel GetSemanticModel(SyntaxNode node)
