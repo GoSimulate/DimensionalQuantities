@@ -170,7 +170,7 @@ internal sealed class QuantityExpressionAnalyser
 				}
 			}
 
-			return expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
+			return expression is IdentifierNameSyntax or MemberAccessExpressionSyntax or InvocationExpressionSyntax
 				&& model.GetSymbolInfo(expression, _cancellationToken).Symbol is ISymbol symbol
 				? _declarations.Resolve(symbol) : default;
 		}
@@ -186,15 +186,36 @@ internal sealed class QuantityExpressionAnalyser
 			return model;
 		}
 
-		private QuantityOperand AnalyseNamedInitializer(ExpressionSyntax initializer, string expectedName)
+		private QuantityOperand AnalyseNamedInitializer(IReadOnlyList<ExpressionSyntax?> values, string expectedName)
 		{
 			int arithmeticCount = _operations.Count;
 			int powerCount = _powerOperations.Count;
 			int methodCount = _powerMethodOperations.Count;
-			QuantityOperand inferred = AnalyseExpression(initializer);
-			if (QuantityDeclarationResolver.MatchesExpectedName(expectedName, inferred))
+			QuantityOperand common = default;
+			bool hasValue = false;
+			bool compatible = true;
+			foreach (ExpressionSyntax? expression in values)
 			{
-				return inferred;
+				if (expression is ThrowExpressionSyntax)
+				{
+					continue;
+				}
+
+				QuantityOperand inferred = expression is null ? default : AnalyseExpression(expression);
+				if (!hasValue)
+				{
+					common = inferred;
+					hasValue = true;
+				}
+				else if (inferred.Kind != common.Kind || inferred.Kind == QuantityOperandKind.Quantity && inferred.Dimension != common.Dimension)
+				{
+					compatible = false;
+				}
+			}
+
+			if (hasValue && compatible && QuantityDeclarationResolver.MatchesExpectedName(expectedName, common))
+			{
+				return common;
 			}
 
 			_operations.Count = arithmeticCount;

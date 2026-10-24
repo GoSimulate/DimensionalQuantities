@@ -730,6 +730,71 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Empty(result);
 	}
 
+	[Theory]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) => length * current;")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) { return length * current; }")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * current * 2; }")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) { Time Other() => Time.FromSeconds(2); return length * current; }")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) { System.Func<Time> other = () => { return Time.FromSeconds(2); }; return length * current; }")]
+	public void FollowsSelectedMethodReturnsAcrossFiles(string declaration)
+	{
+		const string source = "class Consumer { object Test(Length length, Current current, Time time) => Inputs.Make(length, current) * time; }";
+		string memberSource = $$"""public class Inputs { {{declaration}} }""";
+		CSharpCompilation compilation = Compile(source, memberSource);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, new(Length: 1, ElectricCurrent: 1), new(Time: 1), new(Length: 1, Time: 1, ElectricCurrent: 1));
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Contains(expected, result);
+	}
+
+	[Theory]
+	[InlineData("public static object Make(Length length, Current current) => length * current;")]
+	[InlineData("public static LengthTime Make(Length length, Current current) => length * current;")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * Time.FromSeconds(1); }")]
+	[InlineData("public static LengthCurrent Make(Length length, Current current) => Other(length, current); public static LengthCurrent Other(Length length, Current current) => Make(length, current);")]
+	public void InvalidOrCyclicMethodReturnsDoNotSupplyDimensions(string declaration)
+	{
+		const string source = "class Consumer { object Test(Length length, Current current, Time time) => Inputs.Make(length, current) * time; }";
+		string memberSource = $$"""public class Inputs { {{declaration}} }""";
+		CSharpCompilation compilation = Compile(source, memberSource);
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Empty(result);
+	}
+
+	[Fact]
+	public void AmbiguousMethodCallsDoNotSelectAnInferredReturnDimension()
+	{
+		const string source = "class Consumer { object Test(Time time) => Inputs.Make(default, default) * time; }";
+		const string memberSource = """
+			class Inputs
+			{
+				public static LengthCurrent Make(Length length, Current current) => length * current;
+				public static LengthTime Make(Length length, Time time) => length * time;
+			}
+			""";
+		CSharpCompilation compilation = Compile(source, memberSource);
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Empty(result);
+	}
+
+	[Fact]
+	public void FollowsExtensionMethodReturnsAcrossFiles()
+	{
+		const string source = "class Consumer { object Test(Length length, Current current, Time time) => length.Make(current) * time; }";
+		const string memberSource = "static class Inputs { public static LengthCurrent Make(this Length length, Current current) => length * current; }";
+		CSharpCompilation compilation = Compile(source, memberSource);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, new(Length: 1, ElectricCurrent: 1), new(Time: 1), new(Length: 1, Time: 1, ElectricCurrent: 1));
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Contains(expected, result);
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
