@@ -148,5 +148,5 @@ internal static class DimensionNameParser
 		&& string.Compare(text, position, prefix, 0, prefix.Length, StringComparison.Ordinal) == 0;
 
 	private static (string Name, Dimension Basis) Basis(Dimension dimension) =>
-		(dimension.GetComponents().Single().Unit.QuantityName, dimension);
+		(dimension.GetComponents().Single().Unit.Name, dimension);
 }

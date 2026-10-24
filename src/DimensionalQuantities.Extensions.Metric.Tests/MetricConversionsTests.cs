@@ -1,3 +1,4 @@
+using System.Reflection;
 using DimensionalQuantities.Extensions.Metric;
 using Xunit;
 
@@ -6,37 +7,73 @@ namespace DimensionalQuantities.Extensions.Metric.Tests;
 public sealed class MetricConversionsTests
 {
 	[Fact]
-	public void CatalogueFactoriesAndAccessorsCoverEngineeringDimensions()
+	public void CatalogueFactoriesConvertToExpectedSiValues()
 	{
 		double[] result =
 		[
-			Area.FromSquareMetres(1).AsSquareMetres(),
-			Volume.FromCubicMetres(1).AsCubicMetres(),
-			Frequency.FromHertz(1).AsHertz(),
-			AngularVelocity.FromRadiansPerSecond(1).AsRadiansPerSecond(),
-			Density.FromGramsPerCubicMetre(1).AsGramsPerCubicMetre(),
-			Pressure.FromPascals(1).AsPascals(),
-			Energy.FromJoules(1).AsJoules(),
-			Torque.FromNewtonMetres(1).AsNewtonMetres(),
-			Power.FromWatts(1).AsWatts(),
-			SpecificPower.FromWattsPerKilogram(1).AsWattsPerKilogram(),
-			TemperatureCoefficient.FromInverseKelvin(1).AsInverseKelvin(),
-			PowerDensity.FromWattsPerCubicMetre(1).AsWattsPerCubicMetre(),
-			Voltage.FromVolts(1).AsVolts(),
-			Resistance.FromOhms(1).AsOhms(),
-			Inductance.FromHenries(1).AsHenries(),
-			MagneticFlux.FromWebers(1).AsWebers(),
-			MagneticFluxDensity.FromTeslas(1).AsTeslas(),
-			MagneticFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre(),
-			CurrentDensity.FromAmpsPerSquareMetre(1).AsAmpsPerSquareMetre(),
-			Permeability.FromHenriesPerMetre(1).AsHenriesPerMetre(),
-			Resistivity.FromOhmMetres(1).AsOhmMetres(),
-			Conductivity.FromSiemensPerMetre(1).AsSiemensPerMetre(),
-			MagneticReluctivity.FromMetresPerHenry(1).AsMetresPerHenry(),
-			MagneticVectorPotential.FromWebersPerMetre(1).AsWebersPerMetre(),
+			Area.FromSquareMetres(1).AsSiBaseUnit(),
+			Volume.FromCubicMetres(1).AsSiBaseUnit(),
+			Frequency.FromHertz(1).AsSiBaseUnit(),
+			AngularVelocity.FromRadiansPerSecond(1).AsSiBaseUnit(),
+			Density.FromGramsPerCubicMetre(1).AsSiBaseUnit(),
+			Pressure.FromPascals(1).AsSiBaseUnit(),
+			Energy.FromJoules(1).AsSiBaseUnit(),
+			Torque.FromNewtonMetres(1).AsSiBaseUnit(),
+			Power.FromWatts(1).AsSiBaseUnit(),
+			SpecificPower.FromWattsPerKilogram(1).AsSiBaseUnit(),
+			TemperatureCoefficient.FromInverseKelvin(1).AsSiBaseUnit(),
+			PowerDensity.FromWattsPerCubicMetre(1).AsSiBaseUnit(),
+			Voltage.FromVolts(1).AsSiBaseUnit(),
+			Resistance.FromOhms(1).AsSiBaseUnit(),
+			Inductance.FromHenries(1).AsSiBaseUnit(),
+			MagneticFlux.FromWebers(1).AsSiBaseUnit(),
+			MagneticFluxDensity.FromTeslas(1).AsSiBaseUnit(),
+			MagneticFieldStrength.FromAmpsPerMetre(1).AsSiBaseUnit(),
+			CurrentDensity.FromAmpsPerSquareMetre(1).AsSiBaseUnit(),
+			Permeability.FromHenriesPerMetre(1).AsSiBaseUnit(),
+			Resistivity.FromOhmMetres(1).AsSiBaseUnit(),
+			Conductivity.FromSiemensPerMetre(1).AsSiBaseUnit(),
+			MagneticReluctivity.FromMetresPerHenry(1).AsSiBaseUnit(),
+			MagneticVectorPotential.FromWebersPerMetre(1).AsSiBaseUnit(),
 		];
 
-		Assert.Equal(Enumerable.Repeat(1d, 24), result);
+		double[] expected = [1d, 1d, 1d, 1d, 0.001d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d];
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void CatalogueAccessorsConvertFromKnownSiValues()
+	{
+		double[] result =
+		[
+			Area.FromSiBaseUnit(1).AsSquareMetres(),
+			Volume.FromSiBaseUnit(1).AsCubicMetres(),
+			Frequency.FromSiBaseUnit(1).AsHertz(),
+			AngularVelocity.FromSiBaseUnit(1).AsRadiansPerSecond(),
+			Density.FromSiBaseUnit(1).AsGramsPerCubicMetre(),
+			Pressure.FromSiBaseUnit(1).AsPascals(),
+			Energy.FromSiBaseUnit(1).AsJoules(),
+			Torque.FromSiBaseUnit(1).AsNewtonMetres(),
+			Power.FromSiBaseUnit(1).AsWatts(),
+			SpecificPower.FromSiBaseUnit(1).AsWattsPerKilogram(),
+			TemperatureCoefficient.FromSiBaseUnit(1).AsInverseKelvin(),
+			PowerDensity.FromSiBaseUnit(1).AsWattsPerCubicMetre(),
+			Voltage.FromSiBaseUnit(1).AsVolts(),
+			Resistance.FromSiBaseUnit(1).AsOhms(),
+			Inductance.FromSiBaseUnit(1).AsHenries(),
+			MagneticFlux.FromSiBaseUnit(1).AsWebers(),
+			MagneticFluxDensity.FromSiBaseUnit(1).AsTeslas(),
+			MagneticFieldStrength.FromSiBaseUnit(1).AsAmpsPerMetre(),
+			CurrentDensity.FromSiBaseUnit(1).AsAmpsPerSquareMetre(),
+			Permeability.FromSiBaseUnit(1).AsHenriesPerMetre(),
+			Resistivity.FromSiBaseUnit(1).AsOhmMetres(),
+			Conductivity.FromSiBaseUnit(1).AsSiemensPerMetre(),
+			MagneticReluctivity.FromSiBaseUnit(1).AsMetresPerHenry(),
+			MagneticVectorPotential.FromSiBaseUnit(1).AsWebersPerMetre(),
+		];
+
+		double[] expected = [1d, 1d, 1d, 1d, 1000d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d];
+		Assert.Equal(expected, result);
 	}
 
 	[Fact]
@@ -45,8 +82,20 @@ public sealed class MetricConversionsTests
 		Pressure pressure = Pressure.FromPascals(1);
 		Stress stress = Stress.FromPascals(1);
 		YoungsModulus modulus = YoungsModulus.FromKiloPascals(1);
-		double[] result = [pressure.AsPascals(), stress.AsPascals(), modulus.AsKiloPascals()];
-		Assert.Equal([1d, 1d, 1d], result);
+		double[] result =
+		[
+			pressure.AsPascals(), stress.AsPascals(), modulus.AsKiloPascals(),
+			SpecificPower.FromWattsPerKilogram(1).AsWattsPerKilogram(),
+			SpecificPowerLoss.FromWattsPerKilogram(1).AsWattsPerKilogram(),
+			PowerDensity.FromWattsPerCubicMetre(1).AsWattsPerCubicMetre(),
+			VolumetricPowerLoss.FromWattsPerCubicMetre(1).AsWattsPerCubicMetre(),
+			MagneticFlux.FromWebers(1).AsWebers(), FluxLinkage.FromWebers(1).AsWebers(),
+			MagneticFluxDensity.FromTeslas(1).AsTeslas(), MagneticPolarisation.FromTeslas(1).AsTeslas(),
+			RemanentFluxDensity.FromTeslas(1).AsTeslas(),
+			MagneticFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre(),
+			CoerciveFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre()
+		];
+		Assert.Equal(Enumerable.Repeat(1d, result.Length), result);
 	}
 
 	[Fact]
@@ -74,7 +123,7 @@ public sealed class MetricConversionsTests
 	[Fact]
 	public void PrefixesOnlyApplyToSupportedFactorPlacements()
 	{
-		string[] names = typeof(P11_MetricUnitsA0_TemperatureCoefficientExtensions).Assembly.GetExportedTypes()
+		string[] names = Assembly.Load("DimensionalQuantities.Extensions.Metric").GetExportedTypes()
 			.Where(type => type.Namespace == "DimensionalQuantities.Extensions.Metric")
 			.SelectMany(type => type.GetMethods()).Select(method => method.Name).ToArray();
 		Assert.Multiple(

@@ -9,7 +9,7 @@ internal sealed record PlannedQuantity(Dimension Dimension, ImmutableArray<strin
 	bool IncludeNamedConversions)
 {
 	public PlannedQuantity(Dimension dimension, ImmutableArray<UnitDefinition> units, bool includeNamedConversions)
-		: this(dimension, [.. units.Select(unit => unit.QuantityName)], units, includeNamedConversions) { }
+		: this(dimension, [.. units.Select(unit => unit.Name)], units, includeNamedConversions) { }
 
 	public string Name => Names[0];
 

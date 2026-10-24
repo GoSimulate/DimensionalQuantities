@@ -13,7 +13,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		IncrementalValuesProvider<INamedTypeSymbol> providers = UnitProviderSourceEmitter.FindProviders(context);
+		IncrementalValuesProvider<INamedTypeSymbol> providers = UnitProviderGenerationCoordinator.FindProviders(context);
 		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
 		context.RegisterPostInitializationOutput(output =>
 		{
@@ -34,13 +34,13 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		{
 			CSharpCompilation original = (CSharpCompilation)input.Left.Left;
 			ImmutableArray<SyntaxTree> sourceTrees = input.Left.Right;
-			ImmutableArray<GeneratedSource> providerSources = UnitProviderSourceEmitter.Emit(original, input.Right, output.ReportDiagnostic);
+			ImmutableArray<GeneratedSource> providerSources = UnitProviderGenerationCoordinator.Generate(original, input.Right, output.ReportDiagnostic);
 			foreach (GeneratedSource source in providerSources)
 			{
 				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
 			}
 
-			CSharpCompilation withProviders = AddSources(original, providerSources);
+			CSharpCompilation withProviders = original.AddGeneratedSources(providerSources);
 			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, sourceTrees, output.CancellationToken))
 			{
 				output.ReportDiagnostic(diagnostic);
@@ -58,19 +58,6 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
 			}
 		});
-	}
-
-	private static CSharpCompilation AddSources(CSharpCompilation compilation, ImmutableArray<GeneratedSource> sources)
-	{
-		if (sources.IsEmpty)
-		{
-			return compilation;
-		}
-
-		CSharpParseOptions options = compilation.SyntaxTrees.OfType<CSharpSyntaxTree>()
-			.Select(tree => (CSharpParseOptions)tree.Options).FirstOrDefault() ?? CSharpParseOptions.Default;
-		SyntaxTree[] trees = sources.Select(source => CSharpSyntaxTree.ParseText(source.Text, options, path: source.HintName)).ToArray();
-		return compilation.AddSyntaxTrees(trees);
 	}
 
 	private static bool IsDiscoveryInputTree(SyntaxTree tree)

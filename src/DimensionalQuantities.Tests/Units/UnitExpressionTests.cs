@@ -36,6 +36,31 @@ public sealed class UnitExpressionTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData(1, 12, "Root12Amps")]
+	[InlineData(4, 5, "Root5Power4Amps")]
+	[InlineData(-3, 2, "InverseSquareRootCubicAmp")]
+	public void GetNameFormatsHigherAndInverseRationalPowers(int numerator, int denominator, string expected)
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp, new Rational(numerator, denominator)));
+		string result = original.GetName();
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void GetNameKeepsFractionalPowersWithTheirFactorsInOrderedCompound()
+	{
+		UnitExpression original = new(
+			new UnitTerm(AtomicUnits.Metre, new Rational(1, 2)),
+			new UnitTerm(AtomicUnits.Amp),
+			new UnitTerm(AtomicUnits.Second, new Rational(-3, 2)));
+		string result = original.GetName();
+		string expected = "SquareRootMetreAmpsPerSquareRootCubicSecond";
+
+		Assert.Equal(expected, result);
+	}
+
 	[Fact]
 	public void GetNameFormatsCompoundNumeratorAndDenominator()
 	{

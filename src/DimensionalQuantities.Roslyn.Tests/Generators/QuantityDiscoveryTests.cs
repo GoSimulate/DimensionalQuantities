@@ -195,7 +195,7 @@ public sealed class QuantityDiscoveryTests
 		Assert.Multiple(
 			() => Assert.Equal(massSquared, quantity.Dimension),
 			() => Assert.False(quantity.IncludeNamedConversions),
-			() => Assert.Equal("MassSquared", unit.QuantityName),
+			() => Assert.Equal("MassSquared", unit.Name),
 			() => Assert.Equal(2, term.Power),
 			() => Assert.Equal(SiBasePrefixExponents.Mass, term.PrefixExponent));
 	}

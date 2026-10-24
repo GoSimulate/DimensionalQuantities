@@ -23,22 +23,6 @@ public sealed class DimensionNameGeneratorTests
 	}
 
 	[Theory]
-	[InlineData(1, 0, 0, 0, 0, 0, 0, "Metres")]
-	[InlineData(0, 1, 0, 0, 0, 0, 0, "Kilograms")]
-	[InlineData(0, 0, 1, 0, 0, 0, 0, "Seconds")]
-	[InlineData(0, 0, 0, 1, 0, 0, 0, "Amps")]
-	[InlineData(0, 0, 0, 0, 1, 0, 0, "Kelvin")]
-	[InlineData(0, 0, 0, 0, 0, 1, 0, "Moles")]
-	[InlineData(0, 0, 0, 0, 0, 0, 1, "Candelas")]
-	public void GetUnitNameUsesBaseVocabulary(int length, int mass, int time, int electricCurrent, int temperature, int amountOfSubstance, int luminousIntensity, string expected)
-	{
-		Dimension original = new(length, mass, time, electricCurrent, temperature, amountOfSubstance, luminousIntensity);
-		string result = DimensionNameGenerator.GetUnitName(original);
-
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
 	[InlineData(1, "Current")]
 	[InlineData(2, "CurrentSquared")]
 	[InlineData(3, "CurrentCubed")]
@@ -58,25 +42,6 @@ public sealed class DimensionNameGeneratorTests
 	}
 
 	[Theory]
-	[InlineData(1, "Amps")]
-	[InlineData(2, "AmpsSquared")]
-	[InlineData(3, "AmpsCubed")]
-	[InlineData(4, "Amps4")]
-	[InlineData(12, "Amps12")]
-	[InlineData(-1, "InverseAmps")]
-	[InlineData(-2, "InverseAmpsSquared")]
-	[InlineData(-3, "InverseAmpsCubed")]
-	[InlineData(-4, "InverseAmps4")]
-	[InlineData(-12, "InverseAmps12")]
-	public void GetUnitNameFormatsIntegerPowers(int exponent, string expected)
-	{
-		Dimension original = new(ElectricCurrent: exponent);
-		string result = DimensionNameGenerator.GetUnitName(original);
-
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
 	[InlineData(1, 1, 1, 1, 1, 1, 1, "LengthMassTimeCurrentTemperatureAmountOfSubstanceLuminousIntensity")]
 	[InlineData(3, 0, -12, 0, 0, 0, 0, "LengthCubedPerTime12")]
 	[InlineData(1, 1, -2, 0, 0, 0, 0, "LengthMassPerTimeSquared")]
@@ -88,22 +53,6 @@ public sealed class DimensionNameGeneratorTests
 	{
 		Dimension original = new(length, mass, time, electricCurrent, temperature, amountOfSubstance, luminousIntensity);
 		string result = DimensionNameGenerator.GetQuantityName(original);
-
-		Assert.Equal(expected, result);
-	}
-
-	[Theory]
-	[InlineData(1, 1, 1, 1, 1, 1, 1, "MetresKilogramsSecondsAmpsKelvinMolesCandelas")]
-	[InlineData(3, 0, -12, 0, 0, 0, 0, "MetresCubedPerSeconds12")]
-	[InlineData(1, 1, -2, 0, 0, 0, 0, "MetresKilogramsPerSecondsSquared")]
-	[InlineData(2, 1, -3, 0, 0, 0, 0, "MetresSquaredKilogramsPerSecondsCubed")]
-	[InlineData(0, 0, 0, 0, -1, 0, 1, "CandelasPerKelvin")]
-	[InlineData(-2, -1, 3, -4, 1, -2, 1, "SecondsCubedKelvinCandelasPerMetresSquaredKilogramsAmps4MolesSquared")]
-	[InlineData(-1, -1, -1, -1, -1, -1, -1, "InverseMetresKilogramsSecondsAmpsKelvinMolesCandelas")]
-	public void GetUnitNameComposesFactorsInSiOrder(int length, int mass, int time, int electricCurrent, int temperature, int amountOfSubstance, int luminousIntensity, string expected)
-	{
-		Dimension original = new(length, mass, time, electricCurrent, temperature, amountOfSubstance, luminousIntensity);
-		string result = DimensionNameGenerator.GetUnitName(original);
 
 		Assert.Equal(expected, result);
 	}
@@ -130,44 +79,12 @@ public sealed class DimensionNameGeneratorTests
 		Assert.Equal(expected, result);
 	}
 
-	[Theory]
-	[InlineData(1, 2, "SquareRootAmps")]
-	[InlineData(1, 3, "CubeRootAmps")]
-	[InlineData(3, 2, "SquareRootAmpsCubed")]
-	[InlineData(2, 3, "CubeRootAmpsSquared")]
-	[InlineData(2, 4, "SquareRootAmps")]
-	[InlineData(4, 2, "AmpsSquared")]
-	[InlineData(-3, 2, "InverseSquareRootAmpsCubed")]
-	[InlineData(1, -2, "InverseSquareRootAmps")]
-	[InlineData(1, 12, "Root12Amps")]
-	[InlineData(1, 4, "Root4Amps")]
-	[InlineData(1, 5, "Root5Amps")]
-	[InlineData(4, 5, "Root5Amps4")]
-	[InlineData(1, 45, "Root45Amps")]
-	public void GetUnitNameFormatsReducedRationalPowers(int numerator, int denominator, string expected)
-	{
-		Dimension original = new(ElectricCurrent: new(numerator, denominator));
-		string result = DimensionNameGenerator.GetUnitName(original);
-
-		Assert.Equal(expected, result);
-	}
-
 	[Fact]
 	public void GetQuantityNameKeepsFractionalPowersAttachedToTheirFactors()
 	{
 		Dimension original = new(Length: new(1, 2), Time: new(-3, 2), ElectricCurrent: 1);
 		string result = DimensionNameGenerator.GetQuantityName(original);
 		string expected = "SquareRootLengthCurrentPerSquareRootTimeCubed";
-
-		Assert.Equal(expected, result);
-	}
-
-	[Fact]
-	public void GetUnitNameKeepsFractionalPowersAttachedToTheirFactors()
-	{
-		Dimension original = new(Length: new(1, 2), Time: new(-3, 2), ElectricCurrent: 1);
-		string result = DimensionNameGenerator.GetUnitName(original);
-		string expected = "SquareRootMetresAmpsPerSquareRootSecondsCubed";
 
 		Assert.Equal(expected, result);
 	}
@@ -226,7 +143,6 @@ public sealed class DimensionNameGeneratorTests
 
 		Assert.Multiple(
 			() => Assert.Throws<NotSupportedException>(() => DimensionNameGenerator.GetQuantityName(original)),
-			() => Assert.Throws<NotSupportedException>(() => DimensionNameGenerator.GetUnitName(original)),
 			() => Assert.Throws<NotSupportedException>(() => DimensionNameGenerator.GetUnitExpression(original)));
 	}
 }

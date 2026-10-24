@@ -1,4 +1,5 @@
 using DimensionalQuantities.Numerics;
+using DimensionalQuantities.Naming;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Units;
 using DimensionalQuantities.Units.Declarations;
@@ -10,6 +11,7 @@ internal sealed class UnitProviderReader
 {
 	private readonly INamedTypeSymbol _providerAttribute;
 	private readonly INamedTypeSymbol _quantityAttribute;
+	private readonly INamedTypeSymbol _conversionAttribute;
 	private readonly INamedTypeSymbol _factorAttribute;
 	private readonly INamedTypeSymbol _symbolAttribute;
 	private readonly INamedTypeSymbol _additionalAttribute;
@@ -19,6 +21,7 @@ internal sealed class UnitProviderReader
 	{
 		_providerAttribute = compilation.GetRequiredType(typeof(UnitProviderAttribute));
 		_quantityAttribute = compilation.GetRequiredType(typeof(QuantityUnitAttribute));
+		_conversionAttribute = compilation.GetRequiredType(typeof(UnitConversionAttribute));
 		_factorAttribute = compilation.GetRequiredType(typeof(UnitFactorAttribute));
 		_symbolAttribute = compilation.GetRequiredType(typeof(UnitSymbolAttribute));
 		_additionalAttribute = compilation.GetRequiredType(typeof(AdditionalUnitAttribute));
@@ -38,8 +41,35 @@ internal sealed class UnitProviderReader
 		List<(ITypeSymbol Type, string Name, List<UnitDefinition> Units)> groups = [];
 		foreach (INamedTypeSymbol declaration in provider.GetTypeMembers())
 		{
-			if (Find(declaration, _quantityAttribute) is not { } unitMarker
-				|| !TryReadQuantity(declaration, unitMarker, provider, report, out INamedTypeSymbol? quantityType, out UnitDefinition unit))
+			AttributeData[] associations = FindAll(declaration, _quantityAttribute).ToArray();
+			if (associations.Length == 0 || !TryReadUnitDefinition(declaration, provider, report, out UnitDefinition unit))
+			{
+				continue;
+			}
+
+			AddAssociations(declaration, unit, associations, groups, report);
+		}
+
+		return groups.Select(group => new UnitConversionSpec(group.Name,
+			group.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), [.. group.Units], true,
+			siPrefixes, prefixConversions,
+			groups.Count(other => other.Name == group.Name) > 1 ? group.Name + "For" + GetDimensionName(group.Type) : null)).ToArray();
+	}
+
+	private void AddAssociations(INamedTypeSymbol declaration, UnitDefinition unit, AttributeData[] associations,
+		List<(ITypeSymbol Type, string Name, List<UnitDefinition> Units)> groups, Action<Diagnostic> report)
+	{
+		HashSet<ITypeSymbol> associatedTypes = new(SymbolEqualityComparer.Default);
+		foreach (AttributeData association in associations)
+		{
+			INamedTypeSymbol? quantityType = association.ConstructorArguments[0].Value as INamedTypeSymbol;
+			if (quantityType is null || !_quantityReader.TryRead(quantityType, out _))
+			{
+				Report(report, association, $"{declaration.Name} must name a valid Quantity<T>.");
+				continue;
+			}
+
+			if (!associatedTypes.Add(quantityType))
 			{
 				continue;
 			}
@@ -47,39 +77,35 @@ internal sealed class UnitProviderReader
 			int index = groups.FindIndex(group => SymbolEqualityComparer.Default.Equals(group.Type, quantityType));
 			if (index < 0)
 			{
-				groups.Add((quantityType!, unit.QuantityName, [unit]));
+				groups.Add((quantityType, unit.Name, [unit]));
 			}
 			else
 			{
 				groups[index].Units.Add(unit);
 			}
 		}
-
-		return groups.Select(group => new UnitConversionSpec(group.Name,
-			group.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), [.. group.Units], true,
-			siPrefixes, prefixConversions)).ToArray();
 	}
 
-	private bool TryReadQuantity(INamedTypeSymbol declaration, AttributeData marker, INamedTypeSymbol provider,
-		Action<Diagnostic> report, out INamedTypeSymbol? quantityType, out UnitDefinition unit)
+	private string GetDimensionName(ITypeSymbol quantityType)
+	{
+		_quantityReader.TryRead(quantityType, out DimensionalQuantities.Dimensions.Dimension dimension);
+		return dimension == default ? "Dimensionless" : DimensionNameGenerator.GetQuantityName(dimension);
+	}
+
+	private bool TryReadUnitDefinition(INamedTypeSymbol declaration, INamedTypeSymbol provider,
+		Action<Diagnostic> report, out UnitDefinition unit)
 	{
 		unit = default;
-		quantityType = marker.ConstructorArguments[0].Value as INamedTypeSymbol;
-		if (quantityType is null || !_quantityReader.TryRead(quantityType, out _))
-		{
-			Report(report, marker, $"{declaration.Name} must name a valid Quantity<T>.");
-			return false;
-		}
-
 		if (!TryReadExpression(declaration, report, out UnitExpression expression))
 		{
 			return false;
 		}
 
-		double offset = GetNamed(marker, nameof(QuantityUnitAttribute.Offset), 0d);
+		AttributeData? conversion = Find(declaration, _conversionAttribute);
+		double offset = conversion is null ? 0d : GetNamed(conversion, nameof(UnitConversionAttribute.Offset), 0d);
 		if (!IsFinite(offset))
 		{
-			Report(report, marker, $"{declaration.Name} has a non-finite offset.");
+			Report(report, conversion, $"{declaration.Name} has a non-finite offset.");
 			return false;
 		}
 
@@ -92,7 +118,7 @@ internal sealed class UnitProviderReader
 			? declaration.Name[..^4] : declaration.Name;
 		if (name.Length == 0)
 		{
-			Report(report, marker, "A quantity unit declaration must have a name.");
+			Report(report, Find(declaration, _quantityAttribute), "A quantity unit declaration must have a name.");
 			return false;
 		}
 

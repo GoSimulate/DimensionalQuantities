@@ -164,6 +164,33 @@ public sealed class UnitProviderGenerationTests
 	}
 
 	[Fact]
+	public void OneUnitDeclarationCanServeDistinctQuantityTypes()
+	{
+		const string source = """
+			using DimensionalQuantities.Units.Declarations;
+			namespace Independent.Units;
+			[UnitProvider]
+			internal static class CommonUnits
+			{
+				[QuantityUnit(typeof(Length))]
+				[QuantityUnit(typeof(Time))]
+				[UnitFactor(typeof(Token))]
+				private sealed class TokenUnit;
+				[UnitSymbol("Token", "Tokens", "token")]
+				private sealed class Token;
+			}
+			public static class Consumer
+			{
+				public static double[] Values() =>
+					[Length.FromTokens(2).AsSiBaseUnit(), Time.FromTokens(3).AsSiBaseUnit()];
+			}
+			""";
+		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
+		Assert.Empty(diagnostics);
+		Assert.Equal([2d, 3d], Evaluate(compilation, "Independent.Units.Consumer"));
+	}
+
+	[Fact]
 	public void AffineConversionsApplyScaleAndOffsetInBothDirections()
 	{
 		const string source = """
@@ -172,7 +199,8 @@ public sealed class UnitProviderGenerationTests
 			[UnitProvider]
 			internal static class CustomUnits
 			{
-				[QuantityUnit(typeof(Temperature), Offset = 255.3722222222222)]
+				[QuantityUnit(typeof(Temperature))]
+				[UnitConversion(Offset = 255.3722222222222)]
 				[UnitFactor(typeof(Fahrenheit))]
 				private sealed class TemperatureUnit;
 				[UnitSymbol("Fahrenheit", "Fahrenheit", "°F", Scale = 5d / 9d)]

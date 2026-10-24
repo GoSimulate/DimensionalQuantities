@@ -189,17 +189,29 @@ namespace Example.Units;
 internal static class CustomUnits
 {
     [QuantityUnit(typeof(Length))]
-    [UnitFactor(typeof(Foot))]
+    [UnitFactor(typeof(CustomSymbols.Foot))]
     private sealed class LengthUnit;
 
+    [QuantityUnit(typeof(Pressure))]
+    [QuantityUnit(typeof(Stress))]
+    [QuantityUnit(typeof(YoungsModulus))]
+    [UnitFactor(typeof(CustomSymbols.Pascal))]
+    private sealed class PascalUnit;
+}
+
+internal static class CustomSymbols
+{
     [UnitSymbol("Foot", "Feet", "ft", Scale = 0.3048)]
-    private sealed class Foot;
+    internal sealed class Foot;
+
+    [UnitSymbol("Pascal", "Pascals", "Pa")]
+    internal sealed class Pascal;
 }
 ```
 
-Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`.
+Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`. The Pascal declaration associates the same unit with Pressure, Stress and Young’s modulus; their shared underlying type receives one set of conversion helpers.
 
-`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. `QuantityUnit.Offset` is added after scaling into SI and subtracted before converting back. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
+`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. An optional `[UnitConversion(Offset = ...)]` on the unit declaration supplies an offset added after scaling into SI and subtracted before converting back; it applies to every associated quantity. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
 
 ### Current scope
 

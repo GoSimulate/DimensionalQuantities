@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace DimensionalQuantities.Roslyn.Generators;
 
-internal static class UnitConversionEmitter
+internal static class UnitConversionSourceEmitter
 {
 	public static string Emit(IReadOnlyList<UnitConversionSpec> quantities, string namespaceName, string accessibility,
 		string classNamePrefix = "")
@@ -37,14 +37,14 @@ internal static class UnitConversionEmitter
 				.ToArray()
 			: [];
 		ConversionDefinition[] conversions = quantity.GeneratePrefixConversions ? [generic, .. named] : named;
-		string variableName = char.ToLowerInvariant(quantity.Name[0]) + quantity.Name[1..];
-		string className = classNamePrefix + quantity.Name + "Extensions";
+		string variableName = char.ToLowerInvariant(quantity.ExtensionName[0]) + quantity.ExtensionName[1..];
+		string className = classNamePrefix + (quantity.ExtensionClassName ?? quantity.ExtensionName) + "Extensions";
 		if (!SyntaxFacts.IsValidIdentifier(className) || !SyntaxFacts.IsValidIdentifier(variableName)
 			|| conversions.Any(conversion => !SyntaxFacts.IsValidIdentifier(conversion.FactoryName)
 				|| !SyntaxFacts.IsValidIdentifier(conversion.AccessorName)
 				|| conversion.PrefixParameters.Any(parameter => !SyntaxFacts.IsValidIdentifier(parameter.Name))))
 		{
-			throw new InvalidOperationException($"Unit provider for {quantity.Name} produces an invalid C# identifier.");
+			throw new InvalidOperationException($"Unit provider for {quantity.ExtensionName} produces an invalid C# identifier.");
 		}
 
 		string factories = string.Join("\n\t\t", conversions.Select(conversion => RenderFactory(quantity.ReceiverType, conversion)));

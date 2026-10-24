@@ -10,7 +10,7 @@ using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
-public sealed class UnitConversionEmitterTests
+public sealed class UnitConversionSourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 	private static readonly UnitConversionSpec[] _units =
@@ -80,12 +80,12 @@ public sealed class UnitConversionEmitterTests
 			global using Mass = {massType};
 			global using DimensionalQuantities.Generated;
 
-			{UnitConversionEmitter.Emit(_units, "DimensionalQuantities.Generated", "internal")}
+			{UnitConversionSourceEmitter.Emit(_units, "DimensionalQuantities.Generated", "internal")}
 			""";
 		string[] platformAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = platformAssemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		CSharpCompilation compilation = CSharpCompilation.Create("UnitConversionEmitterConsumer",
+		CSharpCompilation compilation = CSharpCompilation.Create("UnitConversionSourceEmitterConsumer",
 			[
 				CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Consumer.cs"),
 				CSharpSyntaxTree.ParseText(generatedSource, _parseOptions, path: "Conversions.g.cs")
