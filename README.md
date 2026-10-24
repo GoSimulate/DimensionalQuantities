@@ -26,6 +26,10 @@ double ohms = resistance.AsOhms(); // 4
 double watts = power.AsWatts();    // 36
 ```
 
+Rider can make the inferred `Power` type explicit and offer its generated conversion helpers:
+
+![Rider replacing var with Power and offering AsWatts completion](docs/images/power.gif)
+
 ### SI prefixes and compound units
 
 Named helpers handle conversion into and out of SI prefixes, including powers of prefixed units:
@@ -72,6 +76,23 @@ Known dimensions use names from the engineering catalogue, such as `Power`, `Vol
 
 Aliases with the same dimensions share a type. For example, `Energy` and `Torque` are interchangeable: the library checks dimensions, not the physical meaning of a calculation. Magnitudes are stored as `double` in coherent SI base units.
 
+### Comparisons and numerical helpers
+
+Quantities with matching dimensions support `<`, `>`, `<=` and `>=`, along with `Abs`, `Min`, `Max` and `Clamp`:
+
+```csharp
+Current measured = Current.FromAmps(-3);
+Current limit = Current.FromAmps(10);
+
+Current magnitude = Current.Abs(measured); // 3 A
+bool withinLimit = magnitude <= limit;
+Current smaller = Current.Min(magnitude, limit);
+Current larger = Current.Max(magnitude, limit);
+Current bounded = Current.Clamp(measured, Current.FromAmps(0), limit); // 0 A
+```
+
+Comparisons follow ordinary `double` behaviour, including comparisons with NaN. The numerical helpers follow the corresponding `Math` behaviour.
+
 ### Powers and roots
 
 SI base and catalogue quantities have `Squared()`, `Cubed()`, `Pow4()` through `Pow6()`, and the corresponding `SquareRoot()`, `CubeRoot()`, `Root4()` through `Root6()` helpers. Helpers for intermediate quantities are generated when called.
@@ -89,6 +110,23 @@ Length recovered = Power<NumberHalf>.Of(area); // 3 m
 
 Fractional dimensions are supported. Results whose dimensions cancel completely, including a zeroth power, are returned as `double`.
 
+Rational powers also produce named types, such as `CubeRootLengthSquared`:
+
+![Rider replacing var with CubeRootLengthSquared for a two-thirds power](docs/images/powers-and-roots.gif)
+
+### Nullable quantities
+
+Arithmetic supports nullable quantity operands and nullable scalars. Missing values propagate as `null`; power and root helpers can be called through `?.`:
+
+```csharp
+Length? length = Length.FromMetres(3);
+Current? current = null;
+
+LengthCurrent? product = length * current; // null
+Area? area = length?.Squared();            // 9 m²
+Length? recovered = area?.SquareRoot();    // 3 m
+```
+
 ### Discovery through your code
 
 Intermediate quantities can flow through:
@@ -96,7 +134,10 @@ Intermediate quantities can flow through:
 - `var` locals and explicitly typed locals.
 - Conditional (`?:`) and switch expressions whose value branches have matching dimensions.
 - Fields, properties and helper method returns, including declarations in other source files.
-- Parameters, arrays, generic collections and indexers.
+- Parameters, arrays, generic collections, spans and indexers.
+- Generic interface members, constrained generic calls, `out` variables and `ref` returns.
+- Pattern variables and deconstruction results.
+- Awaited results, iterator elements and async iterator elements.
 
 Canonical compound names can also be used directly in type declarations, without first writing an expression that produces them:
 
@@ -110,6 +151,10 @@ double value = timed.AsSiBaseUnit(); // 24
 
 The generator recognises canonical names such as `LengthCurrent`, `LengthPerTime` and `SquareRootLength`. Canonical-name discovery leaves existing bound types and explicit aliases alone. Incompatible dimensions remain compiler errors.
 
+This also works for quantities outside the catalogue, such as `LengthCurrent`:
+
+![Rider replacing var with the generated LengthCurrent type](docs/images/generated-intermediate.gif)
+
 ### Sharing quantities between packages
 
 Generated names are aliases for types in the shared runtime library. Independently compiled packages can therefore exchange the same quantity through method parameters, return values, collections and containing objects.
@@ -118,7 +163,7 @@ A consuming project with the generator can discover quantities from referenced v
 
 ### Current scope
 
-Discovery follows supported expressions and declarations; it is not general control-flow or data-flow analysis. For example, it does not infer unresolved quantity results through async methods, iterator bodies or arbitrary reassignment chains. Dedicated analyser diagnostics and IDE fixes are still follow-up work.
+Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains. Dedicated analyser diagnostics and IDE fixes are still follow-up work.
 
 The library is under active development; the API and supported expression patterns are still evolving.
 
