@@ -61,9 +61,9 @@ internal static class QuantityDiscovery
 			dimensions.Add(dimension);
 		}
 
-		foreach (KeyValuePair<Dimension, UnitDefinition[]> entry in EngineeringCatalogue.Entries)
+		foreach (KeyValuePair<Dimension, string[]> entry in EngineeringQuantityAliases.Entries)
 		{
-			knownQuantities.Add(new(entry.Key, [.. entry.Value], true));
+			knownQuantities.Add(new(entry.Key, [.. entry.Value], [], false));
 			dimensions.Add(entry.Key);
 		}
 

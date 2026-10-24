@@ -15,6 +15,14 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 
 The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes the runtime library, source generator, analysers and an alias quick fix.
 
+Core includes the seven SI base quantities' conversion helpers. Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, and import its namespace:
+
+```csharp
+using DimensionalQuantities.Extensions.Metric;
+```
+
+Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
+
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
 Current current = Current.FromAmps(3);
@@ -168,6 +176,8 @@ DQ0003 has an IDE quick fix to replace the raw type with its readable alias, suc
 Alias collision warnings do not suppress or rename generated aliases. Use qualified names or distinct explicit aliases to disambiguate your own types.
 
 ### Current scope
+
+When upgrading from the combined package, add the Metric package and namespace wherever you use catalogue conversions, including their `FromPrefixedUnits` and `AsPrefixedUnits` helpers. Their names and conversion behaviour are unchanged. Core-only consumers can use `FromSiBaseUnit`, `AsSiBaseUnit`, `FromArbitrarySiComponents` and `AsArbitrarySiComponents` for every quantity.
 
 Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains.
 

@@ -3,6 +3,11 @@
     <Project Path="DimensionalQuantities.Tests/DimensionalQuantities.Tests.csproj" />
     <Project Path="DimensionalQuantities/DimensionalQuantities.csproj" />
   </Folder>
+  <Folder Name="/Metric/">
+    <Project Path="DimensionalQuantities.Build/DimensionalQuantities.Build.csproj" />
+    <Project Path="DimensionalQuantities.Extensions.Metric/DimensionalQuantities.Extensions.Metric.csproj" />
+    <Project Path="DimensionalQuantities.Extensions.Metric.Tests/DimensionalQuantities.Extensions.Metric.Tests.csproj" />
+  </Folder>
   <Folder Name="/Roslyn/">
     <Project Path="DimensionalQuantities.Roslyn.CodeFixes/DimensionalQuantities.Roslyn.CodeFixes.csproj" />
     <Project Path="DimensionalQuantities.Roslyn.Tests/DimensionalQuantities.Roslyn.Tests.csproj" />

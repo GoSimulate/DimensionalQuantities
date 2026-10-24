@@ -5,10 +5,14 @@ using DimensionalQuantities.Units;
 
 namespace DimensionalQuantities.Roslyn.Discovery;
 
-internal sealed record PlannedQuantity(Dimension Dimension, ImmutableArray<UnitDefinition> Units, bool IncludeNamedConversions)
+internal sealed record PlannedQuantity(Dimension Dimension, ImmutableArray<string> Names, ImmutableArray<UnitDefinition> Units,
+	bool IncludeNamedConversions)
 {
-	public string Name => Units[0].QuantityName;
+	public PlannedQuantity(Dimension dimension, ImmutableArray<UnitDefinition> units, bool includeNamedConversions)
+		: this(dimension, [.. units.Select(unit => unit.QuantityName)], units, includeNamedConversions) { }
+
+	public string Name => Names[0];
 
 	public ImmutableArray<string> Aliases =>
-		[.. Units.Select(unit => unit.QuantityName).Append(DimensionNameGenerator.GetQuantityName(Dimension)).Distinct(StringComparer.Ordinal)];
+		[.. Names.Append(DimensionNameGenerator.GetQuantityName(Dimension)).Distinct(StringComparer.Ordinal)];
 }

@@ -31,10 +31,10 @@ jobs:
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
       - name: Pack
         run: >-
-          dotnet pack src/DimensionalQuantities/DimensionalQuantities.csproj
-          -c Release --no-build -o artifacts/packages
+          dotnet pack src/DimensionalQuantities.slnx
+          -c Release --no-build --no-restore -o artifacts/packages
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
-      - name: Check NuGet package
+      - name: Check NuGet packages
         run: python3 .github/scripts/check-package.py "$VERSION"
       - uses: actions/upload-artifact@v7.0.2
         if: always()

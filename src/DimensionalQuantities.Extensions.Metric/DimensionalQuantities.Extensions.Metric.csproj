@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Authors>GoSim</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
+    <Description>Named metric conversions for dimensional quantities.</Description>
+    <RepositoryType>git</RepositoryType>
+    <MetricDotNetHost Condition="'$(DotNetHostPath)' != ''">$(DotNetHostPath)</MetricDotNetHost>
+    <MetricDotNetHost Condition="'$(MetricDotNetHost)' == ''">dotnet</MetricDotNetHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" PrivateAssets="none" />
+    <ProjectReference Include="../DimensionalQuantities.Build/DimensionalQuantities.Build.csproj"
+                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" PrivateAssets="all" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <Target Name="GenerateMetricConversions" BeforeTargets="InitializeSourceControlInformation;CoreCompile"
+          DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup>
+      <MetricGeneratedSource>$(IntermediateOutputPath)MetricConversions.g.cs</MetricGeneratedSource>
+    </PropertyGroup>
+    <Exec Command="&quot;$(MetricDotNetHost)&quot; &quot;$(MSBuildProjectDirectory)/../DimensionalQuantities.Build/bin/$(Configuration)/net11.0/DimensionalQuantities.Build.dll&quot; &quot;$(MSBuildProjectDirectory)/$(MetricGeneratedSource)&quot;" />
+    <ItemGroup>
+      <Compile Include="$(MetricGeneratedSource)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="PinCorePackageDependency" AfterTargets="_GetProjectReferenceVersions" BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)"
+                                      Condition="'%(_ProjectReferencesWithVersions.Filename)' == 'DimensionalQuantities'">
+        <ProjectVersion>[$(PackageVersion)]</ProjectVersion>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+  </Target>
+</Project>

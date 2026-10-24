@@ -87,12 +87,12 @@ public sealed class QuantityGeneratorTests
 	[Theory]
 	[InlineData("Length.FromMetres(2) * Length.FromMetres(3)", "Area", 6)]
 	[InlineData("Current.FromAmps(2) * Current.FromAmps(3)", "CurrentSquared", 6)]
-	[InlineData("Current.FromAmps(2) * Current.FromAmps(3) * Resistance.FromOhms(4)", "Power", 24)]
-	[InlineData("Current.FromAmps(2) * (Current.FromAmps(3) * Resistance.FromOhms(4))", "Power", 24)]
-	[InlineData("Voltage.FromVolts(12) / Current.FromAmps(3)", "Resistance", 4)]
+	[InlineData("Current.FromAmps(2) * Current.FromAmps(3) * Resistance.FromSiBaseUnit(4)", "Power", 24)]
+	[InlineData("Current.FromAmps(2) * (Current.FromAmps(3) * Resistance.FromSiBaseUnit(4))", "Power", 24)]
+	[InlineData("Voltage.FromSiBaseUnit(12) / Current.FromAmps(3)", "Resistance", 4)]
 	[InlineData("Current.FromAmps(3) * Time.FromSeconds(2)", "TimeCurrent", 6)]
 	[InlineData("(Current.FromAmps(2) * Time.FromSeconds(3)) / Time.FromSeconds(3)", "Current", 2)]
-	[InlineData("(Voltage.FromVolts(4) * Current.FromAmps(3)) / Current.FromAmps(2)", "Voltage", 6)]
+	[InlineData("(Voltage.FromSiBaseUnit(4) * Current.FromAmps(3)) / Current.FromAmps(2)", "Voltage", 6)]
 	[InlineData("Current.FromAmps(3) * 2d", "Current", 6)]
 	[InlineData("2 * Current.FromAmps(3)", "Current", 6)]
 	[InlineData("Current.FromAmps(6) / 2f", "Current", 3)]
@@ -150,7 +150,7 @@ public sealed class QuantityGeneratorTests
 			public static class Consumer
 			{
 				public static Current Input = Current.FromAmps(2);
-				public static Resistance GetResistance() => Resistance.FromOhms(4);
+				public static Resistance GetResistance() => Resistance.FromSiBaseUnit(4);
 				public static Power Calculate() => Input * Input * GetResistance();
 			}
 			""";
@@ -189,7 +189,7 @@ public sealed class QuantityGeneratorTests
 		const string editedSource = """
 			public static class Consumer
 			{
-				public static Resistance Value() => Voltage.FromVolts(12) / Current.FromAmps(3);
+				public static Resistance Value() => Voltage.FromSiBaseUnit(12) / Current.FromAmps(3);
 			}
 			""";
 		CSharpCompilation initialInput = CreateInputCompilation(firstSource);
@@ -345,7 +345,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Current.FromAmps(2) + Current.FromMilliAmps(500)", "AsAmps", 2.5)]
 	[InlineData("Current.FromAmps(2) - Current.FromMilliAmps(500)", "AsAmps", 1.5)]
 	[InlineData("-Current.FromMilliAmps(500)", "AsAmps", -0.5)]
-	[InlineData("Energy.FromJoules(2) + Torque.FromNewtonMetres(3)", "AsJoules", 5)]
+	[InlineData("Energy.FromSiBaseUnit(2) + Torque.FromSiBaseUnit(3)", "AsSiBaseUnit", 5)]
 	public void SameDimensionArithmeticUsesCoreOperatorsWithoutGeneratedOverloads(string expression, string accessor, double expected)
 	{
 		string source = $$"""
@@ -375,12 +375,12 @@ public sealed class QuantityGeneratorTests
 				{
 					Current first = Current.FromAmps(3);
 					Current second = Current.FromAmps(2);
-					Resistance resistance = Resistance.FromOhms(4);
+					Resistance resistance = Resistance.FromSiBaseUnit(4);
 					var firstSquared = first * first;
 					var secondSquared = second * second;
 					var combined = {{expression}};
 					var heating = combined * resistance;
-					return ((Power)heating).AsWatts();
+					return ((Power)heating).AsSiBaseUnit();
 				}
 			}
 			""";
@@ -390,8 +390,8 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Theory]
-	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) + Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromOhms(4)).AsWatts()", 52)]
-	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) - Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromOhms(4)).AsWatts()", 20)]
+	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) + Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromSiBaseUnit(4)).AsSiBaseUnit()", 52)]
+	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) - Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromSiBaseUnit(4)).AsSiBaseUnit()", 20)]
 	[InlineData("(-(Current.FromAmps(3) * Current.FromAmps(3))).AsSiBaseUnit()", -9)]
 	public void SameDimensionArithmeticAroundNestedProductsCompilesAndExecutes(string expression, double expected)
 	{
@@ -425,7 +425,7 @@ public sealed class QuantityGeneratorTests
 
 	[Theory]
 	[InlineData("Length.FromMetres(3) / Length.FromMilliMetres(500)", 6)]
-	[InlineData("Energy.FromJoules(6) / Torque.FromNewtonMetres(2)", 3)]
+	[InlineData("Energy.FromSiBaseUnit(6) / Torque.FromSiBaseUnit(2)", 3)]
 	[InlineData("Current.FromAmps(3) * (2 / Current.FromAmps(3))", 2)]
 	[InlineData("(2 / Current.FromAmps(3)) * Current.FromAmps(3)", 2)]
 	[InlineData("(Current.FromAmps(3) * Current.FromAmps(3)) / (Current.FromAmps(2) * Current.FromAmps(2))", 2.25)]
@@ -592,9 +592,9 @@ public sealed class QuantityGeneratorTests
 				{
 					var squared = Power<NumberTwo>.Of(Current.FromAmps(3));
 					var root = Power<NumberHalf>.Of(squared);
-					Voltage voltage = root * Resistance.FromOhms(4);
+					Voltage voltage = root * Resistance.FromSiBaseUnit(4);
 					Current nested = Power<NumberHalf>.Of(Power<NumberTwo>.Of(root));
-					return voltage.AsVolts() + nested.AsAmps();
+					return voltage.AsSiBaseUnit() + nested.AsAmps();
 				}
 			}
 			""";
@@ -654,9 +654,9 @@ public sealed class QuantityGeneratorTests
 			{
 				public static bool Value()
 				{
-					Length first = Power<NumberHalf>.Of(Area.FromSquareMetres(9));
-					Length second = Power<NumberTwoQuarters>.Of(Area.FromSquareMetres(9));
-					Length third = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Area.FromSquareMetres(9));
+					Length first = Power<NumberHalf>.Of(Area.FromSiBaseUnit(9));
+					Length second = Power<NumberTwoQuarters>.Of(Area.FromSiBaseUnit(9));
+					Length third = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Area.FromSiBaseUnit(9));
 					return first == second && second == third && typeof(NumberHalf) == typeof(NumberTwoQuarters)
 						&& typeof(NumberHalf) == typeof(Fraction<TerminalHex1, TerminalHex2>);
 				}
@@ -709,12 +709,12 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Theory]
-	[InlineData("var squared = Power<TerminalHex2>.Of(current); var result = squared * resistance;", "((Power)result).AsWatts()", 36)]
+	[InlineData("var squared = Power<TerminalHex2>.Of(current); var result = squared * resistance;", "((Power)result).AsSiBaseUnit()", 36)]
 	[InlineData("var squared = current * current; var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(squared);", "((Current)result).AsAmps()", 3)]
 	[InlineData("var squared = Power<TerminalHex2>.Of(current); var copy = squared; var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(copy);", "((Current)result).AsAmps()", 3)]
 	[InlineData("var result = Power<TerminalHex2>.Of(current * resistance);", "result.AsSiBaseUnit()", 144)]
 	[InlineData("var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Power<TerminalHex2>.Of(current));", "((Current)result).AsAmps()", 3)]
-	[InlineData("var identity = Power<TerminalHex0>.Of(current); var result = identity * current * resistance;", "((Voltage)result).AsVolts()", 12)]
+	[InlineData("var identity = Power<TerminalHex0>.Of(current); var result = identity * current * resistance;", "((Voltage)result).AsSiBaseUnit()", 12)]
 	public void PowersWorkWithArithmeticAndLocalVariables(string declarations, string expression, double expected)
 	{
 		string source = $$"""
@@ -724,7 +724,7 @@ public sealed class QuantityGeneratorTests
 				public static double Value()
 				{
 					Current current = Current.FromAmps(3);
-					Resistance resistance = Resistance.FromOhms(4);
+					Resistance resistance = Resistance.FromSiBaseUnit(4);
 					{{declarations}}
 					return {{expression}};
 				}
@@ -852,8 +852,8 @@ public sealed class QuantityGeneratorTests
 					Length fourthRoot = fourthPower.Root4();
 					Area fromGeneric = Power<NumberTwo>.Of(root);
 					Area fromProduct = root * cubeRoot;
-					return area.AsSquareMetres() + volume.AsCubicMetres() + fourthRoot.AsMetres()
-						+ fromGeneric.AsSquareMetres() + fromProduct.AsSquareMetres();
+					return area.AsSiBaseUnit() + volume.AsSiBaseUnit() + fourthRoot.AsMetres()
+						+ fromGeneric.AsSiBaseUnit() + fromProduct.AsSiBaseUnit();
 				}
 			}
 			""";
@@ -876,9 +876,9 @@ public sealed class QuantityGeneratorTests
 				public static double Value()
 				{
 					Current current = Current.FromAmps(3);
-					Resistance resistance = Resistance.FromOhms(4);
+					Resistance resistance = Resistance.FromSiBaseUnit(4);
 					Voltage voltage = {{expression}};
-					return voltage.AsVolts();
+					return voltage.AsSiBaseUnit();
 				}
 			}
 			""";
@@ -1138,10 +1138,10 @@ public sealed class QuantityGeneratorTests
 				public static double[] Value()
 				{
 					Current line = Current.FromAmps(12);
-					Resistance resistance = Resistance.FromOhms(0.5);
+					Resistance resistance = Resistance.FromSiBaseUnit(0.5);
 					Power loss = Loss(resistance, line, {{delta.ToString().ToLowerInvariant()}});
 					Resistance recovered = Recover(loss, line, {{delta.ToString().ToLowerInvariant()}});
-					return [loss.AsWatts(), recovered.AsOhms()];
+					return [loss.AsSiBaseUnit(), recovered.AsSiBaseUnit()];
 				}
 			}
 			""";
