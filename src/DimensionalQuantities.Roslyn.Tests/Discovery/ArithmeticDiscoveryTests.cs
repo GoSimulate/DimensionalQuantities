@@ -26,6 +26,37 @@ public sealed class ArithmeticDiscoveryTests
 	}
 
 	[Theory]
+	[InlineData("length * time", true)]
+	[InlineData("length / time", false)]
+	public void ReadsNullableQuantityOperands(string expression, bool multiply)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value(Length? length, Time? time) => {{expression}};
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Dimension left = new(Length: 1);
+		Dimension right = new(Time: 1);
+		Assert.Equal(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
+			left, right, multiply ? left * right : left / right), operation);
+	}
+
+	[Fact]
+	public void NullableQuantityDivisorRequestsTheInverseDimension()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Length? length) => 2d / length;
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)), operation);
+	}
+
+	[Theory]
 	[InlineData("length * missing")]
 	[InlineData("length * 1m")]
 	[InlineData("length * \"text\"")]

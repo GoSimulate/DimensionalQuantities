@@ -72,16 +72,37 @@ internal static class BoundOperationDiscovery
 		foreach (InvocationExpressionSyntax invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			if (invocation.Expression is MemberAccessExpressionSyntax access
-				&& PowerMethodDiscovery.IsSupportedName(access.Name.Identifier.ValueText)
-				&& discovery.TryRead(invocation, out Rational exponent, out string methodName, cancellationToken)
-				&& reader.TryRead(model.GetTypeInfo(access.Expression, cancellationToken).Type,
-					out Dimension operand, cancellationToken) && operand != default)
+			if (discovery.TryRead(invocation, out Rational exponent, out string methodName, cancellationToken)
+				&& TryReadPowerMethodReceiver(invocation, model, reader, out Dimension operand, cancellationToken)
+				&& operand != default)
 			{
 				operations.Add(new(operand, exponent, operand.Pow(exponent), methodName));
 			}
 		}
 
 		return operations.ToImmutable();
+	}
+
+	private static bool TryReadPowerMethodReceiver(InvocationExpressionSyntax invocation, SemanticModel model,
+		QuantityTypeReader reader, out Dimension operand, CancellationToken cancellationToken)
+	{
+		operand = default;
+		if (invocation.Expression is MemberAccessExpressionSyntax access)
+		{
+			return reader.TryRead(model.GetTypeInfo(access.Expression, cancellationToken).Type, out operand, cancellationToken);
+		}
+
+		if (invocation.Expression is MemberBindingExpressionSyntax)
+		{
+			ConditionalAccessExpressionSyntax? conditional = invocation.Ancestors().OfType<ConditionalAccessExpressionSyntax>()
+				.FirstOrDefault(access => access.WhenNotNull.Span.Contains(invocation.Span));
+			if (conditional is not null)
+			{
+				return reader.TryReadIncludingNullable(model.GetTypeInfo(conditional.Expression, cancellationToken).Type,
+					out operand, cancellationToken);
+			}
+		}
+
+		return false;
 	}
 }

@@ -1015,6 +1015,211 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		Assert.Throws<OperationCanceledException>(() => QuantityDiscoveryCoordinator.Discover(compilation, [], defaults, cancellation.Token));
 	}
 
+	[Theory]
+	[InlineData("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[InlineData("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[InlineData("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
+	[InlineData("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
+	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
+	public void NullableMultiplicationDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthCurrent? Calculate()
+				{
+					{{leftType}} left = {{leftValue}};
+					{{rightType}} right = {{rightValue}};
+					return left * right;
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[InlineData("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[InlineData("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
+	[InlineData("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
+	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
+	public void NullableDivisionDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthPerCurrent? Calculate()
+				{
+					{{leftType}} left = {{leftValue}};
+					{{rightType}} right = {{rightValue}};
+					return left / right;
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("Length.FromMetres(6)", 18)]
+	[InlineData("null", -1)]
+	public void NullableArithmeticUsesOperatorDiscoveredFromNonNullableOperands(string leftValue, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthCurrent? Calculate()
+				{
+					LengthCurrent seed = Length.FromMetres(1) * Current.FromAmps(1);
+					Length? left = {{leftValue}};
+					Current right = Current.FromAmps(3);
+					return left * right;
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("Current.FromAmps(3)", 2)]
+	[InlineData("null", -1)]
+	public void NullableScalarReciprocalDiscoveryPreservesNullableResults(string value, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static InverseCurrent? Calculate()
+				{
+					Current? current = {{value}};
+					return 6d / current;
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("LengthCurrent.FromSiBaseUnit(12)", 144)]
+	[InlineData("null", -1)]
+	public void NullablePowerDiscoveryAddsNullConditionalSquaredMethod(string value, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthSquaredCurrentSquared? Calculate()
+				{
+					LengthCurrent? value = {{value}};
+					return value?.Squared();
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("LengthCurrent.FromSiBaseUnit(144)", 12)]
+	[InlineData("null", -1)]
+	public void NullablePowerDiscoveryAddsNullConditionalSquareRootMethod(string value, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static SquareRootLengthSquareRootCurrent? Calculate()
+				{
+					LengthCurrent? value = {{value}};
+					return value?.SquareRoot();
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("Length.FromMetres(3)", 9)]
+	[InlineData("null", -1)]
+	public void BaseNullablePowerKeepsPregeneratedSquaredMethod(string value, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static Area? Calculate()
+				{
+					Length? value = {{value}};
+					return value?.Squared();
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
+	[InlineData("value?.Squared().AsSiBaseUnit()", 36)]
+	[InlineData("value?.Squared().Squared().AsSiBaseUnit()", 1296)]
+	[InlineData("(value?.Squared())?.SquareRoot().AsSiBaseUnit()", 6)]
+	public void NullablePowerDiscoveryHandlesConditionalAccessChains(string expression, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					LengthCurrent? value = Length.FromMetres(2) * Current.FromAmps(3);
+					return {{expression}} ?? -1;
+				}
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Fact]
+	public void NullablePowerDiscoveryUsesTheNearestConditionalReceiver()
+	{
+		const string source = """
+			public sealed class Holder
+			{
+				public LengthCurrent? Value { get; }
+				public Holder(LengthCurrent? value) => Value = value;
+			}
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Holder? holder = new(Length.FromMetres(2) * Current.FromAmps(3));
+					return holder?.Value?.Squared().AsSiBaseUnit() ?? -1;
+				}
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(36, result);
+	}
+
 	private static QuantityDiscoveryResult Discover(params string[] sources)
 	{
 		CSharpCompilation original = CreateCompilation(sources);

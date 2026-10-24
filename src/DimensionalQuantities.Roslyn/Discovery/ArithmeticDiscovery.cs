@@ -20,8 +20,8 @@ internal static class ArithmeticDiscovery
 
 		ITypeSymbol? leftType = semanticModel.GetTypeInfo(binary.Left, cancellationToken).Type;
 		ITypeSymbol? rightType = semanticModel.GetTypeInfo(binary.Right, cancellationToken).Type;
-		bool hasLeft = reader.TryRead(leftType, out Dimension left, cancellationToken) && left != default;
-		bool hasRight = reader.TryRead(rightType, out Dimension right, cancellationToken) && right != default;
+		bool hasLeft = reader.TryReadIncludingNullable(leftType, out Dimension left, cancellationToken) && left != default;
+		bool hasRight = reader.TryReadIncludingNullable(rightType, out Dimension right, cancellationToken) && right != default;
 		if (hasLeft && hasRight)
 		{
 			if (!multiply && left == right)
