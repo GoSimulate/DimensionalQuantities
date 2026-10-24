@@ -51,6 +51,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 			""");
 		ProjectCreator creator = ProjectCreator.Templates.SdkCsproj(path: consumerProject, targetFramework: "netstandard2.0")
 			.Property("LangVersion", "preview")
+			.Property("WarningsAsErrors", "CS8032;CS8785;AD0001")
 			.ItemPackageReference(package)
 			.Save();
 
@@ -175,6 +176,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 		File.WriteAllText(Path.Combine(directory, name + ".cs"), source);
 		ProjectCreator creator = ProjectCreator.Templates.SdkCsproj(path: Path.Combine(directory, name + ".csproj"), targetFramework: "netstandard2.0")
 			.Property("LangVersion", "preview")
+			.Property("WarningsAsErrors", "CS8032;CS8785;AD0001")
 			.Property("Version", "1.0.0")
 			.Property("PackageOutputPath", Path.Combine(directory, "packages"))
 			.Property("CopyLocalLockFileAssemblies", "true");

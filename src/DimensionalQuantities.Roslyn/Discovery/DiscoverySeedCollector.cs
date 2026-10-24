@@ -69,7 +69,7 @@ internal static class DiscoverySeedCollector
 		foreach (ExpressionSyntax expression in root.DescendantNodes().OfType<ExpressionSyntax>())
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			if (expression is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax
+			if (expression is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax or GenericNameSyntax
 				|| expression is IdentifierNameSyntax name && !SyntaxFacts.IsInTypeOnlyContext(name))
 			{
 				dimensions.AddRange(metadata.Discover(expression, cancellationToken));

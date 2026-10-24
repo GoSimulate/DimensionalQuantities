@@ -10,6 +10,7 @@ with zipfile.ZipFile(packages[0]) as package:
     names = package.namelist()
     assert "lib/netstandard2.0/DimensionalQuantities.dll" in names
     assert "analyzers/dotnet/cs/DimensionalQuantities.Roslyn.dll" in names
+    assert "analyzers/dotnet/cs/DimensionalQuantities.Roslyn.CodeFixes.dll" in names
     assert not any("Microsoft.CodeAnalysis" in name for name in names)
     specification = ET.fromstring(package.read("DimensionalQuantities.nuspec"))
     assert specification.find(".//{*}version").text == version

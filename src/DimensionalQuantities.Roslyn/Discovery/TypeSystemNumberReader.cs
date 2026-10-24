@@ -32,8 +32,19 @@ internal sealed class TypeSystemNumberReader
 			return false;
 		}
 
-		value = TypeSystemNumberCodec.Parse(type!);
-		return true;
+		try
+		{
+			value = TypeSystemNumberCodec.Parse(type!);
+			return true;
+		}
+		catch (DivideByZeroException)
+		{
+			return false;
+		}
+		catch (ArgumentException)
+		{
+			return false;
+		}
 	}
 
 	private bool TryGetRuntimeType(ITypeSymbol? symbol, out Type? type, CancellationToken cancellationToken)
