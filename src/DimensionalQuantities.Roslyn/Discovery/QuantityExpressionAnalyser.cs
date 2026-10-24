@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Naming;
 using DimensionalQuantities.Numerics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -147,15 +148,7 @@ internal sealed class QuantityExpressionAnalyser
 
 			try
 			{
-				Operand result = default;
-				if (local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(_cancellationToken) is VariableDeclaratorSyntax variable
-					&& variable.Parent is VariableDeclarationSyntax declaration && declaration.Type.IsVar
-					&& _semanticModel.GetSymbolInfo(declaration.Type, _cancellationToken).Symbol is null
-					&& variable.Initializer is { Value: ExpressionSyntax initializer })
-				{
-					result = AnalyseExpression(initializer);
-				}
-
+				Operand result = AnalyseLocalInitializer(local);
 				_locals.Add(local, result);
 				return result;
 			}
@@ -163,6 +156,42 @@ internal sealed class QuantityExpressionAnalyser
 			{
 				_inProgress.Remove(local);
 			}
+		}
+
+		private Operand AnalyseLocalInitializer(ILocalSymbol local)
+		{
+			if (local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(_cancellationToken) is not VariableDeclaratorSyntax variable
+				|| variable.Parent is not VariableDeclarationSyntax declaration
+				|| variable.Initializer is not { Value: ExpressionSyntax initializer })
+			{
+				return default;
+			}
+
+			if (declaration.Type.IsVar && _semanticModel.GetSymbolInfo(declaration.Type, _cancellationToken).Symbol is null)
+			{
+				return AnalyseExpression(initializer);
+			}
+
+			if (declaration.Type is not IdentifierNameSyntax typeName
+				|| _semanticModel.GetTypeInfo(typeName, _cancellationToken).Type is not IErrorTypeSymbol
+				|| _semanticModel.GetSymbolInfo(typeName, _cancellationToken) is not { Symbol: null, CandidateSymbols.IsEmpty: true })
+			{
+				return default;
+			}
+
+			int arithmeticCount = _operations.Count;
+			int powerCount = _powerOperations.Count;
+			int methodCount = _powerMethodOperations.Count;
+			Operand inferred = AnalyseExpression(initializer);
+			if (inferred.Kind == OperandKind.Quantity && typeName.Identifier.ValueText == DimensionNameGenerator.GetQuantityName(inferred.Dimension))
+			{
+				return inferred;
+			}
+
+			_operations.Count = arithmeticCount;
+			_powerOperations.Count = powerCount;
+			_powerMethodOperations.Count = methodCount;
+			return default;
 		}
 
 		private Operand AnalyseSum(BinaryExpressionSyntax binary, Operand left, Operand right)

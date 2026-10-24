@@ -265,6 +265,9 @@ public sealed class QuantityExpressionAnalyserTests
 	[InlineData("var value = other * current; var other = value * current;")]
 	[InlineData("object value = current * current;")]
 	[InlineData("Missing value = current * current;")]
+	[InlineData("LengthCurrent value = current * current;")]
+	[InlineData("LengthCurrent value = value;")]
+	[InlineData("LengthCurrent value = other; LengthCurrent other = value;")]
 	public void DoesNotInferUnsupportedOrCyclicLocals(string declaration)
 	{
 		string source = $$"""
@@ -613,6 +616,36 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Multiple(
 			() => Assert.Equal(expectedMethods, result.PowerMethodOperations),
 			() => Assert.Equal(expectedArithmetic, Assert.Single(result.ArithmeticOperations)));
+	}
+
+	[Theory]
+	[InlineData("LengthCurrent value = length * current;")]
+	[InlineData("LengthCurrent first = length * current; LengthCurrent value = first;")]
+	public void FollowsMatchingExplicitLocalInitialisers(string declarations)
+	{
+		string source = $$"""
+			class Consumer
+			{
+				object Test(Length length, Current current, Time time)
+				{
+					{{declarations}}
+					return value * time;
+				}
+			}
+			""";
+		Dimension length = new(Length: 1);
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension product = new(Length: 1, ElectricCurrent: 1);
+		Dimension time = new(Time: 1);
+		ArithmeticOperation[] expected =
+		[
+			new(ArithmeticOperationKind.Multiply, length, current, product),
+			new(ArithmeticOperationKind.Multiply, product, time, new(Length: 1, Time: 1, ElectricCurrent: 1))
+		];
+
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+
+		Assert.Equal(expected, result);
 	}
 
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)

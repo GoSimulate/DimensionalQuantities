@@ -1092,6 +1092,80 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Empty(diagnostics));
 	}
 
+	[Theory]
+	[InlineData("LengthCurrent value = length * current;")]
+	[InlineData("LengthCurrent first = length * current; LengthCurrent value = first;")]
+	[InlineData("LengthCurrent first = length * current; var value = first;")]
+	public void ExplicitIntermediateLocalsComposeWithFurtherArithmetic(string declarations)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Length length = Length.FromMetres(2);
+					Current current = Current.FromAmps(3);
+					Time time = Time.FromSeconds(4);
+					{{declarations}}
+					return (value * time).AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void IncorrectExplicitIntermediateTypeRemainsACompilerError()
+	{
+		const string source = """
+			class Consumer
+			{
+				object Value(Length length, Current current, Time time)
+				{
+					LengthCurrent wrong = length * time;
+					return wrong * current;
+				}
+			}
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Contains(result.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+	}
+
+	[Fact]
+	public void EditingExplicitLocalUpdatesItsDependentArithmetic()
+	{
+		const string source = """
+			class Consumer
+			{
+				object Value(Length length, Current current, Time time)
+				{
+					LengthCurrent value = length * current;
+					return value * time;
+				}
+			}
+			""";
+		string edited = source.Replace("LengthCurrent value = length * current", "LengthTime value = length * time", StringComparison.Ordinal);
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out _, out _, TestContext.Current.CancellationToken);
+		CSharpCompilation changed = input.ReplaceSyntaxTree(input.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(edited, _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken));
+		driver.RunGeneratorsAndUpdateCompilation(changed, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")),
+			() => Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeSquaredExtensions")));
+	}
+
 	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
 	{
 		QuantityTypeReader reader = new(compilation);
