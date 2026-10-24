@@ -752,8 +752,8 @@ public sealed class QuantityGeneratorTests
 
 	[Theory]
 	[InlineData("Two")]
-	[InlineData("NumberNotANumber")]
-	public void UnsupportedExponentNamesRemainCompilerErrors(string name)
+	[InlineData("NumberNotANumber", "DQ0007")]
+	public void UnsupportedExponentNamesRemainCompilerErrors(string name, params string[] expectedDiagnosticIds)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -767,7 +767,7 @@ public sealed class QuantityGeneratorTests
 		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
 
 		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
+			() => Assert.Equal(expectedDiagnosticIds, diagnostics.Select(diagnostic => diagnostic.Id)),
 			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains(name, StringComparison.Ordinal)));
 	}
 

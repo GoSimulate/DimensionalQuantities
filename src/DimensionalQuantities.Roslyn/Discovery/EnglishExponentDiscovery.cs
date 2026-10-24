@@ -19,11 +19,27 @@ internal sealed class EnglishExponentDiscovery
 
 	public bool TryRead(InvocationExpressionSyntax invocation, out EnglishExponentAlias alias, CancellationToken cancellationToken = default)
 	{
-		cancellationToken.ThrowIfCancellationRequested();
 		alias = default;
+		if (!TryGetUnresolvedRequest(invocation, out IdentifierNameSyntax? exponentName, cancellationToken)
+			|| ExplicitAliasReservation.IsReserved(_semanticModel.Compilation, exponentName.Identifier.ValueText, cancellationToken)
+			|| !TryParseExponent(exponentName, out Rational value))
+		{
+			return false;
+		}
+
+		Type encoded = TypeSystemNumberCodec.CreateType(value);
+		alias = new(exponentName.Identifier.ValueText, value, TypeSystemTypeNameFormatter.Format(encoded));
+		return true;
+	}
+
+	public bool TryGetUnresolvedRequest(InvocationExpressionSyntax invocation, [NotNullWhen(true)] out IdentifierNameSyntax? exponentName,
+		CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		exponentName = null;
 		if (invocation.Expression is not MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } member
 			|| invocation.ArgumentList.Arguments.Count != 1
-			|| !TryGetExponentName(member.Expression, out IdentifierNameSyntax? exponentName))
+			|| !TryGetExponentName(member.Expression, out exponentName))
 		{
 			return false;
 		}
@@ -39,17 +55,16 @@ internal sealed class EnglishExponentDiscovery
 		string name = exponentName.Identifier.ValueText;
 		if (exponentSymbol.Symbol is not null || !exponentSymbol.CandidateSymbols.IsEmpty
 			|| _semanticModel.GetAliasInfo(exponentName, cancellationToken) is not null
-			|| !name.StartsWith("Number", StringComparison.Ordinal)
-			|| ExplicitAliasReservation.IsReserved(_semanticModel.Compilation, name, cancellationToken)
-			|| !EnglishRationalParser.TryParse(name.Substring("Number".Length), out Rational value))
+			|| !name.StartsWith("Number", StringComparison.Ordinal))
 		{
 			return false;
 		}
 
-		Type encoded = TypeSystemNumberCodec.CreateType(value);
-		alias = new(name, value, TypeSystemTypeNameFormatter.Format(encoded));
 		return true;
 	}
+
+	public static bool TryParseExponent(IdentifierNameSyntax name, out Rational value) =>
+		EnglishRationalParser.TryParse(name.Identifier.ValueText.Substring("Number".Length), out value);
 
 	private static bool TryGetExponentName(ExpressionSyntax receiver, [NotNullWhen(true)] out IdentifierNameSyntax? exponentName)
 	{

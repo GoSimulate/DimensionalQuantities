@@ -15,7 +15,7 @@ internal static class QuantityDiscoveryCoordinator
 		cancellationToken.ThrowIfCancellationRequested();
 		if (inputTrees.IsEmpty)
 		{
-			return new(compilation, []);
+			return new(compilation, [], defaults, []);
 		}
 
 		ImmutableArray<EnglishExponentAlias> aliases = DiscoverySeedCollector.FindEnglishAliases(compilation, inputTrees, cancellationToken);
@@ -41,7 +41,7 @@ internal static class QuantityDiscoveryCoordinator
 
 			if (!changed)
 			{
-				return new(bound, sources);
+				return new(bound, sources, plan, aliases);
 			}
 		}
 
