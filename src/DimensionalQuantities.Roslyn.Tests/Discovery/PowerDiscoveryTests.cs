@@ -47,8 +47,36 @@ public sealed class PowerDiscoveryTests
 	}
 
 	[Theory]
+	[InlineData("NumberTwo", 2, 1, "global::DimensionalQuantities.TypeSystem.TerminalHex2")]
+	[InlineData("NumberHalf", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	[InlineData("NumberTwoQuarters", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	[InlineData("NumberMinusTwo", -2, 1, "global::DimensionalQuantities.TypeSystem.Negative<global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	public void ReadsUnresolvedEnglishExponentNames(string name, int numerator, int denominator, string expectedTypeName)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public class Consumer { public object Value(object quantity) => Power<{{name}}>.Of(quantity); }
+			""";
+		CSharpCompilation compilation = Compile(source);
+		SyntaxTree tree = compilation.SyntaxTrees.Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		PowerDiscovery discovery = new(compilation.GetSemanticModel(tree));
+
+		bool read = discovery.TryRead(invocation, out Rational result, out string typeName, TestContext.Current.CancellationToken);
+		Rational expected = new(numerator, denominator);
+
+		Assert.Multiple(
+			() => Assert.True(read),
+			() => Assert.Equal(expected, result),
+			() => Assert.Equal(expectedTypeName, typeName));
+	}
+
+	[Theory]
 	[InlineData("Other.Power<TerminalHex2>.Of(quantity)")]
-	[InlineData("Power<Seventeen>.Of(quantity)")]
+	[InlineData("Power<NumberNotANumber>.Of(quantity)")]
+	[InlineData("Power<NumberOneOverZero>.Of(quantity)")]
+	[InlineData("Power<NumberThree>.Of(quantity)")]
+	[InlineData("Power<Other.NumberTwo>.Of(quantity)")]
 	[InlineData("Power<TerminalHex2>.Other(quantity)")]
 	[InlineData("Power<TerminalHex2>.Of(quantity, quantity)")]
 	[InlineData("Power<TerminalHex2>.Of()")]
@@ -56,6 +84,7 @@ public sealed class PowerDiscoveryTests
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
+			public struct NumberThree { }
 			namespace Other { public struct Power<T> { public static object Of(object value) => value; } }
 			public class Consumer { public object Value(object quantity) => {{expression}}; }
 			""";
