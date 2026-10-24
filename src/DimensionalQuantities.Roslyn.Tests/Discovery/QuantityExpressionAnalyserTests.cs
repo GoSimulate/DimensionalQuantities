@@ -648,6 +648,55 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData("choose ? length * current : length * current")]
+	[InlineData("choose ? length * current : throw new System.Exception()")]
+	[InlineData("choose switch { true => length * current, false => length * current }")]
+	[InlineData("choose switch { true => length * current, _ => throw new System.Exception() }")]
+	public void InfersCommonDimensionsAcrossBranches(string expression)
+	{
+		string source = $$"""
+			class Consumer
+			{
+				object Test(bool choose, Length length, Current current, Time time)
+				{
+					var value = {{expression}};
+					return value * time;
+				}
+			}
+			""";
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, new(Length: 1, ElectricCurrent: 1), new(Time: 1), new(Length: 1, Time: 1, ElectricCurrent: 1));
+
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+
+		Assert.Contains(expected, result);
+	}
+
+	[Theory]
+	[InlineData("choose ? length * current : length * time", true)]
+	[InlineData("choose switch { true => length * current, false => length * time }", true)]
+	[InlineData("choose ? length * current : 1d", false)]
+	public void ConflictingBranchesDoNotSupplyADimensionToDependentArithmetic(string expression, bool includesTimeProduct)
+	{
+		string source = $$"""
+			class Consumer
+			{
+				object Test(bool choose, Length length, Current current, Time time)
+				{
+					var value = {{expression}};
+					return value * time;
+				}
+			}
+			""";
+		ImmutableArray<ArithmeticOperation> result = AnalyseReturn(source);
+
+		ArithmeticOperation currentProduct = new(ArithmeticOperationKind.Multiply, new(Length: 1), new(ElectricCurrent: 1), new(Length: 1, ElectricCurrent: 1));
+		ArithmeticOperation timeProduct = new(ArithmeticOperationKind.Multiply, new(Length: 1), new(Time: 1), new(Length: 1, Time: 1));
+		ArithmeticOperation[] expected = includesTimeProduct ? [currentProduct, timeProduct] : [currentProduct];
+
+		Assert.Equal(expected, result);
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");

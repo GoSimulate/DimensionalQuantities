@@ -60,6 +60,16 @@ internal sealed class QuantityExpressionAnalyser
 				return AnalyseExpression(parenthesized.Expression);
 			}
 
+			if (expression is ConditionalExpressionSyntax conditional)
+			{
+				return AnalyseBranches(conditional, [conditional.WhenTrue, conditional.WhenFalse]);
+			}
+
+			if (expression is SwitchExpressionSyntax switchExpression)
+			{
+				return AnalyseBranches(switchExpression, switchExpression.Arms.Select(arm => arm.Expression));
+			}
+
 			if (expression is InvocationExpressionSyntax invocation
 				&& _powerDiscovery.TryRead(invocation, out Rational exponent, out string exponentTypeName, _cancellationToken))
 			{
@@ -109,6 +119,39 @@ internal sealed class QuantityExpressionAnalyser
 			}
 
 			return ClassifyLeaf(expression);
+		}
+
+		private Operand AnalyseBranches(ExpressionSyntax expression, IEnumerable<ExpressionSyntax> arms)
+		{
+			Operand common = default;
+			bool hasValue = false;
+			bool compatible = true;
+			foreach (ExpressionSyntax arm in arms)
+			{
+				if (arm is ThrowExpressionSyntax)
+				{
+					continue;
+				}
+
+				Operand value = AnalyseExpression(arm);
+				if (!hasValue)
+				{
+					common = value;
+					hasValue = true;
+				}
+				else if (value.Kind != common.Kind || value.Kind == OperandKind.Quantity && value.Dimension != common.Dimension)
+				{
+					compatible = false;
+				}
+			}
+
+			Operand bound = ClassifyLeaf(expression);
+			if (bound.Kind != OperandKind.Unsupported)
+			{
+				return bound;
+			}
+
+			return hasValue && compatible ? common : default;
 		}
 
 		private Operand ClassifyLeaf(ExpressionSyntax expression)
