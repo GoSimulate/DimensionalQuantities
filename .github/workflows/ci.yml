@@ -2,13 +2,15 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
-  workflow_call:
 permissions:
   contents: read
 jobs:
   build:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
+    env:
+      VERSION: 0.0.0-ci
+      REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check conventional PR title
@@ -19,12 +21,23 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
-      - name: Build and check NuGet package
-        run: bash .github/scripts/pack.sh 0.0.0-ci
+      - name: Restore
+        run: dotnet restore src/DimensionalQuantities.slnx
+      - name: Build
+        run: >-
+          dotnet build src/DimensionalQuantities.slnx -c Release --no-restore
+          -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
       - name: Test
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
+      - name: Pack
+        run: >-
+          dotnet pack src/DimensionalQuantities/DimensionalQuantities.csproj
+          -c Release --no-build -o artifacts/packages
+          -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
+      - name: Check NuGet package
+        run: python3 .github/scripts/check-package.py "$VERSION"
       - uses: actions/upload-artifact@v7.0.2
-        if: ${{ always() && !env.ACT }}
+        if: always()
         with:
           name: ci-results
           path: artifacts/
