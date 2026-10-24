@@ -20,7 +20,7 @@ public sealed partial class RationalTests
 	}
 
 	[Theory]
-	[InlineData(null)]
+	[InlineData((string?)null)]
 	[InlineData("")]
 	[InlineData("1/0")]
 	[InlineData("1/2/3")]
@@ -33,6 +33,57 @@ public sealed partial class RationalTests
 
 		Assert.Multiple(
 			() => Assert.False(success),
+			() => Assert.Equal(expected, result));
+	}
+
+	[Theory]
+	[InlineData("Seventeen", 17, 1)]
+	[InlineData("TwoThirds", 2, 3)]
+	[InlineData("MinusThreeOverTwo", -3, 2)]
+	[InlineData("TwoOverFour", 1, 2)]
+	public void TryParseAcceptsEnglishNames(string text, int numerator, int denominator)
+	{
+		bool success = Rational.TryParse(text, CultureInfo.InvariantCulture, out Rational result);
+		Rational expected = new(numerator, denominator);
+
+		Assert.Multiple(
+			() => Assert.True(success),
+			() => Assert.Equal(expected, result));
+	}
+
+	[Fact]
+	public void TryParseWithNumberStylesAcceptsEnglishNames()
+	{
+		bool success = Rational.TryParse("OneHundredAndTwentyThreeOverFortyFive", NumberStyles.Integer, CultureInfo.InvariantCulture, out Rational result);
+		Rational expected = new(41, 15);
+
+		Assert.Multiple(
+			() => Assert.True(success),
+			() => Assert.Equal(expected, result));
+	}
+
+	[Theory]
+	[InlineData("OneOverZero")]
+	[InlineData("OneTwo")]
+	[InlineData("One/Two")]
+	public void TryParseRejectsInvalidEnglishNames(string text)
+	{
+		bool success = Rational.TryParse(text, CultureInfo.InvariantCulture, out Rational result);
+		Rational expected = default;
+
+		Assert.Multiple(
+			() => Assert.False(success),
+			() => Assert.Equal(expected, result));
+	}
+
+	[Fact]
+	public void TryParseHonoursComponentNumberStyles()
+	{
+		bool success = Rational.TryParse("1,000/2,000", NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out Rational result);
+		Rational expected = new(1, 2);
+
+		Assert.Multiple(
+			() => Assert.True(success),
 			() => Assert.Equal(expected, result));
 	}
 

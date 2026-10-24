@@ -6,7 +6,7 @@ namespace DimensionalQuantities.Numerics;
 internal readonly partial record struct Rational
 {
 	// Formatting applies the requested integer format to each component.
-	// Parsing accepts either one integer or two integers separated by '/'.
+	// Parsing accepts numeric integers and fractions; TryParse also accepts English names.
 	public override string ToString() => ToString(null, CultureInfo.CurrentCulture);
 
 	public string ToString(string? format, IFormatProvider? formatProvider)
@@ -42,7 +42,7 @@ internal readonly partial record struct Rational
 		string numeratorText = separator < 0 ? s : s.Substring(0, separator);
 		if (!BigInteger.TryParse(numeratorText, style, provider, out BigInteger numerator))
 		{
-			return false;
+			return EnglishRationalParser.TryParse(s, out result);
 		}
 
 		BigInteger denominator = BigInteger.One;
