@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
 using System.Text;
+using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Discovery;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -34,6 +36,15 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			static (syntaxContext, cancellationToken) => new QuantityExpressionAnalyser(syntaxContext.SemanticModel)
 				.Analyse((InvocationExpressionSyntax)syntaxContext.Node, cancellationToken));
 
+		IncrementalValuesProvider<Dimension?> typeNames = context.SyntaxProvider.CreateSyntaxProvider(
+			static (node, _) => node is IdentifierNameSyntax name && SyntaxFacts.IsInTypeOnlyContext(name),
+			static (syntaxContext, cancellationToken) => QuantityNameDiscovery.TryRead(
+				(IdentifierNameSyntax)syntaxContext.Node, syntaxContext.SemanticModel, out Dimension dimension, cancellationToken)
+					? (Dimension?)dimension : null);
+		IncrementalValuesProvider<Dimension> requestedDimensions = typeNames
+			.Where(static dimension => dimension.HasValue)
+			.Select(static (dimension, _) => dimension.GetValueOrDefault());
+
 		IncrementalValuesProvider<EnglishExponentAlias?> englishAliases = context.SyntaxProvider.CreateSyntaxProvider(
 			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
 			static (syntaxContext, cancellationToken) => new EnglishExponentDiscovery(syntaxContext.SemanticModel)
@@ -52,12 +63,16 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			}
 		});
 
-		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), (output, discovered) =>
+		IncrementalValueProvider<(IEnumerable<QuantityExpressionAnalysis> Expressions, ImmutableArray<Dimension> Dimensions)> requests = arithmeticExpressions.Collect()
+			.Combine(powerExpressions.Collect()).Combine(requestedDimensions.Collect())
+			.Select(static (collected, _) => ((IEnumerable<QuantityExpressionAnalysis>)collected.Left.Left.Concat(collected.Left.Right), collected.Right));
+
+		context.RegisterSourceOutput(requests, (output, discovered) =>
 		{
 			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 			ImmutableArray<PowerOperation>.Builder discoveredPowers = ImmutableArray.CreateBuilder<PowerOperation>();
 			ImmutableArray<PowerMethodOperation>.Builder discoveredPowerMethods = ImmutableArray.CreateBuilder<PowerMethodOperation>();
-			foreach (QuantityExpressionAnalysis expression in discovered.Left.Concat(discovered.Right))
+			foreach (QuantityExpressionAnalysis expression in discovered.Expressions)
 			{
 				output.CancellationToken.ThrowIfCancellationRequested();
 				discoveredOperations.AddRange(expression.ArithmeticOperations);
@@ -65,13 +80,13 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				discoveredPowerMethods.AddRange(expression.PowerMethodOperations);
 			}
 
-			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0 && discoveredPowerMethods.Count == 0)
+			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0 && discoveredPowerMethods.Count == 0 && discovered.Dimensions.IsEmpty)
 			{
 				return;
 			}
 
 			QuantityGenerationPlan plan = QuantityDiscovery.DiscoverWithPredefinedQuantities(defaultPlan,
-				discoveredOperations, discoveredPowers, discoveredPowerMethods);
+				discoveredOperations, discoveredPowers, discoveredPowerMethods, discovered.Dimensions);
 			if (!plan.AdditionalQuantities.IsEmpty)
 			{
 				string quantitySource = QuantitySourceEmitter.Emit(plan.AdditionalQuantities);

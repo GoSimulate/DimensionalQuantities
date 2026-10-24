@@ -14,18 +14,24 @@ internal static class QuantityDiscovery
 
 	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations,
 		IEnumerable<PowerMethodOperation> powerMethodOperations)
-		=> Discover([], [], [], operations, powerOperations, powerMethodOperations);
+		=> Discover([], [], [], operations, powerOperations, powerMethodOperations, []);
 
 	public static QuantityGenerationPlan DiscoverWithPredefinedQuantities(QuantityGenerationPlan predefinedPlan,
 		IEnumerable<ArithmeticOperation> operations,
 		IEnumerable<PowerOperation> powerOperations, IEnumerable<PowerMethodOperation> powerMethodOperations)
+		=> DiscoverWithPredefinedQuantities(predefinedPlan, operations, powerOperations, powerMethodOperations, []);
+
+	public static QuantityGenerationPlan DiscoverWithPredefinedQuantities(QuantityGenerationPlan predefinedPlan,
+		IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations,
+		IEnumerable<PowerMethodOperation> powerMethodOperations, IEnumerable<Dimension> requestedDimensions)
 		=> Discover(predefinedPlan.AdditionalQuantities, predefinedPlan.PowerOperations, predefinedPlan.PowerMethodOperations,
-			operations, powerOperations, powerMethodOperations);
+			operations, powerOperations, powerMethodOperations, requestedDimensions);
 
 	private static QuantityGenerationPlan Discover(IReadOnlyList<PlannedQuantity> predefinedQuantities,
 		IReadOnlyList<PowerOperation> predefinedPowers, IReadOnlyList<PowerMethodOperation> predefinedPowerMethods,
 		IEnumerable<ArithmeticOperation> operations,
-		IEnumerable<PowerOperation> powerOperations, IEnumerable<PowerMethodOperation> powerMethodOperations)
+		IEnumerable<PowerOperation> powerOperations, IEnumerable<PowerMethodOperation> powerMethodOperations,
+		IEnumerable<Dimension> requestedDimensions)
 	{
 		List<PlannedQuantity> knownQuantities = [];
 		List<PlannedQuantity> additionalQuantities = [];
@@ -98,6 +104,11 @@ internal static class QuantityDiscovery
 			AddUnknown(operation.Operand);
 			AddUnknown(operation.Result);
 			AddPower(operation.ToPowerOperation());
+		}
+
+		foreach (Dimension dimension in requestedDimensions)
+		{
+			AddUnknown(dimension);
 		}
 
 		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray(),

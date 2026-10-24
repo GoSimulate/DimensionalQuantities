@@ -11,6 +11,23 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 public sealed class QuantityDiscoveryTests
 {
 	[Fact]
+	public void TypeRequestsAddOnlyMissingQuantitiesWithoutInventingOperations()
+	{
+		QuantityGenerationPlan predefined = DefaultQuantityDiscovery.Discover();
+		Dimension requested = new(Length: 1, ElectricCurrent: 1);
+
+		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefined, [], [], [],
+			[requested, requested, new(ElectricCurrent: 1), new(ElectricCurrent: 2), default]);
+
+		Assert.Multiple(
+			() => Assert.Equal(requested, Assert.Single(result.AdditionalQuantities).Dimension),
+			() => Assert.Equal("LengthCurrent", result.GetQuantityName(requested)),
+			() => Assert.Empty(result.Operations),
+			() => Assert.Empty(result.PowerOperations),
+			() => Assert.Empty(result.PowerMethodOperations));
+	}
+
+	[Fact]
 	public void ReusesPredefinedQuantitiesAndOnlyAddsNewResults()
 	{
 		Dimension currentSquared = new(ElectricCurrent: 2);
