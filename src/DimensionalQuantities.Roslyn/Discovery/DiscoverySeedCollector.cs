@@ -39,32 +39,44 @@ internal static class DiscoverySeedCollector
 		{
 			SemanticModel model = compilation.GetSemanticModel(tree);
 			SyntaxNode root = tree.GetRoot(cancellationToken);
-			foreach (IdentifierNameSyntax name in root.DescendantNodes().OfType<IdentifierNameSyntax>())
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				if (QuantityNameDiscovery.TryRead(name, model, out Dimension dimension, cancellationToken)
-					|| TryReadUnresolvedFactory(name, model, out dimension, cancellationToken))
-				{
-					dimensions.Add(dimension);
-				}
-			}
-
-			MetadataQuantityDiscovery metadata = new(model);
-			foreach (ExpressionSyntax expression in root.DescendantNodes().OfType<ExpressionSyntax>())
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				if (expression is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax
-					|| expression is IdentifierNameSyntax name && !SyntaxFacts.IsInTypeOnlyContext(name))
-				{
-					foreach (Dimension dimension in metadata.Discover(expression, cancellationToken))
-					{
-						dimensions.Add(dimension);
-					}
-				}
-			}
+			dimensions.UnionWith(FindExplicitDimensions(root, model, cancellationToken));
+			dimensions.UnionWith(FindMetadataDimensions(root, model, cancellationToken));
 		}
 
 		return [.. dimensions];
+	}
+
+	private static ImmutableArray<Dimension> FindExplicitDimensions(SyntaxNode root, SemanticModel model, CancellationToken cancellationToken)
+	{
+		ImmutableArray<Dimension>.Builder dimensions = ImmutableArray.CreateBuilder<Dimension>();
+		foreach (IdentifierNameSyntax name in root.DescendantNodes().OfType<IdentifierNameSyntax>())
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (QuantityNameDiscovery.TryRead(name, model, out Dimension dimension, cancellationToken)
+				|| TryReadUnresolvedFactory(name, model, out dimension, cancellationToken))
+			{
+				dimensions.Add(dimension);
+			}
+		}
+
+		return dimensions.ToImmutable();
+	}
+
+	private static ImmutableArray<Dimension> FindMetadataDimensions(SyntaxNode root, SemanticModel model, CancellationToken cancellationToken)
+	{
+		ImmutableArray<Dimension>.Builder dimensions = ImmutableArray.CreateBuilder<Dimension>();
+		MetadataQuantityDiscovery metadata = new(model);
+		foreach (ExpressionSyntax expression in root.DescendantNodes().OfType<ExpressionSyntax>())
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (expression is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax
+				|| expression is IdentifierNameSyntax name && !SyntaxFacts.IsInTypeOnlyContext(name))
+			{
+				dimensions.AddRange(metadata.Discover(expression, cancellationToken));
+			}
+		}
+
+		return dimensions.ToImmutable();
 	}
 
 	private static bool TryReadUnresolvedFactory(IdentifierNameSyntax name, SemanticModel model,

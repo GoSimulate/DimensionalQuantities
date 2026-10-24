@@ -20,42 +20,68 @@ internal static class BoundOperationDiscovery
 		{
 			SemanticModel model = compilation.GetSemanticModel(tree);
 			SyntaxNode root = tree.GetRoot(cancellationToken);
-			PowerDiscovery powerDiscovery = new(model);
-			PowerMethodDiscovery methodDiscovery = new(model);
-			foreach (BinaryExpressionSyntax binary in root.DescendantNodes().OfType<BinaryExpressionSyntax>())
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				if (ArithmeticDiscovery.TryRead(binary, model, reader, out ArithmeticOperation operation, cancellationToken))
-				{
-					arithmetic.Add(operation);
-				}
-			}
-
-			foreach (InvocationExpressionSyntax invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				if (invocation.Expression is not MemberAccessExpressionSyntax access)
-				{
-					continue;
-				}
-
-				if (access.Name.Identifier.ValueText == "Of"
-					&& powerDiscovery.TryRead(invocation, out Rational exponent, out string exponentTypeName, cancellationToken)
-					&& reader.TryRead(model.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression, cancellationToken).Type,
-						out Dimension operand, cancellationToken) && operand != default)
-				{
-					powers.Add(new(operand, exponent, operand.Pow(exponent), exponentTypeName));
-				}
-				else if (PowerMethodDiscovery.IsSupportedName(access.Name.Identifier.ValueText)
-					&& methodDiscovery.TryRead(invocation, out Rational methodExponent, out string methodName, cancellationToken)
-					&& reader.TryRead(model.GetTypeInfo(access.Expression, cancellationToken).Type,
-						out Dimension methodOperand, cancellationToken) && methodOperand != default)
-				{
-					methods.Add(new(methodOperand, methodExponent, methodOperand.Pow(methodExponent), methodName));
-				}
-			}
+			arithmetic.AddRange(FindArithmeticOperations(root, model, reader, cancellationToken));
+			powers.AddRange(FindPowerOperations(root, model, reader, cancellationToken));
+			methods.AddRange(FindPowerMethodOperations(root, model, reader, cancellationToken));
 		}
 
 		return new(arithmetic.ToImmutable(), powers.ToImmutable(), methods.ToImmutable());
+	}
+
+	private static ImmutableArray<ArithmeticOperation> FindArithmeticOperations(SyntaxNode root, SemanticModel model,
+		QuantityTypeReader reader, CancellationToken cancellationToken)
+	{
+		ImmutableArray<ArithmeticOperation>.Builder operations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
+		foreach (BinaryExpressionSyntax binary in root.DescendantNodes().OfType<BinaryExpressionSyntax>())
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (ArithmeticDiscovery.TryRead(binary, model, reader, out ArithmeticOperation operation, cancellationToken))
+			{
+				operations.Add(operation);
+			}
+		}
+
+		return operations.ToImmutable();
+	}
+
+	private static ImmutableArray<PowerOperation> FindPowerOperations(SyntaxNode root, SemanticModel model,
+		QuantityTypeReader reader, CancellationToken cancellationToken)
+	{
+		ImmutableArray<PowerOperation>.Builder operations = ImmutableArray.CreateBuilder<PowerOperation>();
+		PowerDiscovery discovery = new(model);
+		foreach (InvocationExpressionSyntax invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" }
+				&& discovery.TryRead(invocation, out Rational exponent, out string exponentTypeName, cancellationToken)
+				&& reader.TryRead(model.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression, cancellationToken).Type,
+					out Dimension operand, cancellationToken) && operand != default)
+			{
+				operations.Add(new(operand, exponent, operand.Pow(exponent), exponentTypeName));
+			}
+		}
+
+		return operations.ToImmutable();
+	}
+
+	private static ImmutableArray<PowerMethodOperation> FindPowerMethodOperations(SyntaxNode root, SemanticModel model,
+		QuantityTypeReader reader, CancellationToken cancellationToken)
+	{
+		ImmutableArray<PowerMethodOperation>.Builder operations = ImmutableArray.CreateBuilder<PowerMethodOperation>();
+		PowerMethodDiscovery discovery = new(model);
+		foreach (InvocationExpressionSyntax invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (invocation.Expression is MemberAccessExpressionSyntax access
+				&& PowerMethodDiscovery.IsSupportedName(access.Name.Identifier.ValueText)
+				&& discovery.TryRead(invocation, out Rational exponent, out string methodName, cancellationToken)
+				&& reader.TryRead(model.GetTypeInfo(access.Expression, cancellationToken).Type,
+					out Dimension operand, cancellationToken) && operand != default)
+			{
+				operations.Add(new(operand, exponent, operand.Pow(exponent), methodName));
+			}
+		}
+
+		return operations.ToImmutable();
 	}
 }

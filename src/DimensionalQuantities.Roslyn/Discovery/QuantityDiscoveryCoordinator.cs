@@ -3,6 +3,7 @@ using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DimensionalQuantities.Roslyn.Discovery;
 
@@ -24,9 +25,7 @@ internal static class QuantityDiscoveryCoordinator
 		HashSet<ArithmeticOperation> arithmetic = [];
 		HashSet<PowerOperation> powers = [];
 		HashSet<PowerMethodOperation> methods = [];
-		int sites = inputTrees.Sum(tree => tree.GetRoot(cancellationToken).DescendantNodes()
-			.Count(node => node is Microsoft.CodeAnalysis.CSharp.Syntax.BinaryExpressionSyntax or Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax));
-		int maxRounds = Math.Max(4, sites + 2);
+		int maxRounds = GetRoundLimit(inputTrees, cancellationToken);
 		for (int round = 0; round < maxRounds; round++)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -35,26 +34,10 @@ internal static class QuantityDiscoveryCoordinator
 			ImmutableArray<GeneratedSource> sources = DiscoverySourceComposer.Compose(plan, aliases);
 			CSharpCompilation bound = Bind(compilation, sources);
 			BoundOperationResult found = BoundOperationDiscovery.Discover(bound, inputTrees, cancellationToken);
-			bool changed = false;
-			foreach (ArithmeticOperation operation in found.ArithmeticOperations)
-			{
-				changed |= arithmetic.Add(operation);
-			}
-
-			foreach (PowerOperation operation in found.PowerOperations)
-			{
-				changed |= powers.Add(operation);
-			}
-
-			foreach (PowerMethodOperation operation in found.PowerMethodOperations)
-			{
-				changed |= methods.Add(operation);
-			}
-
-			foreach (Dimension dimension in DiscoverySeedCollector.FindRequestedDimensions(bound, inputTrees, cancellationToken))
-			{
-				changed |= requested.Add(dimension);
-			}
+			bool changed = AddNew(arithmetic, found.ArithmeticOperations);
+			changed |= AddNew(powers, found.PowerOperations);
+			changed |= AddNew(methods, found.PowerMethodOperations);
+			changed |= AddNew(requested, DiscoverySeedCollector.FindRequestedDimensions(bound, inputTrees, cancellationToken));
 
 			if (!changed)
 			{
@@ -63,6 +46,24 @@ internal static class QuantityDiscoveryCoordinator
 		}
 
 		throw new InvalidOperationException($"Quantity discovery did not stabilize in {maxRounds} rounds.");
+	}
+
+	private static int GetRoundLimit(ImmutableArray<SyntaxTree> inputTrees, CancellationToken cancellationToken)
+	{
+		int operationCount = inputTrees.Sum(tree => tree.GetRoot(cancellationToken).DescendantNodes()
+			.Count(node => node is BinaryExpressionSyntax or InvocationExpressionSyntax));
+		return Math.Max(4, operationCount + 2);
+	}
+
+	private static bool AddNew<T>(HashSet<T> existing, IEnumerable<T> discovered)
+	{
+		bool changed = false;
+		foreach (T item in discovered)
+		{
+			changed |= existing.Add(item);
+		}
+
+		return changed;
 	}
 
 	private static CSharpCompilation Bind(CSharpCompilation compilation, ImmutableArray<GeneratedSource> sources)
