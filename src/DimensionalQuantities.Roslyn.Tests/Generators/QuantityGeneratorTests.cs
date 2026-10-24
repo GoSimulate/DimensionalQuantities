@@ -1652,6 +1652,28 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Empty(errors));
 	}
 
+	[Fact]
+	public void ReferencedGenericResultsGetConversionsAfterTheirArgumentsResolve()
+	{
+		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthTime Convert<T>(T value) => default; }");
+		const string source = """
+			public static class Consumer
+			{
+				public static double Value(Length length, Current current) => Library.Convert(length * current).AsPrefixedUnits(0, 0);
+			}
+			""";
+		CSharpCompilation input = CreateInputCompilation(source).AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(errors),
+			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")));
+	}
+
 	private static PortableExecutableReference CreateLibraryReference(string source)
 	{
 		CSharpCompilation library = Compile(source).WithAssemblyName("ReferencedQuantities");
