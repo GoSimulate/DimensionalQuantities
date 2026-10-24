@@ -4,8 +4,8 @@ version="${1:?Supply the package version}"
 repository_url="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 mkdir -p artifacts/packages
 rm -f artifacts/packages/*.nupkg
+build_properties=(-p:Version="$version" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$repository_url")
+dotnet build src/DimensionalQuantities.slnx -c Release "${build_properties[@]}"
 dotnet pack src/DimensionalQuantities/DimensionalQuantities.csproj \
-  -c Release -o artifacts/packages \
-  -p:Version="$version" -p:ContinuousIntegrationBuild=true \
-  -p:RepositoryUrl="$repository_url"
+  -c Release --no-build -o artifacts/packages "${build_properties[@]}"
 python3 .github/scripts/check-package.py "$version"

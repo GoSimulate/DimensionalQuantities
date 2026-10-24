@@ -8,14 +8,6 @@
     <Description>Compile-time dimensional quantities with generated aliases and arithmetic.</Description>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
-  <Target Name="BuildRoslynForPack" BeforeTargets="_GetPackageFiles" Condition="'$(NoBuild)' != 'true'">
-    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-             Targets="Restore"
-             Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)" />
-  </Target>
   <ItemGroup>
     <None Include="../../LICENSE" Pack="true" PackagePath="" />
     <None Include="../../README.md" Pack="true" PackagePath="" />
