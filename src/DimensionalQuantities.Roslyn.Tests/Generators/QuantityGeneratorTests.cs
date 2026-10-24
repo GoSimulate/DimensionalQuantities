@@ -177,7 +177,7 @@ public sealed class QuantityGeneratorTests
 		const string firstSource = """
 			public static class Consumer
 			{
-				public static CurrentSquared Value() => Current.FromAmps(2) * Current.FromAmps(3);
+				public static LengthCurrent Value() => Current.FromAmps(2) * Length.FromMetres(3);
 			}
 			""";
 		const string addedSource = """
@@ -203,7 +203,7 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(firstDiagnostics),
 			() => Assert.Empty(firstOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.NotNull(firstOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")));
+			() => Assert.NotNull(firstOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
 
 		CSharpCompilation addedInput = initialInput.AddSyntaxTrees(addedTree);
 		driver = driver.RunGeneratorsAndUpdateCompilation(addedInput, out Compilation addedOutput, out ImmutableArray<Diagnostic> addedDiagnostics,
@@ -211,7 +211,7 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(addedDiagnostics),
 			() => Assert.Empty(addedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.NotNull(addedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
+			() => Assert.NotNull(addedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
 			() => Assert.NotNull(addedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")));
 
 		CSharpCompilation editedInput = addedInput.ReplaceSyntaxTree(initialTree, editedTree);
@@ -229,7 +229,7 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(editedDiagnostics),
 			() => Assert.Empty(editedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
+			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
 			() => Assert.NotNull(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")),
 			() => Assert.Equal(2, editedOperators.Length),
 			() => Assert.Contains(addedOperation, editedOperators),
@@ -242,7 +242,7 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(removedDiagnostics),
 			() => Assert.Empty(removedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Null(removedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
+			() => Assert.Null(removedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
 			() => Assert.Null(removedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")),
 			() => Assert.Equal(editedOperation, Assert.Single(removedOperators)));
 
@@ -253,7 +253,7 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Empty(emptyDiagnostics),
 			() => Assert.Empty(emptyOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
 			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")),
-			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
+			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
 			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")));
 	}
 
@@ -343,13 +343,13 @@ public sealed class QuantityGeneratorTests
 			{
 				public static double Value(Current current, Length length, Time time)
 				{
-					var product = current * current;
+					var product = current * length;
 					var result = product * time;
 					return result.AsSiBaseUnit();
 				}
 			}
 			""";
-		string editedSource = source.Replace("current * current", "length * length", StringComparison.Ordinal);
+		string editedSource = source.Replace("current * length", "length * length", StringComparison.Ordinal);
 		const string removedSource = "public static class Consumer { public static double Value() => 0; }";
 		CSharpCompilation input = CreateInputCompilation(source);
 		SyntaxTree originalTree = Assert.Single(input.SyntaxTrees);
@@ -357,14 +357,14 @@ public sealed class QuantityGeneratorTests
 		SyntaxTree removedTree = CSharpSyntaxTree.ParseText(removedSource, _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		Dimension current = new(ElectricCurrent: 1);
-		Dimension squaredCurrent = new(ElectricCurrent: 2);
+		Dimension lengthCurrent = new(Length: 1, ElectricCurrent: 1);
 		Dimension length = new(Length: 1);
 		Dimension area = new(Length: 2);
 		Dimension time = new(Time: 1);
 		ArithmeticOperation[] originalExpected =
 		[
-			new(ArithmeticOperationKind.Multiply, current, current, squaredCurrent),
-			new(ArithmeticOperationKind.Multiply, squaredCurrent, time, new(Time: 1, ElectricCurrent: 2))
+			new(ArithmeticOperationKind.Multiply, current, length, lengthCurrent),
+			new(ArithmeticOperationKind.Multiply, lengthCurrent, time, new(Length: 1, Time: 1, ElectricCurrent: 1))
 		];
 		ArithmeticOperation[] editedExpected =
 		[
@@ -384,8 +384,8 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Empty(editedDiagnostics),
 			() => Assert.Empty(editedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
 			() => Assert.Equal(editedExpected, ReadOperators(editedOutput)),
-			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
-			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.TimeCurrentSquaredExtensions")));
+			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")));
 
 		CSharpCompilation removedInput = editedInput.ReplaceSyntaxTree(editedTree, removedTree);
 		driver.RunGeneratorsAndUpdateCompilation(removedInput, out Compilation removedOutput, out ImmutableArray<Diagnostic> removedDiagnostics, TestContext.Current.CancellationToken);
@@ -858,7 +858,7 @@ public sealed class QuantityGeneratorTests
 			using DimensionalQuantities.TypeSystem;
 			public static class Consumer
 			{
-				public static object Value(Current current) => Power<{{originalExponent}}>.Of(current);
+				public static object Value(Current current) => Power<{{originalExponent}}>.Of(current * Length.FromMetres(1));
 			}
 			""";
 		CSharpCompilation input = CreateInputCompilation(source);
@@ -870,22 +870,22 @@ public sealed class QuantityGeneratorTests
 		Assert.Multiple(
 			() => Assert.Empty(originalDiagnostics),
 			() => Assert.Empty(originalOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.NotNull(originalOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")));
+			() => Assert.NotNull(originalOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthSquaredCurrentSquaredExtensions")));
 
 		CSharpCompilation editedInput = input.ReplaceSyntaxTree(originalTree, editedTree);
 		driver = driver.RunGeneratorsAndUpdateCompilation(editedInput, out Compilation editedOutput, out ImmutableArray<Diagnostic> editedDiagnostics, TestContext.Current.CancellationToken);
 		Assert.Multiple(
 			() => Assert.Empty(editedDiagnostics),
 			() => Assert.Empty(editedOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")),
-			() => Assert.NotNull(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentCubedExtensions")));
+			() => Assert.Null(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthSquaredCurrentSquaredExtensions")),
+			() => Assert.NotNull(editedOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCubedCurrentCubedExtensions")));
 
 		CSharpCompilation emptyInput = editedInput.RemoveSyntaxTrees(editedTree);
 		driver.RunGeneratorsAndUpdateCompilation(emptyInput, out Compilation emptyOutput, out ImmutableArray<Diagnostic> emptyDiagnostics, TestContext.Current.CancellationToken);
 		Assert.Multiple(
 			() => Assert.Empty(emptyDiagnostics),
 			() => Assert.Empty(emptyOutput.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentCubedExtensions")));
+			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCubedCurrentCubedExtensions")));
 	}
 
 	[Theory]
@@ -966,22 +966,66 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void GeneratesOnlyTheRequestedConvenienceOverloadOnce()
+	public void GeneratesOnlyTheRequestedIntermediateConvenienceOverloadOnce()
 	{
 		const string source = """
 			class Consumer
 			{
-				Area First(Length value) => value.Squared();
-				Area Second(Length value) => value.Squared();
+				object First(Length length, Current current) => (length * current).Squared();
+				object Second(Length length, Current current) => (length * current).Squared();
 			}
 			""";
 		CSharpCompilation output = Compile(source);
 		string[] convenienceNames = ["Squared", "Cubed", "Pow4", "Pow5", "Pow6", "SquareRoot", "CubeRoot", "Root4", "Root5", "Root6"];
-		string[] result = output.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
-			.Select(method => method.Identifier.ValueText).Where(convenienceNames.Contains).ToArray();
+		string[] result = ReadConvenienceMethods(output, new(Length: 1, ElectricCurrent: 1)).Where(convenienceNames.Contains).ToArray();
 		string[] expected = ["Squared"];
 
 		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void BaseAndCatalogueHelpersAreAvailableWithoutConsumerCode()
+	{
+		CSharpCompilation result = Compile(string.Empty);
+		string[] expected = ["Squared", "Cubed", "Pow4", "Pow5", "Pow6", "SquareRoot", "CubeRoot", "Root4", "Root5", "Root6"];
+		Dimension[] dimensions = QuantityDiscovery.Discover([]).KnownQuantities.Select(quantity => quantity.Dimension).ToArray();
+
+		Assert.All(dimensions, dimension => Assert.Equal(expected.Order(), ReadConvenienceMethods(result, dimension).Where(expected.Contains).Order()));
+	}
+
+	[Fact]
+	public void InferredCatalogueQuantityReusesItsDefaultConvenienceMethod()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Length length = Length.FromMetres(3);
+					var area = length * length;
+					return area.Squared().AsSiBaseUnit();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(81, result);
+	}
+
+	[Fact]
+	public void CatalogueConvenienceMethodsAreBoundBeforeDemandGeneration()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Voltage voltage) => voltage.Squared();
+			}
+			""";
+		CSharpCompilation result = Compile(source, new SemanticProbeGenerator());
+		INamedTypeSymbol probe = result.GetTypeByMetadataName("SemanticProbe")!;
+		IFieldSymbol resolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("FactoryResolved")));
+
+		Assert.Equal(true, resolved.ConstantValue);
 	}
 
 	[Fact]
@@ -1017,9 +1061,9 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Theory]
-	[InlineData("(3d).Squared()")]
-	[InlineData("Length.FromMetres(3).Pow7()")]
-	public void UnsupportedConvenienceCallsRemainCompilerErrors(string expression)
+	[InlineData("(3d).Squared()", "CS1929")]
+	[InlineData("Length.FromMetres(3).Pow7()", "CS1061")]
+	public void UnsupportedConvenienceCallsRemainCompilerErrors(string expression, string diagnosticId)
 	{
 		string source = $$"""class Consumer { object Value() => {{expression}}; }""";
 		CSharpCompilation input = CreateInputCompilation(source);
@@ -1028,26 +1072,36 @@ public sealed class QuantityGeneratorTests
 
 		Assert.Multiple(
 			() => Assert.Empty(diagnostics),
-			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS1061"));
+			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == diagnosticId));
 	}
 
 	[Fact]
-	public void RemovingConvenienceCallsRemovesTheirGeneratedMethods()
+	public void RemovingIntermediateConvenienceCallsRemovesTheirGeneratedMethods()
 	{
-		const string source = "class Consumer { object Value(Current value) => value.Squared(); }";
+		const string source = "class Consumer { object Value(Length length, Current current) => (length * current).Squared(); }";
 		CSharpCompilation input = CreateInputCompilation(source);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
 		driver.RunGeneratorsAndUpdateCompilation(input.RemoveAllSyntaxTrees(), out Compilation removed, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		string[] originalMethods = original.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
-			.Select(method => method.Identifier.ValueText).ToArray();
-		string[] remainingMethods = removed.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
-			.Select(method => method.Identifier.ValueText).ToArray();
+		string[] originalMethods = ReadConvenienceMethods(original, new(Length: 1, ElectricCurrent: 1));
+		string[] remainingMethods = ReadConvenienceMethods(removed, new(Length: 1, ElectricCurrent: 1));
 
 		Assert.Multiple(
 			() => Assert.Contains("Squared", originalMethods),
 			() => Assert.DoesNotContain("Squared", remainingMethods),
 			() => Assert.Empty(diagnostics));
+	}
+
+	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
+	{
+		QuantityTypeReader reader = new(compilation);
+		return compilation.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<ExtensionBlockDeclarationSyntax>())
+			.Where(block => block.ParameterList is { Parameters.Count: 1 } parameters && parameters.Parameters[0].Type is { } type
+				&& reader.TryRead(compilation.GetSemanticModel(block.SyntaxTree).GetTypeInfo(type).Type, out Dimension receiver, TestContext.Current.CancellationToken)
+				&& receiver == dimension)
+			.SelectMany(block => block.Members.OfType<MethodDeclarationSyntax>())
+			.Where(method => method.ParameterList.Parameters.Count == 0 && !method.Modifiers.Any(SyntaxKind.StaticKeyword))
+			.Select(method => method.Identifier.ValueText).ToArray();
 	}
 
 	private static T Evaluate<T>(string expression)

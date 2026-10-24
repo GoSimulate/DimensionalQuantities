@@ -12,11 +12,15 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		context.RegisterPostInitializationOutput(static output =>
+		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
+		context.RegisterPostInitializationOutput(output =>
 		{
-			QuantityGenerationPlan plan = QuantityDiscovery.Discover([]);
-			string source = QuantitySourceEmitter.Emit(plan.KnownQuantities);
+			string source = QuantitySourceEmitter.Emit([.. defaultPlan.KnownQuantities, .. defaultPlan.AdditionalQuantities]);
 			output.AddSource("Quantities.g.cs", SourceText.From(source, Encoding.UTF8));
+			string powerSource = PowerSourceEmitter.Emit(defaultPlan, "DefaultPowerExtensions");
+			output.AddSource("DefaultPowers.g.cs", SourceText.From(powerSource, Encoding.UTF8));
+			string methodSource = PowerMethodSourceEmitter.Emit(defaultPlan, "DefaultPowerMethodExtensions");
+			output.AddSource("DefaultPowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
 		});
 
 		IncrementalValuesProvider<QuantityExpressionAnalysis> arithmeticExpressions = context.SyntaxProvider.CreateSyntaxProvider(
@@ -48,7 +52,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			}
 		});
 
-		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), static (output, discovered) =>
+		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), (output, discovered) =>
 		{
 			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 			ImmutableArray<PowerOperation>.Builder discoveredPowers = ImmutableArray.CreateBuilder<PowerOperation>();
@@ -66,7 +70,8 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				return;
 			}
 
-			QuantityGenerationPlan plan = QuantityDiscovery.Discover(discoveredOperations, discoveredPowers, discoveredPowerMethods);
+			QuantityGenerationPlan plan = QuantityDiscovery.DiscoverWithPredefinedQuantities(defaultPlan,
+				discoveredOperations, discoveredPowers, discoveredPowerMethods);
 			if (!plan.AdditionalQuantities.IsEmpty)
 			{
 				string quantitySource = QuantitySourceEmitter.Emit(plan.AdditionalQuantities);

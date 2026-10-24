@@ -14,6 +14,53 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 public sealed class PowerMethodSourceEmitterTests
 {
 	[Theory]
+	[InlineData("Squared", 2, 1)]
+	[InlineData("SquareRoot", 1, 2)]
+	public void ConvenienceMethodDelegatesToTheEncodedPowerOverload(string method, int numerator, int denominator)
+	{
+		Dimension operand = new(Length: 1);
+		Rational exponent = new(numerator, denominator);
+		PowerMethodOperation operation = new(operand, exponent, operand.Pow(exponent), method);
+		QuantityGenerationPlan plan = QuantityDiscovery.Discover([], [], [operation]);
+		string exponentType = TypeSystemTypeNameFormatter.Format(TypeSystemNumberCodec.CreateType(exponent));
+		string resultType = plan.GetQuantityName(operation.Result);
+		string source = $$"""
+			namespace DimensionalQuantities.Generated;
+			public static class StubPowerExtensions
+			{
+				extension(global::DimensionalQuantities.TypeSystem.Power<{{exponentType}}>)
+				{
+					public static {{resultType}} Of(Length value) => {{resultType}}.FromSiBaseUnit(value.AsSiBaseUnit() + 100);
+				}
+			}
+			public static class Consumer
+			{
+				public static double Value() => Length.FromMetres(9).{{method}}().AsSiBaseUnit();
+			}
+			""";
+		CSharpParseOptions options = new(LanguageVersion.CSharp14);
+		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
+		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
+			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
+		SyntaxTree[] trees =
+		[
+			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
+			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken)
+		];
+		CSharpCompilation compilation = CSharpCompilation.Create("DelegatingPowerConsumer", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+		using MemoryStream assemblyBytes = new();
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
+		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
+
+		double result = (double)assembly.GetType("DimensionalQuantities.Generated.Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
+
+		Assert.Equal(109, result);
+	}
+
+	[Theory]
 	[InlineData("Squared", 2, 1, -3, 9)]
 	[InlineData("CubeRoot", 1, 3, -8, -2)]
 	[InlineData("Root5", 1, 5, -32, -2)]
@@ -41,7 +88,8 @@ public sealed class PowerMethodSourceEmitterTests
 			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current.CancellationToken),
 			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
 			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken)
+			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken),
+			CSharpSyntaxTree.ParseText(PowerSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken)
 		];
 		CSharpCompilation compilation = CSharpCompilation.Create("PowerMethodConsumer", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream assemblyBytes = new();
