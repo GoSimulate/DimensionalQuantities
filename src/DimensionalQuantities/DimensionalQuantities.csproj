@@ -32,7 +32,6 @@
     <InternalsVisibleTo Include="DimensionalQuantities.Tests" />
     <InternalsVisibleTo Include="DimensionalQuantities.Roslyn" />
     <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests" />
-    <InternalsVisibleTo Include="DimensionalQuantities.Build" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Numerics\Rational.Conversions.cs">

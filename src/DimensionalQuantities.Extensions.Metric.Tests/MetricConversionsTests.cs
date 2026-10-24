@@ -54,7 +54,13 @@ public sealed class MetricConversionsTests
 	{
 		Assert.Multiple(
 			() => Assert.Equal(0.0025, Voltage.FromSiBaseUnit(2.5).AsKiloVolts()),
-			() => Assert.Equal(1000, Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()),
+			() => Assert.Equal(1000, Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()));
+	}
+
+	[Fact]
+	public void GenericPrefixConversionsApplyMetricScale()
+	{
+		Assert.Multiple(
 			() => Assert.Equal(0.002, Voltage.FromPrefixedUnits(2, -3).AsSiBaseUnit()),
 			() => Assert.Equal(1000000, CurrentDensity.FromPrefixedUnits(1, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit()),
 			() => Assert.Equal(1000, SpecificPower.FromPrefixedUnits(1, wattPrefixExponent: 3, gramPrefixExponent: 3).AsSiBaseUnit()),

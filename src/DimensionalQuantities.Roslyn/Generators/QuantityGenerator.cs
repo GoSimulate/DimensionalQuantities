@@ -13,6 +13,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
+		MetricConversionSourceEmitter.Register(context);
 		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
 		context.RegisterPostInitializationOutput(output =>
 		{

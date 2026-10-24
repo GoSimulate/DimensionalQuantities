@@ -56,7 +56,6 @@ assert not any(name.startswith(analyzer_directory) for name in metric_files)
 
 for names in (core_files, metric_files):
     assert not any("Microsoft.CodeAnalysis" in name for name in names)
-    assert not any("DimensionalQuantities.Build" in name for name in names)
     assert not any(".Tests" in name for name in names)
 
 for metadata in (core_metadata, metric_metadata):
@@ -70,7 +69,6 @@ for metadata in (core_metadata, metric_metadata):
         assert commit == os.environ["GITHUB_SHA"], (commit, os.environ["GITHUB_SHA"])
     dependencies = metadata.findall(".//{*}dependency")
     assert not any("Roslyn" in item.attrib["id"] or "CodeAnalysis" in item.attrib["id"] for item in dependencies)
-    assert not any("DimensionalQuantities.Build" in item.attrib["id"] for item in dependencies)
 
 core_dependencies = core_metadata.findall(".//{*}dependency")
 assert not any(item.attrib["id"] == metric_id for item in core_dependencies)

@@ -1,6 +1,6 @@
 using DimensionalQuantities.Units;
 
-namespace DimensionalQuantities.Build.Units;
+namespace DimensionalQuantities.Roslyn.Generators;
 
 internal static class EngineeringAtomicUnits
 {

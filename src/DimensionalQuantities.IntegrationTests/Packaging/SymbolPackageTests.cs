@@ -59,7 +59,8 @@ public sealed class SymbolPackageTests : IDisposable
 		string commit = GetCurrentCommit();
 		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 		string configuration = typeof(SymbolPackageTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, "DimensionalQuantities.Extensions.Metric", "obj", configuration, "netstandard2.0", "MetricConversions.g.cs"));
+		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, "DimensionalQuantities.Extensions.Metric", "obj", configuration, "netstandard2.0",
+			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", "MetricConversions.g.cs"));
 		Assert.Multiple(
 			() => Assert.Equal(details.AssemblyGuid, details.PdbGuid),
 			() => Assert.Equal(details.AssemblyStamp, details.PdbStamp),
@@ -85,7 +86,7 @@ public sealed class SymbolPackageTests : IDisposable
 		byte[] pdbBytes = ReadEntry(symbols, stem + ".pdb");
 		using PEReader assembly = new(new MemoryStream(assemblyBytes));
 		using MetadataReaderProvider pdb = MetadataReaderProvider.FromPortablePdbStream(new MemoryStream(pdbBytes));
-		DebugDirectoryEntry codeView = Assert.Single(assembly.ReadDebugDirectory().Where(entry => entry.Type == DebugDirectoryEntryType.CodeView));
+		DebugDirectoryEntry codeView = assembly.ReadDebugDirectory().Single(entry => entry.Type == DebugDirectoryEntryType.CodeView);
 		CodeViewDebugDirectoryData codeViewData = assembly.ReadCodeViewDebugDirectoryData(codeView);
 		MetadataReader reader = pdb.GetMetadataReader();
 		byte[] pdbId = reader.DebugMetadataHeader!.Id.ToArray();

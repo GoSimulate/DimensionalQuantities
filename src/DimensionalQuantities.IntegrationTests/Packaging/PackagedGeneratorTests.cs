@@ -1,10 +1,9 @@
 using System.Reflection;
-using DimensionalQuantities.IntegrationTests.Packaging;
 using Microsoft.Build.Locator;
 using Microsoft.Build.Utilities.ProjectCreation;
 using Xunit;
 
-namespace DimensionalQuantities.IntegrationTests.GeneratedQuantityTests;
+namespace DimensionalQuantities.IntegrationTests.Packaging;
 
 [Collection("MSBuild")]
 public sealed class PackagedGeneratorTests : IDisposable
@@ -211,7 +210,10 @@ public sealed class PackagedGeneratorTests : IDisposable
 		project.TryBuild(restore: true, out bool built, out BuildOutput output);
 		using (output)
 		{
-			Assert.True(built, output.GetConsoleLog());
+			if (!built)
+			{
+				throw new InvalidOperationException(output.GetConsoleLog());
+			}
 		}
 	}
 
@@ -220,7 +222,10 @@ public sealed class PackagedGeneratorTests : IDisposable
 		project.TryBuild(restore: true, target: "Pack", out bool built, out BuildOutput output);
 		using (output)
 		{
-			Assert.True(built, output.GetConsoleLog());
+			if (!built)
+			{
+				throw new InvalidOperationException(output.GetConsoleLog());
+			}
 		}
 		package = PackageTestSupport.AddPackedPackage(repository, new FileInfo(Path.Combine(_scratch, name, "packages", $"{name}.1.0.0.nupkg")));
 	}
@@ -228,7 +233,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 	private string OutputDirectory(string project) => Path.Combine(_scratch, project, "bin", "Debug", "netstandard2.0");
 
 	private static double InvokeDouble(Type type, string method, params object[] arguments)
-		=> Assert.IsType<double>(type.GetMethod(method)!.Invoke(null, arguments));
+		=> (double)type.GetMethod(method)!.Invoke(null, arguments)!;
 
 	private ProjectCreator CreateProject(string name, string source, params Package[] packages)
 	{

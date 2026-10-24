@@ -12,6 +12,5 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DimensionalQuantities.Roslyn.Tests" />
-    <InternalsVisibleTo Include="DimensionalQuantities.Build" />
   </ItemGroup>
 </Project>

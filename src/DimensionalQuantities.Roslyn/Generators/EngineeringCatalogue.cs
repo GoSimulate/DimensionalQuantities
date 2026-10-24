@@ -1,7 +1,7 @@
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Units;
 
-namespace DimensionalQuantities.Build.Units;
+namespace DimensionalQuantities.Roslyn.Generators;
 
 /// <summary>Recognised names and units for engineering dimensions.</summary>
 internal static class EngineeringCatalogue

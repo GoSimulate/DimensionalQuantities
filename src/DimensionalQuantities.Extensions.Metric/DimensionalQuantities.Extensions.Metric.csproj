@@ -7,26 +7,19 @@
     <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
     <Description>Named metric conversions for dimensional quantities.</Description>
     <RepositoryType>git</RepositoryType>
-    <MetricDotNetHost Condition="'$(DotNetHostPath)' != ''">$(DotNetHostPath)</MetricDotNetHost>
-    <MetricDotNetHost Condition="'$(MetricDotNetHost)' == ''">dotnet</MetricDotNetHost>
+    <GenerateMetricConversions>true</GenerateMetricConversions>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" PrivateAssets="none" />
-    <ProjectReference Include="../DimensionalQuantities.Build/DimensionalQuantities.Build.csproj"
-                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" PrivateAssets="all" />
+    <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <Analyzer Include="../DimensionalQuantities/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll" />
+    <CompilerVisibleProperty Include="GenerateMetricConversions" />
     <None Include="../../LICENSE" Pack="true" PackagePath="" />
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
-  <Target Name="GenerateMetricConversions" BeforeTargets="InitializeSourceControlInformation;CoreCompile"
-          DependsOnTargets="ResolveProjectReferences">
-    <PropertyGroup>
-      <MetricGeneratedSource>$(IntermediateOutputPath)MetricConversions.g.cs</MetricGeneratedSource>
-    </PropertyGroup>
-    <Exec Command="&quot;$(MetricDotNetHost)&quot; &quot;$(MSBuildProjectDirectory)/../DimensionalQuantities.Build/bin/$(Configuration)/net11.0/DimensionalQuantities.Build.dll&quot; &quot;$(MSBuildProjectDirectory)/$(MetricGeneratedSource)&quot;" />
-    <ItemGroup>
-      <Compile Include="$(MetricGeneratedSource)" />
-    </ItemGroup>
-  </Target>
   <Target Name="PinCorePackageDependency" AfterTargets="_GetProjectReferenceVersions" BeforeTargets="GenerateNuspec">
     <ItemGroup>
       <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)"

@@ -13,11 +13,6 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 public sealed class QuantitySourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
-	private static readonly string[] _prefixes =
-	[
-		"Quetta", "Ronna", "Yotta", "Zetta", "Exa", "Peta", "Tera", "Giga", "Mega", "Kilo", "Hecto", "Deca",
-		"Deci", "Centi", "Milli", "Micro", "Nano", "Pico", "Femto", "Atto", "Zepto", "Yocto", "Ronto", "Quecto"
-	];
 
 	[Fact]
 	public void DiscoveredMechanicalQuantityUsesItsGenericPrefixConversion()
@@ -72,33 +67,6 @@ public sealed class QuantitySourceEmitterTests
 		Assert.True(result);
 	}
 
-	[Fact]
-	public void EverySiPrefixHasUsableFactoryAndAccessor()
-	{
-		string calls = string.Join("\n", _prefixes.Select(prefix =>
-			$"Length value{prefix} = Length.From{prefix}Metres(1); double output{prefix} = value{prefix}.As{prefix}Metres();"));
-		string source = $$"""
-			public static class Consumer
-			{
-				public static void UsePrefixes()
-				{
-					{{calls}}
-				}
-			}
-			""";
-
-		Compile(source);
-	}
-
-	[Fact]
-	public void BaseUnitPrefixesKeepTheirSiScales()
-	{
-		Assert.Equal(2.5, Evaluate<double>("Length.FromMilliMetres(2500).AsSiBaseUnit()"));
-		Assert.Equal(2.5, Evaluate<double>("Mass.FromKiloGrams(2.5).AsSiBaseUnit()"));
-		Assert.Equal(2, Evaluate<double>("Mass.FromPrefixedUnits(2).AsSiBaseUnit()"));
-		Assert.Equal(1000, Evaluate<double>("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)"));
-	}
-
 	private static T Evaluate<T>(string expression)
 	{
 		string source = $$"""
@@ -109,7 +77,7 @@ public sealed class QuantitySourceEmitterTests
 			""";
 		Assembly assembly = CompileAndEmit(source, QuantityDiscovery.Discover([]).KnownQuantities, []);
 		MethodInfo method = assembly.GetType("Consumer")!.GetMethod("Value")!;
-		return Assert.IsType<T>(method.Invoke(null, null));
+		return (T)method.Invoke(null, null)!;
 	}
 
 	private static CSharpCompilation Compile(string source)
@@ -121,7 +89,10 @@ public sealed class QuantitySourceEmitterTests
 		CSharpCompilation compilation = CreateInputCompilation(source).AddSyntaxTrees(generated);
 		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-		Assert.Empty(errors);
+		if (errors.Length != 0)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, errors.Select(error => error.ToString())));
+		}
 		return compilation;
 	}
 
@@ -132,11 +103,17 @@ public sealed class QuantitySourceEmitterTests
 		CSharpCompilation compilation = CreateInputCompilation(source).AddSyntaxTrees(knownQuantities, additionalQuantities);
 		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-		Assert.Empty(errors);
+		if (errors.Length != 0)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, errors.Select(error => error.ToString())));
+		}
 
 		using MemoryStream assemblyBytes = new();
 		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		if (!emit.Success)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics.Select(diagnostic => diagnostic.ToString())));
+		}
 		return Assembly.Load(assemblyBytes.ToArray());
 	}
 

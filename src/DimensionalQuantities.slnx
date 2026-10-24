@@ -4,7 +4,6 @@
     <Project Path="DimensionalQuantities/DimensionalQuantities.csproj" />
   </Folder>
   <Folder Name="/Metric/">
-    <Project Path="DimensionalQuantities.Build/DimensionalQuantities.Build.csproj" />
     <Project Path="DimensionalQuantities.Extensions.Metric/DimensionalQuantities.Extensions.Metric.csproj" />
     <Project Path="DimensionalQuantities.Extensions.Metric.Tests/DimensionalQuantities.Extensions.Metric.Tests.csproj" />
   </Folder>
