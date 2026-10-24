@@ -15,6 +15,10 @@
     <Project Path="DimensionalQuantities.Extensions.Nautical/DimensionalQuantities.Extensions.Nautical.csproj" />
     <Project Path="DimensionalQuantities.Extensions.Nautical.Tests/DimensionalQuantities.Extensions.Nautical.Tests.csproj" />
   </Folder>
+  <Folder Name="/CgsEmag/">
+    <Project Path="DimensionalQuantities.Extensions.CgsEmag/DimensionalQuantities.Extensions.CgsEmag.csproj" />
+    <Project Path="DimensionalQuantities.Extensions.CgsEmag.Tests/DimensionalQuantities.Extensions.CgsEmag.Tests.csproj" />
+  </Folder>
   <Folder Name="/Roslyn/">
     <Project Path="DimensionalQuantities.Roslyn.CodeFixes/DimensionalQuantities.Roslyn.CodeFixes.csproj" />
     <Project Path="DimensionalQuantities.Roslyn.Tests/DimensionalQuantities.Roslyn.Tests.csproj" />

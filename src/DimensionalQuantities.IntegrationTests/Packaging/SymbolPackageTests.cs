@@ -53,6 +53,7 @@ public sealed class SymbolPackageTests : IDisposable
 	[InlineData("Metric")]
 	[InlineData("Imperial")]
 	[InlineData("Nautical")]
+	[InlineData("CgsEmag")]
 	public void ExtensionSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource(string extension)
 	{
 		string projectName = "DimensionalQuantities.Extensions." + extension;

@@ -125,6 +125,33 @@ public sealed class PackagedGeneratorTests : IDisposable
 	}
 
 	[Fact]
+	public void CgsEmagPackageProvidesConversionsThroughCoreDependency()
+	{
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
+		PackCore(repository);
+		Package cgsEmag = PackSourceProject(repository, "DimensionalQuantities.Extensions.CgsEmag");
+		ProjectCreator consumer = CreateProject("CgsEmagConsumer", """
+			using DimensionalQuantities.Extensions.CgsEmag;
+
+			public static class Consumer
+			{
+				public static double ConvertFluxDensity() => MagneticFluxDensity.FromGauss(10_000).AsSiBaseUnit();
+				public static double ConvertCurrent() => Current.FromAbamperes(1).AsSiBaseUnit();
+				public static double ConvertCharge() => ElectricCharge.FromAbcoulombs(1).AsSiBaseUnit();
+			}
+			""", cgsEmag);
+		Build(consumer);
+
+		using PackageAssemblyContext context = new(OutputDirectory("CgsEmagConsumer"));
+		Type type = context.LoadFromAssemblyPath(Path.Combine(OutputDirectory("CgsEmagConsumer"), "CgsEmagConsumer.dll"))
+			.GetType("Consumer", throwOnError: true)!;
+		Assert.Multiple(
+			() => Assert.Equal(1, InvokeDouble(type, "ConvertFluxDensity")),
+			() => Assert.Equal(10, InvokeDouble(type, "ConvertCurrent")),
+			() => Assert.Equal(10, InvokeDouble(type, "ConvertCharge")));
+	}
+
+	[Fact]
 	public void MetricNamedConversionsRequireNamespaceImport()
 	{
 		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
