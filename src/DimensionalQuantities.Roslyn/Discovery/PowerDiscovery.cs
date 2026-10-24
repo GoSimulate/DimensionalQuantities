@@ -10,12 +10,14 @@ internal sealed class PowerDiscovery
 	private readonly SemanticModel _semanticModel;
 	private readonly INamedTypeSymbol _power;
 	private readonly TypeSystemNumberReader _numberReader;
+	private readonly EnglishExponentDiscovery _englishExponentDiscovery;
 
 	public PowerDiscovery(SemanticModel semanticModel)
 	{
 		_semanticModel = semanticModel;
 		_power = semanticModel.Compilation.GetRequiredType(typeof(Power<>));
 		_numberReader = new(semanticModel.Compilation);
+		_englishExponentDiscovery = new(semanticModel);
 	}
 
 	public bool TryRead(InvocationExpressionSyntax invocation, out Rational exponent, out string exponentTypeName, CancellationToken cancellationToken = default)
@@ -35,14 +37,21 @@ internal sealed class PowerDiscovery
 			powerTypeSymbol = alias.Target;
 		}
 
-		if (powerTypeSymbol is not INamedTypeSymbol type
-			|| !SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, _power)
-			|| !_numberReader.TryRead(type.TypeArguments[0], out exponent, cancellationToken))
+		if (powerTypeSymbol is INamedTypeSymbol type
+			&& SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, _power)
+			&& _numberReader.TryRead(type.TypeArguments[0], out exponent, cancellationToken))
+		{
+			exponentTypeName = type.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			return true;
+		}
+
+		if (!_englishExponentDiscovery.TryRead(invocation, out EnglishExponentAlias englishAlias, cancellationToken))
 		{
 			return false;
 		}
 
-		exponentTypeName = type.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		exponent = englishAlias.Value;
+		exponentTypeName = englishAlias.EncodedTypeName;
 		return true;
 	}
 }

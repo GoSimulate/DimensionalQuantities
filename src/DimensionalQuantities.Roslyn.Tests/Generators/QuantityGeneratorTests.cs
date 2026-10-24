@@ -567,6 +567,197 @@ public sealed class QuantityGeneratorTests
 		Assert.Equal(expected, result, 12);
 	}
 
+	[Theory]
+	[InlineData("NumberTwo", 3, 9)]
+	[InlineData("NumberSeventeen", 2, 131072)]
+	[InlineData("NumberMinusTwo", 2, 0.25)]
+	[InlineData("NumberHalf", 9, 3)]
+	[InlineData("NumberTwoQuarters", 9, 3)]
+	[InlineData("NumberTwoOverThree", -8, 4)]
+	[InlineData("NumberMinusOneOverThree", -8, -0.5)]
+	[InlineData("NumberMillionth", 1, 1)]
+	public void EnglishPowersCompileAndExecute(string exponent, double value, double expected)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value() => Power<{{exponent}}>.Of(Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}})).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void GeneratesEnglishAliasesOnlyWhenUsedByPowerCalls()
+	{
+		CSharpCompilation unused = Compile("class Consumer { }");
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			class Consumer { object Value(Length value) => Power<NumberTwo>.Of(value); }
+			""";
+		CSharpCompilation used = Compile(source);
+		string[] unusedNames = unused.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
+			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
+		string[] usedNames = used.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
+			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
+		string[] result = usedNames.Except(unusedNames).ToArray();
+		string[] expected = ["NumberTwo"];
+
+		Assert.Multiple(
+			() => Assert.DoesNotContain("NumberTwo", unusedNames),
+			() => Assert.DoesNotContain("NumberHalf", unusedNames),
+			() => Assert.Equal(expected, result));
+	}
+
+	[Theory]
+	[InlineData("typeof(NumberTwo)")]
+	[InlineData("Power<NumberTwo>.Other(value)")]
+	[InlineData("Other.Power<NumberTwo>.Of(value)")]
+	public void EnglishNamesOutsideSupportedPowerCallsRemainUnresolved(string expression)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			namespace Other { public struct Power<T> { public static object Of(object value) => value; } }
+			class Consumer { object Value(Length value) => {{expression}}; }
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		string[] aliases = output.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
+			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.DoesNotContain("NumberTwo", aliases),
+			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("NumberTwo", StringComparison.Ordinal)));
+	}
+
+	[Fact]
+	public void RemovingEnglishPowerCallsRemovesTheirAliases()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			class Consumer { object Value(Length value) => Power<NumberTwo>.Of(value); }
+			""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
+		CSharpCompilation emptyInput = input.RemoveAllSyntaxTrees();
+		driver.RunGeneratorsAndUpdateCompilation(emptyInput, out Compilation removed, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		string[] originalNames = original.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
+			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
+		string[] remainingNames = removed.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
+			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Contains("NumberTwo", originalNames),
+			() => Assert.DoesNotContain("NumberTwo", remainingNames),
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(removed.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)));
+	}
+
+	[Fact]
+	public void EnglishPowersWorkWithNestedCallsArithmeticAndLocals()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					var squared = Power<NumberTwo>.Of(Current.FromAmps(3));
+					var root = Power<NumberHalf>.Of(squared);
+					Voltage voltage = root * Resistance.FromOhms(4);
+					Current nested = Power<NumberHalf>.Of(Power<NumberTwo>.Of(root));
+					return voltage.AsVolts() + nested.AsAmps();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(15, result);
+	}
+
+	[Fact]
+	public void EnglishLookingUserAliasKeepsItsDeclaredExponent()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;
+			public static class Consumer
+			{
+				public static double Value() => Power<NumberTwo>.Of(Length.FromMetres(3)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(27, result);
+	}
+
+	[Fact]
+	public void ExplicitAliasInAnotherFileReservesTheName()
+	{
+		const string generatedAliasSource = """
+			using DimensionalQuantities.TypeSystem;
+			class First { public Area Value(Length value) => Power<NumberTwo>.Of(value); }
+			""";
+		const string explicitAliasSource = """
+			using DimensionalQuantities.TypeSystem;
+			using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;
+			class Second { public Volume Value(Length value) => Power<NumberTwo>.Of(value); }
+			""";
+		CSharpCompilation input = CreateInputCompilation(generatedAliasSource).AddSyntaxTrees(
+			CSharpSyntaxTree.ParseText(explicitAliasSource, _parseOptions, path: "Second.cs", cancellationToken: TestContext.Current.CancellationToken));
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = output.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("NumberTwo", StringComparison.Ordinal)),
+			() => Assert.DoesNotContain(errors, diagnostic => diagnostic.Location.SourceTree?.FilePath == "Second.cs"),
+			() => Assert.DoesNotContain(output.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings),
+				directive => directive.Alias?.Name.Identifier.ValueText == "NumberTwo" && directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword)));
+	}
+
+	[Fact]
+	public void EquivalentEnglishNamesShareTheEncodedTypeAndPowerOverload()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static bool Value()
+				{
+					Length first = Power<NumberHalf>.Of(Area.FromSquareMetres(9));
+					Length second = Power<NumberTwoQuarters>.Of(Area.FromSquareMetres(9));
+					Length third = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Area.FromSquareMetres(9));
+					return first == second && second == third && typeof(NumberHalf) == typeof(NumberTwoQuarters)
+						&& typeof(NumberHalf) == typeof(Fraction<TerminalHex1, TerminalHex2>);
+				}
+			}
+			""";
+
+		Assert.True(EvaluateSource<bool>(source));
+	}
+
+	[Fact]
+	public void EnglishZerothPowerReturnsDouble()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value() => Power<NumberZero>.Of(Length.FromMetres(3));
+			}
+			""";
+
+		Assert.Equal(1, EvaluateSource<double>(source));
+	}
+
 	[Fact]
 	public void PowersReturnExistingQuantityTypesWhenCalledThroughAliases()
 	{
@@ -637,14 +828,16 @@ public sealed class QuantityGeneratorTests
 		Assert.Equal(1, result);
 	}
 
-	[Fact]
-	public void UnresolvedEnglishExponentNamesRemainCompilerErrors()
+	[Theory]
+	[InlineData("Two")]
+	[InlineData("NumberNotANumber")]
+	public void UnsupportedExponentNamesRemainCompilerErrors(string name)
 	{
-		const string source = """
+		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
 			public static class Consumer
 			{
-				public static object Value(Length length) => Power<Seventeen>.Of(length);
+				public static object Value(Length length) => Power<{{name}}>.Of(length);
 			}
 			""";
 		CSharpCompilation input = CreateInputCompilation(source);
@@ -653,22 +846,24 @@ public sealed class QuantityGeneratorTests
 
 		Assert.Multiple(
 			() => Assert.Empty(diagnostics),
-			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("Seventeen", StringComparison.Ordinal)));
+			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains(name, StringComparison.Ordinal)));
 	}
 
-	[Fact]
-	public void EditingAndRemovingPowerCallsRemovesObsoleteGeneratedTypes()
+	[Theory]
+	[InlineData("TerminalHex2", "TerminalHex3")]
+	[InlineData("NumberTwo", "NumberThree")]
+	public void EditingAndRemovingPowerCallsRemovesObsoleteGeneratedTypes(string originalExponent, string editedExponent)
 	{
-		const string source = """
+		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
 			public static class Consumer
 			{
-				public static object Value(Current current) => Power<TerminalHex2>.Of(current);
+				public static object Value(Current current) => Power<{{originalExponent}}>.Of(current);
 			}
 			""";
 		CSharpCompilation input = CreateInputCompilation(source);
 		SyntaxTree originalTree = input.SyntaxTrees.Single();
-		SyntaxTree editedTree = CSharpSyntaxTree.ParseText(source.Replace("TerminalHex2", "TerminalHex3", StringComparison.Ordinal), _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken);
+		SyntaxTree editedTree = CSharpSyntaxTree.ParseText(source.Replace(originalExponent, editedExponent, StringComparison.Ordinal), _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation originalOutput, out ImmutableArray<Diagnostic> originalDiagnostics, TestContext.Current.CancellationToken);
 
