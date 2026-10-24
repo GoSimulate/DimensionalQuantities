@@ -83,7 +83,8 @@ public sealed class PackagedGeneratorTests : IDisposable
 		Directory.CreateDirectory(packageOutput);
 		Dictionary<string, string> properties = new()
 		{
-			["Configuration"] = "Debug",
+			["Configuration"] = typeof(PackagedGeneratorTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration,
+			["NoBuild"] = "true",
 			["PackageOutputPath"] = packageOutput,
 			["NuGetAudit"] = "false",
 		};
