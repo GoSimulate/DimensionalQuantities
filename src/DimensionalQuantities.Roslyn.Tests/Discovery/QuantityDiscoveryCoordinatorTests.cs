@@ -1114,6 +1114,33 @@ public sealed class QuantityDiscoveryCoordinatorTests
 	}
 
 	[Theory]
+	[InlineData("Time?", "6d", "Time.FromSeconds(3)", 2)]
+	[InlineData("Time?", "null", "Time.FromSeconds(3)", -1)]
+	[InlineData("Time?", "6d", "null", -1)]
+	[InlineData("Time?", "null", "null", -1)]
+	[InlineData("Time", "6d", "Time.FromSeconds(3)", 2)]
+	[InlineData("Time", "null", "Time.FromSeconds(3)", -1)]
+	public void NullableScalarNumeratorDiscoveryPreservesNullableResults(string timeType, string scalarValue, string timeValue, double expectedValue)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static Frequency? Calculate()
+				{
+					double? scalar = {{scalarValue}};
+					{{timeType}} time = {{timeValue}};
+					return scalar / time;
+				}
+				public static double Value() => Calculate()?.AsSiBaseUnit() ?? -1;
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+
+		Assert.Equal(expectedValue, result);
+	}
+
+	[Theory]
 	[InlineData("LengthCurrent.FromSiBaseUnit(12)", 144)]
 	[InlineData("null", -1)]
 	public void NullablePowerDiscoveryAddsNullConditionalSquaredMethod(string value, double expectedValue)

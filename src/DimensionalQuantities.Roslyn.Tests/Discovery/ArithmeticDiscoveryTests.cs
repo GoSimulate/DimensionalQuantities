@@ -57,6 +57,25 @@ public sealed class ArithmeticDiscoveryTests
 	}
 
 	[Theory]
+	[InlineData("double?", "Time")]
+	[InlineData("double?", "Time?")]
+	[InlineData("float?", "Time")]
+	[InlineData("float?", "Time?")]
+	[InlineData("int?", "Time")]
+	[InlineData("int?", "Time?")]
+	public void NullableNumericScalarDivisionRequestsTheInverseDimension(string scalarType, string quantityType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{scalarType}} scalar, {{quantityType}} time) => scalar / time;
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Time: 1), new(Time: -1)), operation);
+	}
+
+	[Theory]
 	[InlineData("length * missing")]
 	[InlineData("length * 1m")]
 	[InlineData("length * \"text\"")]
@@ -106,6 +125,18 @@ public sealed class ArithmeticDiscoveryTests
 			public static class Consumer
 			{
 				public static object Value(Length length) => 2m / length;
+			}
+			""";
+		Assert.Empty(DiscoverFromSource(source));
+	}
+
+	[Fact]
+	public void NullableDecimalDoesNotBecomeAnImplicitDoubleScalar()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(decimal? scalar, Time? time) => scalar / time;
 			}
 			""";
 		Assert.Empty(DiscoverFromSource(source));
