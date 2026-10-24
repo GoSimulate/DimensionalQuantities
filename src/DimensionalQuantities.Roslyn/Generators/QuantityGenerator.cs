@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Text;
-using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Discovery;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -25,99 +24,27 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			output.AddSource("DefaultPowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
 		});
 
-		IncrementalValuesProvider<QuantityExpressionAnalysis> arithmeticExpressions = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is BinaryExpressionSyntax binary && ArithmeticDiscovery.IsRoot(binary),
-			static (syntaxContext, cancellationToken) => ArithmeticDiscovery.Analyse(
-				(BinaryExpressionSyntax)syntaxContext.Node, syntaxContext.SemanticModel, cancellationToken));
-
-		IncrementalValuesProvider<QuantityExpressionAnalysis> powerExpressions = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
-				&& (member.Name.Identifier.ValueText == "Of" || PowerMethodDiscovery.IsSupportedName(member.Name.Identifier.ValueText)),
-			static (syntaxContext, cancellationToken) => new QuantityExpressionAnalyser(syntaxContext.SemanticModel)
-				.Analyse((InvocationExpressionSyntax)syntaxContext.Node, cancellationToken));
-
-		IncrementalValuesProvider<Dimension?> typeNames = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is IdentifierNameSyntax name && SyntaxFacts.IsInTypeOnlyContext(name),
-			static (syntaxContext, cancellationToken) => QuantityNameDiscovery.TryRead(
-				(IdentifierNameSyntax)syntaxContext.Node, syntaxContext.SemanticModel, out Dimension dimension, cancellationToken)
-					? (Dimension?)dimension : null);
-		IncrementalValuesProvider<Dimension> requestedDimensions = typeNames
-			.Where(static dimension => dimension.HasValue)
-			.Select(static (dimension, _) => dimension.GetValueOrDefault());
-		IncrementalValuesProvider<ImmutableArray<Dimension>> metadataDimensions = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax
-				|| node is IdentifierNameSyntax name && !SyntaxFacts.IsInTypeOnlyContext(name),
-			static (syntaxContext, cancellationToken) => new MetadataQuantityDiscovery(syntaxContext.SemanticModel)
-				.Discover((ExpressionSyntax)syntaxContext.Node, cancellationToken));
-		IncrementalValueProvider<ImmutableArray<Dimension>> allDimensions = requestedDimensions.Collect()
-			.Combine(metadataDimensions.Collect())
-			.Select(static (collected, _) => collected.Left.AddRange(collected.Right.SelectMany(static dimensions => dimensions)));
-
-		IncrementalValuesProvider<EnglishExponentAlias?> englishAliases = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
-			static (syntaxContext, cancellationToken) => new EnglishExponentDiscovery(syntaxContext.SemanticModel)
-				.TryRead((InvocationExpressionSyntax)syntaxContext.Node, out EnglishExponentAlias alias, cancellationToken)
-					? (EnglishExponentAlias?)alias : null);
-		IncrementalValuesProvider<EnglishExponentAlias> requestedAliases = englishAliases
-			.Where(static alias => alias.HasValue)
-			.Select(static (alias, _) => alias.GetValueOrDefault());
-
-		context.RegisterSourceOutput(requestedAliases.Collect(), static (output, aliases) =>
+		IncrementalValuesProvider<SyntaxTree> inputTrees = context.SyntaxProvider.CreateSyntaxProvider(
+			static (node, _) => node is CompilationUnitSyntax unit && IsDiscoveryInputTree(unit.SyntaxTree),
+			static (syntaxContext, _) => syntaxContext.Node.SyntaxTree);
+		IncrementalValueProvider<(Compilation Left, ImmutableArray<SyntaxTree> Right)> inputs = context.CompilationProvider.Combine(inputTrees.Collect());
+		context.RegisterSourceOutput(inputs, (output, input) =>
 		{
-			if (!aliases.IsEmpty)
+			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover((CSharpCompilation)input.Left,
+				input.Right, defaultPlan, output.CancellationToken);
+			foreach (GeneratedSource source in result.Sources)
 			{
-				string aliasSource = EnglishExponentAliasEmitter.Emit(aliases);
-				output.AddSource("EnglishExponents.g.cs", SourceText.From(aliasSource, Encoding.UTF8));
+				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
 			}
 		});
+	}
 
-		IncrementalValueProvider<(IEnumerable<QuantityExpressionAnalysis> Expressions, ImmutableArray<Dimension> Dimensions)> requests = arithmeticExpressions.Collect()
-			.Combine(powerExpressions.Collect()).Combine(allDimensions)
-			.Select(static (collected, _) => ((IEnumerable<QuantityExpressionAnalysis>)collected.Left.Left.Concat(collected.Left.Right), collected.Right));
-
-		context.RegisterSourceOutput(requests, (output, discovered) =>
-		{
-			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
-			ImmutableArray<PowerOperation>.Builder discoveredPowers = ImmutableArray.CreateBuilder<PowerOperation>();
-			ImmutableArray<PowerMethodOperation>.Builder discoveredPowerMethods = ImmutableArray.CreateBuilder<PowerMethodOperation>();
-			foreach (QuantityExpressionAnalysis expression in discovered.Expressions)
-			{
-				output.CancellationToken.ThrowIfCancellationRequested();
-				discoveredOperations.AddRange(expression.ArithmeticOperations);
-				discoveredPowers.AddRange(expression.PowerOperations);
-				discoveredPowerMethods.AddRange(expression.PowerMethodOperations);
-			}
-
-			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0 && discoveredPowerMethods.Count == 0 && discovered.Dimensions.IsEmpty)
-			{
-				return;
-			}
-
-			QuantityGenerationPlan plan = QuantityDiscovery.DiscoverWithPredefinedQuantities(defaultPlan,
-				discoveredOperations, discoveredPowers, discoveredPowerMethods, discovered.Dimensions);
-			if (!plan.AdditionalQuantities.IsEmpty)
-			{
-				string quantitySource = QuantitySourceEmitter.Emit(plan.AdditionalQuantities);
-				output.AddSource("DiscoveredQuantities.g.cs", SourceText.From(quantitySource, Encoding.UTF8));
-			}
-
-			if (!plan.Operations.IsEmpty)
-			{
-				string arithmeticSource = ArithmeticSourceEmitter.Emit(plan);
-				output.AddSource("Arithmetic.g.cs", SourceText.From(arithmeticSource, Encoding.UTF8));
-			}
-
-			if (!plan.PowerOperations.IsEmpty)
-			{
-				string powerSource = PowerSourceEmitter.Emit(plan);
-				output.AddSource("Powers.g.cs", SourceText.From(powerSource, Encoding.UTF8));
-			}
-
-			if (!plan.PowerMethodOperations.IsEmpty)
-			{
-				string methodSource = PowerMethodSourceEmitter.Emit(plan);
-				output.AddSource("PowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
-			}
-		});
+	private static bool IsDiscoveryInputTree(SyntaxTree tree)
+	{
+		string path = tree.FilePath.Replace('\\', '/');
+		const string generatedPrefix = "/DimensionalQuantities.Roslyn.Generators.QuantityGenerator/";
+		return !path.EndsWith(generatedPrefix + "Quantities.g.cs", StringComparison.Ordinal)
+			&& !path.EndsWith(generatedPrefix + "DefaultPowers.g.cs", StringComparison.Ordinal)
+			&& !path.EndsWith(generatedPrefix + "DefaultPowerMethods.g.cs", StringComparison.Ordinal);
 	}
 }
