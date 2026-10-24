@@ -4,3 +4,6 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|--------------------
 DQ0001 | DimensionalQuantities | Error | DimensionMismatchAnalyzer
 DQ0002 | DimensionalQuantities | Error | DimensionMismatchAnalyzer
+DQ0003 | DimensionalQuantities | Info | QuantityEncodingAnalyzer
+DQ0004 | DimensionalQuantities | Warning | QuantityEncodingAnalyzer
+DQ0005 | DimensionalQuantities | Error | QuantityEncodingAnalyzer

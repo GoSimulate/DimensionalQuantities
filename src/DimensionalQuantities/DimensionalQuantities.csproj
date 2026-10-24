@@ -13,6 +13,8 @@
     <None Include="../../README.md" Pack="true" PackagePath="" />
     <None Include="../DimensionalQuantities.Roslyn/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="../DimensionalQuantities.Roslyn.CodeFixes/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.Roslyn.CodeFixes.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <None Include="bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
