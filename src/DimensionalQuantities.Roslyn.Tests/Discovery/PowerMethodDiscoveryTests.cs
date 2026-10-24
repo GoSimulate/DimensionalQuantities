@@ -60,11 +60,13 @@ public sealed class PowerMethodDiscoveryTests
 	}
 
 	[Theory]
-	[InlineData("class Other { public int Squared() => 7; }")]
-	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }")]
-	public void PreservesAlreadyBoundMethods(string declaration)
+	[InlineData("class Other { public int Squared() => 7; }", "quantity.Squared()")]
+	[InlineData("class Other { public int Squared() => 7; }", "quantity?.Squared()")]
+	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity.Squared()")]
+	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity?.Squared()")]
+	public void PreservesAlreadyBoundMethods(string declaration, string expression)
 	{
-		string source = $$"""{{declaration}} class Consumer { int Value(Other quantity) => quantity.Squared(); }""";
+		string source = $$"""{{declaration}} class Consumer { object Value(Other quantity) => {{expression}}; }""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
 		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -73,6 +75,24 @@ public sealed class PowerMethodDiscoveryTests
 		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current.CancellationToken);
 
 		Assert.False(result);
+	}
+
+	[Fact]
+	public void ReadsConditionalMemberBindingWithinAChain()
+	{
+		const string source = "class Consumer { object Value(object quantity) => quantity?.Squared().ToString(); }";
+		CSharpCompilation compilation = Compile(source);
+		SyntaxTree tree = compilation.SyntaxTrees.Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes()
+			.OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberBindingExpressionSyntax);
+		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
+
+		bool success = discovery.TryRead(invocation, out Rational exponent, out string methodName, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.True(success),
+			() => Assert.Equal(new Rational(2), exponent),
+			() => Assert.Equal("Squared", methodName));
 	}
 
 	[Fact]

@@ -43,6 +43,16 @@ internal sealed class QuantityTypeReader
 		return true;
 	}
 
+	public bool TryReadIncludingNullable(ITypeSymbol? type, out Dimension dimension, CancellationToken cancellationToken = default)
+	{
+		if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+		{
+			type = nullable.TypeArguments[0];
+		}
+
+		return TryRead(type, out dimension, cancellationToken);
+	}
+
 	private static bool IsDefinition(INamedTypeSymbol symbol, INamedTypeSymbol definition) =>
 		SymbolEqualityComparer.Default.Equals(symbol.OriginalDefinition, definition);
 }

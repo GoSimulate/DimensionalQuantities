@@ -34,13 +34,17 @@ internal sealed class PowerMethodDiscovery
 		cancellationToken.ThrowIfCancellationRequested();
 		exponent = default;
 		methodName = string.Empty;
-		if (invocation.Expression is not MemberAccessExpressionSyntax { Name: IdentifierNameSyntax name }
-			|| invocation.ArgumentList.Arguments.Count != 0)
+		if (invocation.ArgumentList.Arguments.Count != 0)
 		{
 			return false;
 		}
 
-		string candidateName = name.Identifier.ValueText;
+		string candidateName = invocation.Expression switch
+		{
+			MemberAccessExpressionSyntax { Name: IdentifierNameSyntax name } => name.Identifier.ValueText,
+			MemberBindingExpressionSyntax { Name: IdentifierNameSyntax name } => name.Identifier.ValueText,
+			_ => string.Empty
+		};
 		if (!TryGetExponent(candidateName, out exponent))
 		{
 			return false;
