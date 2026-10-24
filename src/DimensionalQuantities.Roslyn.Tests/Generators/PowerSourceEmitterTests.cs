@@ -13,7 +13,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
 public sealed class PowerSourceEmitterTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
 	public void DifferentPowersReturnTheExpectedQuantityTypes()

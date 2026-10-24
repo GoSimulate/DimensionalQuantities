@@ -103,7 +103,7 @@ public sealed class PowerMethodDiscoveryTests
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
 		return CSharpCompilation.Create("PowerMethodConsumer",
-			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken)],
+			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken)],
 			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 }

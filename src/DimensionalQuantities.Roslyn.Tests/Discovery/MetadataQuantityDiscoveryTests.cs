@@ -71,7 +71,7 @@ public sealed class MetadataQuantityDiscoveryTests
 		string[] platformAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		MetadataReference[] references = platformAssemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location)).ToArray();
-		CSharpParseOptions options = new(LanguageVersion.CSharp14);
+		CSharpParseOptions options = new(LanguageVersion.Preview);
 		CSharpCompilation library = CSharpCompilation.Create("MetadataLibrary", [CSharpSyntaxTree.ParseText(librarySource, options)], references,
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream stream = new();

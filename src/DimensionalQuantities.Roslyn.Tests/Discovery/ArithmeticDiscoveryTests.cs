@@ -11,7 +11,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
 public sealed class ArithmeticDiscoveryTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Theory]
 	[InlineData("length * time", true)]

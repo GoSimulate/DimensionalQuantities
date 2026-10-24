@@ -11,7 +11,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
 public sealed class QuantityDiscoveryCoordinatorTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Theory]
 	[InlineData("var make = () => length * current; return make() * time;")]
@@ -69,6 +69,345 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 
 		Assert.Equal(20, result);
+	}
+
+	[Fact]
+	public void ConstrainedProviderResultsComposeWithArithmetic()
+	{
+		const string source = """
+			public interface IProvider<T> { T Get(); }
+			public sealed class Provider : IProvider<LengthCurrent>
+			{
+				LengthCurrent IProvider<LengthCurrent>.Get() => Length.FromMetres(2) * Current.FromAmps(3);
+			}
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate<TProvider>(TProvider provider) where TProvider : IProvider<LengthCurrent>
+				{
+					var value = provider.Get();
+					return value * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate(new Provider()).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void OutVariablesComposeWithArithmetic()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				private static bool TryGet(out LengthCurrent value)
+				{
+					value = LengthCurrent.FromSiBaseUnit(6);
+					return true;
+				}
+				private static LengthTimeCurrent Calculate()
+				{
+					if (TryGet(out var value)) return value * Time.FromSeconds(4);
+					throw new System.Exception();
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("ref", "return Get() * Time.FromSeconds(4);")]
+	[InlineData("ref", "ref var value = ref Get(); return value * Time.FromSeconds(4);")]
+	[InlineData("ref readonly", "ref readonly var value = ref Get(); return value * Time.FromSeconds(4);")]
+	public void RefReturnsComposeWithArithmetic(string returnModifier, string body)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				private static LengthCurrent stored = LengthCurrent.FromSiBaseUnit(6);
+				private static {{returnModifier}} LengthCurrent Get() => ref stored;
+				private static LengthTimeCurrent Calculate()
+				{
+					{{body}}
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("Span")]
+	[InlineData("ReadOnlySpan")]
+	public void SpanElementsComposeWithArithmetic(string spanType)
+	{
+		string source = $$"""
+			using System;
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate({{spanType}}<LengthCurrent> values) => values[0] * Time.FromSeconds(4);
+				public static double Value() => Calculate(new[] { LengthCurrent.FromSiBaseUnit(6) }).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void PropertyPatternVariablesComposeWithArithmetic()
+	{
+		const string source = """
+			public sealed class Measurement
+			{
+				public LengthCurrent Value => LengthCurrent.FromSiBaseUnit(6);
+			}
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(Measurement input)
+				{
+					if (input is { Value: var value }) return value * Time.FromSeconds(4);
+					throw new System.Exception();
+				}
+				public static double Value() => Calculate(new Measurement()).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void ListPatternVariablesComposeWithArithmetic()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(LengthCurrent[] input)
+				{
+					if (input is [var value]) return value * Time.FromSeconds(4);
+					throw new System.Exception();
+				}
+				public static double Value() => Calculate(new[] { LengthCurrent.FromSiBaseUnit(6) }).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void CustomDeconstructionResultsComposeWithArithmetic()
+	{
+		const string source = """
+			public sealed class Measurement
+			{
+				public void Deconstruct(out LengthCurrent value, out Time duration)
+				{
+					value = LengthCurrent.FromSiBaseUnit(6);
+					duration = Time.FromSeconds(4);
+				}
+			}
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(Measurement input)
+				{
+					var (value, duration) = input;
+					return value * duration;
+				}
+				public static double Value() => Calculate(new Measurement()).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("public LengthCurrent Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("LengthCurrent IProvider<LengthCurrent>.Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
+	public void GenericInterfaceResultsComposeWithArithmetic(string implementation)
+	{
+		string source = $$"""
+			public interface IProvider<T> { T Get(); }
+			public sealed class Provider : IProvider<LengthCurrent>
+			{
+				{{implementation}}
+			}
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(IProvider<LengthCurrent> provider)
+				{
+					var value = provider.Get();
+					return value * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate(new Provider()).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
+	[InlineData("switch (input) { case LengthCurrent value: return value * Time.FromSeconds(4); default: throw new System.Exception(); }")]
+	[InlineData("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
+	public void PatternVariablesComposeWithArithmetic(string body)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(object input)
+				{
+					{{body}}
+				}
+				public static double Value() => Calculate(Length.FromMetres(2) * Current.FromAmps(3)).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void IteratorResultsComposeWithArithmetic()
+	{
+		const string source = """
+			using System.Collections.Generic;
+			public static class Consumer
+			{
+				private static IEnumerable<LengthCurrent> Values()
+				{
+					yield return Length.FromMetres(2) * Current.FromAmps(3);
+					yield return Length.FromMetres(3) * Current.FromAmps(3);
+				}
+				private static LengthTimeCurrent Calculate()
+				{
+					LengthTimeCurrent total = default;
+					foreach (var value in Values())
+					{
+						total += value * Time.FromSeconds(4);
+					}
+					return total;
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 60;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
+	[InlineData("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
+	public void UnionCaseVariablesComposeWithArithmetic(string body)
+	{
+		string source = $$"""
+			public union Measurement(LengthCurrent, Time);
+			public static class Consumer
+			{
+				private static LengthTimeCurrent Calculate(Measurement input)
+				{
+					{{body}}
+				}
+				public static double Value() => Calculate(Length.FromMetres(2) * Current.FromAmps(3)).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 24;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void IncompatibleUnionCasesDoNotSupplyDimensionsToArithmetic()
+	{
+		const string source = """
+			public union Measurement(LengthCurrent, Time);
+			public static class Consumer
+			{
+				public static object Calculate(Measurement input, Current current)
+				{
+					var value = input switch
+					{
+						LengthCurrent product => product,
+						Time duration => duration,
+						_ => throw new System.Exception()
+					};
+					return value * current;
+				}
+			}
+			""";
+		QuantityDiscoveryResult result = Discover(source);
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Contains(errors, diagnostic => diagnostic.Id == "CS8506"),
+			() => Assert.DoesNotContain(result.Sources, source => source.HintName == "Arithmetic.g.cs"));
+	}
+
+	[Fact]
+	public void AsyncIteratorResultsComposeWithArithmetic()
+	{
+		const string source = """
+			using System.Collections.Generic;
+			using System.Threading.Tasks;
+			public static class Consumer
+			{
+				private static async IAsyncEnumerable<LengthCurrent> Values()
+				{
+					await Task.Yield();
+					yield return Length.FromMetres(2) * Current.FromAmps(3);
+					await Task.Yield();
+					yield return Length.FromMetres(3) * Current.FromAmps(3);
+				}
+				private static async Task<LengthTimeCurrent> Calculate()
+				{
+					LengthTimeCurrent total = default;
+					await foreach (var value in Values())
+					{
+						total += value * Time.FromSeconds(4);
+					}
+					return total;
+				}
+				public static double Value() => Calculate().GetAwaiter().GetResult().AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+		double expected = 60;
+
+		Assert.Equal(expected, result);
 	}
 
 	[Fact]

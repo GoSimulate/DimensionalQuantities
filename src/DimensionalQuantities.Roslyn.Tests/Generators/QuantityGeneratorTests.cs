@@ -16,7 +16,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
 public sealed class QuantityGeneratorTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
 	public void BaseAliasesHaveUnprefixedFactoriesAndAccessors()

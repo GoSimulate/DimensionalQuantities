@@ -10,7 +10,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
 public sealed class QuantityTypeReaderTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
 	public void MissingRuntimeReferenceThrowsWithTheRequiredTypeName()

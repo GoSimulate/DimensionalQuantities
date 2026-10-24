@@ -38,7 +38,7 @@ public sealed class PowerMethodSourceEmitterTests
 				public static double Value() => Length.FromMetres(9).{{method}}().AsSiBaseUnit();
 			}
 			""";
-		CSharpParseOptions options = new(LanguageVersion.CSharp14);
+		CSharpParseOptions options = new(LanguageVersion.Preview);
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
@@ -79,7 +79,7 @@ public sealed class PowerMethodSourceEmitterTests
 				public static double Value() => Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}}).{{method}}().AsSiBaseUnit();
 			}
 			""";
-		CSharpParseOptions options = new(LanguageVersion.CSharp14);
+		CSharpParseOptions options = new(LanguageVersion.Preview);
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));

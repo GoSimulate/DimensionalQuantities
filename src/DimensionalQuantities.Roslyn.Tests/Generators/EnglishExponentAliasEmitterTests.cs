@@ -21,7 +21,7 @@ public sealed class EnglishExponentAliasEmitterTests
 		];
 
 		string result = EnglishExponentAliasEmitter.Emit(aliases);
-		SyntaxTree tree = CSharpSyntaxTree.ParseText(result, new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken);
+		SyntaxTree tree = CSharpSyntaxTree.ParseText(result, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken);
 		string[] names = tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings.Select(directive => directive.Alias!.Name.Identifier.ValueText).OrderBy(name => name).ToArray();
 		string[] expected = ["NumberHalf", "NumberTwo"];
 
@@ -37,7 +37,7 @@ public sealed class EnglishExponentAliasEmitterTests
 			new("NumberHalf", new Rational(1, 2), "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")
 		];
 		const string source = "class Consumer { public NumberTwo Integer; public NumberHalf Fraction; }";
-		CSharpParseOptions options = new(LanguageVersion.CSharp14);
+		CSharpParseOptions options = new(LanguageVersion.Preview);
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
@@ -64,7 +64,7 @@ public sealed class EnglishExponentAliasEmitterTests
 	public void NoRequestedNamesProducesNoAliases()
 	{
 		string result = EnglishExponentAliasEmitter.Emit([]);
-		SyntaxTree tree = CSharpSyntaxTree.ParseText(result, new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken);
+		SyntaxTree tree = CSharpSyntaxTree.ParseText(result, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken);
 
 		Assert.Empty(tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings);
 	}

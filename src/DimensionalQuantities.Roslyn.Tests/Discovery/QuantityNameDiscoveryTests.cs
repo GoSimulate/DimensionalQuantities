@@ -54,7 +54,7 @@ public sealed class QuantityNameDiscoveryTests
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path));
 		return CSharpCompilation.Create("TypeNameConsumer",
-			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken)],
+			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken)],
 			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 }
