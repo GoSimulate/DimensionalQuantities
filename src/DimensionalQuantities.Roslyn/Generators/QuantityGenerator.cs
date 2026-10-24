@@ -44,6 +44,14 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		IncrementalValuesProvider<Dimension> requestedDimensions = typeNames
 			.Where(static dimension => dimension.HasValue)
 			.Select(static (dimension, _) => dimension.GetValueOrDefault());
+		IncrementalValuesProvider<ImmutableArray<Dimension>> metadataDimensions = context.SyntaxProvider.CreateSyntaxProvider(
+			static (node, _) => node is InvocationExpressionSyntax or MemberAccessExpressionSyntax or ElementAccessExpressionSyntax
+				|| node is IdentifierNameSyntax name && !SyntaxFacts.IsInTypeOnlyContext(name),
+			static (syntaxContext, cancellationToken) => new MetadataQuantityDiscovery(syntaxContext.SemanticModel)
+				.Discover((ExpressionSyntax)syntaxContext.Node, cancellationToken));
+		IncrementalValueProvider<ImmutableArray<Dimension>> allDimensions = requestedDimensions.Collect()
+			.Combine(metadataDimensions.Collect())
+			.Select(static (collected, _) => collected.Left.AddRange(collected.Right.SelectMany(static dimensions => dimensions)));
 
 		IncrementalValuesProvider<EnglishExponentAlias?> englishAliases = context.SyntaxProvider.CreateSyntaxProvider(
 			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
@@ -64,7 +72,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		});
 
 		IncrementalValueProvider<(IEnumerable<QuantityExpressionAnalysis> Expressions, ImmutableArray<Dimension> Dimensions)> requests = arithmeticExpressions.Collect()
-			.Combine(powerExpressions.Collect()).Combine(requestedDimensions.Collect())
+			.Combine(powerExpressions.Collect()).Combine(allDimensions)
 			.Select(static (collected, _) => ((IEnumerable<QuantityExpressionAnalysis>)collected.Left.Left.Concat(collected.Left.Right), collected.Right));
 
 		context.RegisterSourceOutput(requests, (output, discovered) =>

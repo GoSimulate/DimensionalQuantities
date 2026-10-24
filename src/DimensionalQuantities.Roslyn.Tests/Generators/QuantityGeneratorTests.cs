@@ -1544,6 +1544,126 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Empty(diagnostics));
 	}
 
+	[Theory]
+	[InlineData("Library.Create()")]
+	[InlineData("Library.Field")]
+	[InlineData("Library.Property")]
+	[InlineData("Library.Values()[0]")]
+	[InlineData("Library.Measure().Value")]
+	public void ReferencedQuantityValuesGetLocalConversionsWithoutArithmetic(string expression)
+	{
+		PortableExecutableReference library = CreateLibraryReference("""
+			public static class Library
+			{
+				public static LengthCurrent Create() => Length.FromMetres(2) * Current.FromAmps(3);
+				public static LengthCurrent Field;
+				public static LengthCurrent Property => Create();
+				public static System.Collections.Generic.List<LengthCurrent> Values() => new() { Create() };
+				public static Measurement Measure() => new();
+			}
+			public sealed class Measurement { public LengthCurrent Value => Library.Create(); }
+			""");
+		CSharpCompilation input = CreateInputCompilation($"public class Consumer {{ public double Value() => {expression}.AsPrefixedUnits(3, 0); }}").AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(errors),
+			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+	}
+
+	[Fact]
+	public void ReferencedCollectionTypesRequestTheirNestedQuantity()
+	{
+		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static System.Collections.Generic.List<LengthCurrent[]> Values() => new(); }");
+		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Values(); }").AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+	}
+
+	[Fact]
+	public void RemovingMetadataUsageRemovesItsLocallyGeneratedConversions()
+	{
+		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
+		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Create(); }").AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
+
+		driver.RunGeneratorsAndUpdateCompilation(input.RemoveAllSyntaxTrees(), out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.NotNull(original.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Null(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")),
+			() => Assert.Empty(diagnostics));
+	}
+
+	[Fact]
+	public void ReferencedClassesWithQuantityNamesAreNotTreatedAsQuantities()
+	{
+		PortableExecutableReference library = CreateLibraryReference("public class LengthCurrent { } public static class Library { public static LengthCurrent Create() => new(); }");
+		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Create(); }").AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Null(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+	}
+
+	[Fact]
+	public void MetadataDiscoveryPreservesExplicitConsumerAliases()
+	{
+		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
+		CSharpCompilation input = CreateInputCompilation("using LengthCurrent = System.Int32; public class Consumer { public object Value() => Library.Create(); public LengthCurrent Count => 1; }").AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(errors));
+	}
+
+	[Theory]
+	[InlineData("public class LengthCurrent { public int Marker { get; init; } }", "LengthCurrent", "new() { Marker = 7 }")]
+	[InlineData("namespace LengthCurrent { public class Item { } }", "LengthCurrent.Item", "new()")]
+	public void MetadataDiscoveryPreservesExistingConsumerTypesAndNamespaces(string declaration, string type, string value)
+	{
+		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
+		string source = $$"""{{declaration}} public class Consumer { public object Value() => Library.Create(); public {{type}} Item => {{value}}; }""";
+		CSharpCompilation input = CreateInputCompilation(source).AddReferences(library);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(errors));
+	}
+
+	private static PortableExecutableReference CreateLibraryReference(string source)
+	{
+		CSharpCompilation library = Compile(source).WithAssemblyName("ReferencedQuantities");
+		using MemoryStream stream = new();
+		EmitResult emitted = library.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
+		if (!emitted.Success)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, emitted.Diagnostics));
+		}
+		return MetadataReference.CreateFromImage(stream.ToArray());
+	}
+
 	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
 	{
 		QuantityTypeReader reader = new(compilation);
