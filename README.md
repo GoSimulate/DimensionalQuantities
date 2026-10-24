@@ -26,10 +26,6 @@ double ohms = resistance.AsOhms(); // 4
 double watts = power.AsWatts();    // 36
 ```
 
-Rider can make the inferred `Power` type explicit and offer its generated conversion helpers:
-
-![Rider replacing var with Power and offering AsWatts completion](docs/images/power.gif)
-
 ### SI prefixes and compound units
 
 Named helpers handle conversion into and out of SI prefixes, including powers of prefixed units:
@@ -110,10 +106,6 @@ Length recovered = Power<NumberHalf>.Of(area); // 3 m
 
 Fractional dimensions are supported. Results whose dimensions cancel completely, including a zeroth power, are returned as `double`.
 
-Rational powers also produce named types, such as `CubeRootLengthSquared`:
-
-![Rider replacing var with CubeRootLengthSquared for a two-thirds power](docs/images/powers-and-roots.gif)
-
 ### Nullable quantities
 
 Arithmetic supports nullable quantity operands and nullable scalars. Missing values propagate as `null`; power and root helpers can be called through `?.`:
@@ -150,10 +142,6 @@ double value = timed.AsSiBaseUnit(); // 24
 ```
 
 The generator recognises canonical names such as `LengthCurrent`, `LengthPerTime` and `SquareRootLength`. Canonical-name discovery leaves existing bound types and explicit aliases alone. Incompatible dimensions remain compiler errors.
-
-This also works for quantities outside the catalogue, such as `LengthCurrent`:
-
-![Rider replacing var with the generated LengthCurrent type](docs/images/generated-intermediate.gif)
 
 ### Sharing quantities between packages
 
