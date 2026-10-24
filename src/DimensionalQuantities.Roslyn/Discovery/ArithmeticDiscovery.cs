@@ -50,6 +50,11 @@ internal static class ArithmeticDiscovery
 			return false;
 		}
 
+		if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+		{
+			type = nullable.TypeArguments[0];
+		}
+
 		Microsoft.CodeAnalysis.Operations.CommonConversion conversion = compilation.ClassifyCommonConversion(type, compilation.GetSpecialType(SpecialType.System_Double));
 		return conversion.IsImplicit && (conversion.IsIdentity || conversion.IsNumeric) && !conversion.IsUserDefined;
 	}
