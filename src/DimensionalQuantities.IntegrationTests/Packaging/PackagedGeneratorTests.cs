@@ -100,6 +100,31 @@ public sealed class PackagedGeneratorTests : IDisposable
 	}
 
 	[Fact]
+	public void NauticalPackageProvidesConversionsThroughCoreDependency()
+	{
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
+		PackCore(repository);
+		Package nautical = PackSourceProject(repository, "DimensionalQuantities.Extensions.Nautical");
+		ProjectCreator consumer = CreateProject("NauticalConsumer", """
+			using DimensionalQuantities.Extensions.Nautical;
+
+			public static class Consumer
+			{
+				public static double ConvertLength() => Length.FromNauticalMiles(1).AsSiBaseUnit();
+				public static double ConvertSpeed() => Speed.FromKnots(1).AsSiBaseUnit();
+			}
+			""", nautical);
+		Build(consumer);
+
+		using PackageAssemblyContext context = new(OutputDirectory("NauticalConsumer"));
+		Type type = context.LoadFromAssemblyPath(Path.Combine(OutputDirectory("NauticalConsumer"), "NauticalConsumer.dll"))
+			.GetType("Consumer", throwOnError: true)!;
+		Assert.Multiple(
+			() => Assert.Equal(1852, InvokeDouble(type, "ConvertLength")),
+			() => Assert.Equal(1852d / 3600d, InvokeDouble(type, "ConvertSpeed")));
+	}
+
+	[Fact]
 	public void MetricNamedConversionsRequireNamespaceImport()
 	{
 		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
