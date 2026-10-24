@@ -170,10 +170,36 @@ The analysers and generator report dimensional mistakes and problems with genera
 | DQ0005 | Error | A closed type-system encoding is invalid. |
 | DQ0006 | Warning | A generated alias conflicts with a declared name or shadows an imported type. |
 | DQ0007 | Error | An unresolved English exponent in `Power<Number...>.Of(...)` cannot be parsed, for example `NumberTwoOverZero`. |
+| DQ0008 | Error | A unit provider declaration is invalid, for example a missing unit symbol or a zero power denominator. |
 
 DQ0003 has an IDE quick fix to replace the raw type with its readable alias, such as `Length`. The fix is offered only when the alias resolves to the same type; it is withheld inside `nameof`, where replacing the type could change the resulting string.
 
 Alias collision warnings do not suppress or rename generated aliases. Use qualified names or distinct explicit aliases to disambiguate your own types.
+
+### Defining an extension
+
+An extension project references core and declares its units using attributes. The generator compiles public conversion helpers into that extension's assembly; consumers reference the extension and import its namespace.
+
+```csharp
+using DimensionalQuantities.Units.Declarations;
+
+namespace Example.Units;
+
+[UnitProvider]
+internal static class CustomUnits
+{
+    [QuantityUnit(typeof(Length))]
+    [UnitFactor(typeof(Foot))]
+    private sealed class LengthUnit;
+
+    [UnitSymbol("Foot", "Feet", "ft", Scale = 0.3048)]
+    private sealed class Foot;
+}
+```
+
+Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`.
+
+`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. `QuantityUnit.Offset` is added after scaling into SI and subtracted before converting back. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
 
 ### Current scope
 

@@ -60,7 +60,7 @@ public sealed class SymbolPackageTests : IDisposable
 		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 		string configuration = typeof(SymbolPackageTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
 		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, "DimensionalQuantities.Extensions.Metric", "obj", configuration, "netstandard2.0",
-			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", "MetricConversions.g.cs"));
+			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", "DimensionalQuantities.Extensions.Metric.MetricUnits.g.cs"));
 		Assert.Multiple(
 			() => Assert.Equal(details.AssemblyGuid, details.PdbGuid),
 			() => Assert.Equal(details.AssemblyStamp, details.PdbStamp),
@@ -99,7 +99,7 @@ public sealed class SymbolPackageTests : IDisposable
 		string[] sourceUrls = sourceLinkDocument.RootElement.GetProperty("documents").EnumerateObject()
 			.Select(mapping => mapping.Value.GetString()!).ToArray();
 		byte[]? embeddedMetricConversions = reader.Documents
-			.Where(handle => reader.GetString(reader.GetDocument(handle).Name).EndsWith("MetricConversions.g.cs", StringComparison.Ordinal))
+			.Where(handle => reader.GetString(reader.GetDocument(handle).Name).EndsWith("DimensionalQuantities.Extensions.Metric.MetricUnits.g.cs", StringComparison.Ordinal))
 			.SelectMany(handle => reader.GetCustomDebugInformation(handle))
 			.Select(reader.GetCustomDebugInformation)
 			.Where(info => reader.GetGuid(info.Kind) == _embeddedSourceKind)

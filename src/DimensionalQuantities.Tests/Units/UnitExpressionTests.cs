@@ -265,4 +265,38 @@ public sealed class UnitExpressionTests
 			() => Assert.Equal(expected, result),
 			() => Assert.Equal(expectedOriginal, original));
 	}
+
+	[Fact]
+	public void GetScaleCombinesNonDecimalFactorsAndNegativePowers()
+	{
+		AtomicUnit foot = new("Foot", "Feet", "ft", Scale: 0.3048);
+		AtomicUnit minute = new("Minute", "Minutes", "min", Scale: 60);
+		UnitExpression original = new(new UnitTerm(foot, 2), new UnitTerm(minute, -1));
+		double result = original.GetScale();
+		double expected = 0.001548384;
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void GetScaleAppliesFractionalPowers()
+	{
+		AtomicUnit unit = new("Sample", "Samples", "x", Scale: 16);
+		UnitExpression original = new(new UnitTerm(unit, new Rational(3, 2)));
+		double result = original.GetScale();
+		double expected = 64;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void GetNameAcceptsAReferenceWithDifferentFactors()
+	{
+		UnitExpression reference = new(new UnitTerm(AtomicUnits.Amp));
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
+		string result = original.GetName(reference);
+		string expected = "AmpsPerSquareMetre";
+
+		Assert.Equal(expected, result);
+	}
 }

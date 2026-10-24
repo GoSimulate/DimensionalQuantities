@@ -3,4 +3,5 @@ using DimensionalQuantities.Units;
 
 namespace DimensionalQuantities.Roslyn.Generators;
 
-internal sealed record UnitConversionSpec(string Name, string ReceiverType, ImmutableArray<UnitDefinition> Units, bool IncludeNamed);
+internal sealed record UnitConversionSpec(string Name, string ReceiverType, ImmutableArray<UnitDefinition> Units, bool IncludeNamed,
+	bool GenerateSiPrefixes = true, bool GeneratePrefixConversions = true);

@@ -16,6 +16,10 @@ internal static class GenerationDiagnostics
 		"DQ0007", "Invalid English exponent", "English exponent '{0}' cannot be resolved",
 		"DimensionalQuantities", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
+	public static readonly DiagnosticDescriptor InvalidUnitProvider = new(
+		"DQ0008", "Invalid unit provider declaration", "{0}",
+		"DimensionalQuantities", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
 	public static ImmutableArray<Diagnostic> FindInvalidEnglishExponents(CSharpCompilation compilation,
 		ImmutableArray<SyntaxTree> inputTrees, CancellationToken cancellationToken)
 	{

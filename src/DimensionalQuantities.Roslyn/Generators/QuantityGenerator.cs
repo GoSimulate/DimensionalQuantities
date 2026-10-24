@@ -13,7 +13,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		MetricConversionSourceEmitter.Register(context);
+		IncrementalValuesProvider<INamedTypeSymbol> providers = UnitProviderSourceEmitter.FindProviders(context);
 		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
 		context.RegisterPostInitializationOutput(output =>
 		{
@@ -28,18 +28,27 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		IncrementalValuesProvider<SyntaxTree> inputTrees = context.SyntaxProvider.CreateSyntaxProvider(
 			static (node, _) => node is CompilationUnitSyntax unit && IsDiscoveryInputTree(unit.SyntaxTree),
 			static (syntaxContext, _) => syntaxContext.Node.SyntaxTree);
-		IncrementalValueProvider<(Compilation Left, ImmutableArray<SyntaxTree> Right)> inputs = context.CompilationProvider.Combine(inputTrees.Collect());
+		IncrementalValueProvider<((Compilation Left, ImmutableArray<SyntaxTree> Right) Left, ImmutableArray<INamedTypeSymbol> Right)> inputs =
+			context.CompilationProvider.Combine(inputTrees.Collect()).Combine(providers.Collect());
 		context.RegisterSourceOutput(inputs, (output, input) =>
 		{
-			CSharpCompilation original = (CSharpCompilation)input.Left;
-			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, input.Right, output.CancellationToken))
+			CSharpCompilation original = (CSharpCompilation)input.Left.Left;
+			ImmutableArray<SyntaxTree> sourceTrees = input.Left.Right;
+			ImmutableArray<GeneratedSource> providerSources = UnitProviderSourceEmitter.Emit(original, input.Right, output.ReportDiagnostic);
+			foreach (GeneratedSource source in providerSources)
+			{
+				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
+			}
+
+			CSharpCompilation withProviders = AddSources(original, providerSources);
+			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, sourceTrees, output.CancellationToken))
 			{
 				output.ReportDiagnostic(diagnostic);
 			}
 
-			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover(original,
-				input.Right, defaultPlan, output.CancellationToken);
-			foreach (Diagnostic diagnostic in AliasCollisionDiagnostics.Find(original, result, input.Right, output.CancellationToken))
+			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover(withProviders,
+				sourceTrees, defaultPlan, output.CancellationToken);
+			foreach (Diagnostic diagnostic in AliasCollisionDiagnostics.Find(original, result, sourceTrees, output.CancellationToken))
 			{
 				output.ReportDiagnostic(diagnostic);
 			}
@@ -49,6 +58,19 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
 			}
 		});
+	}
+
+	private static CSharpCompilation AddSources(CSharpCompilation compilation, ImmutableArray<GeneratedSource> sources)
+	{
+		if (sources.IsEmpty)
+		{
+			return compilation;
+		}
+
+		CSharpParseOptions options = compilation.SyntaxTrees.OfType<CSharpSyntaxTree>()
+			.Select(tree => (CSharpParseOptions)tree.Options).FirstOrDefault() ?? CSharpParseOptions.Default;
+		SyntaxTree[] trees = sources.Select(source => CSharpSyntaxTree.ParseText(source.Text, options, path: source.HintName)).ToArray();
+		return compilation.AddSyntaxTrees(trees);
 	}
 
 	private static bool IsDiscoveryInputTree(SyntaxTree tree)

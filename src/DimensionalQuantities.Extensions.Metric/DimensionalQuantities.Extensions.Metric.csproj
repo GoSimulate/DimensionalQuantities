@@ -7,7 +7,6 @@
     <PackageProjectUrl>https://github.com/GoSimulate/DimensionalQuantities</PackageProjectUrl>
     <Description>Named metric conversions for dimensional quantities.</Description>
     <RepositoryType>git</RepositoryType>
-    <GenerateMetricConversions>true</GenerateMetricConversions>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
@@ -16,7 +15,6 @@
     <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <Analyzer Include="../DimensionalQuantities/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll" />
-    <CompilerVisibleProperty Include="GenerateMetricConversions" />
     <None Include="../../LICENSE" Pack="true" PackagePath="" />
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>

@@ -74,7 +74,7 @@ public sealed class MetricConversionsTests
 	[Fact]
 	public void PrefixesOnlyApplyToSupportedFactorPlacements()
 	{
-		string[] names = typeof(TemperatureCoefficientExtensions).Assembly.GetExportedTypes()
+		string[] names = typeof(P11_MetricUnitsA0_TemperatureCoefficientExtensions).Assembly.GetExportedTypes()
 			.Where(type => type.Namespace == "DimensionalQuantities.Extensions.Metric")
 			.SelectMany(type => type.GetMethods()).Select(method => method.Name).ToArray();
 		Assert.Multiple(
