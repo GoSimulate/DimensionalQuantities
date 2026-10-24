@@ -3,12 +3,110 @@ using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.Units;
+using DimensionalQuantities.TypeSystem;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
 public sealed class QuantityDiscoveryTests
 {
+	[Fact]
+	public void ReusesPredefinedQuantitiesAndOnlyAddsNewResults()
+	{
+		Dimension currentSquared = new(ElectricCurrent: 2);
+		Dimension length = new(Length: 1);
+		Dimension product = new(Length: 1, ElectricCurrent: 2);
+		PlannedQuantity predefined = new(currentSquared, [new("CurrentSquared", [new(AtomicUnits.Amp, 2)])], false);
+		ArithmeticOperation operation = new(ArithmeticOperationKind.Multiply, currentSquared, length, product);
+
+		QuantityGenerationPlan predefinedPlan = new([], [predefined, predefined], [], [], []);
+
+		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefinedPlan, [operation], [], []);
+
+		Assert.Multiple(
+			() => Assert.Equal(predefined, Assert.Single(result.KnownQuantities.Where(quantity => quantity.Dimension == currentSquared))),
+			() => Assert.Equal(product, Assert.Single(result.AdditionalQuantities).Dimension),
+			() => Assert.Equal("CurrentSquared", result.GetQuantityName(currentSquared)),
+			() => Assert.Equal(operation, Assert.Single(result.Operations)));
+	}
+
+	[Fact]
+	public void ReusesPredefinedMethodsWhilePlanningNewConvenienceMethods()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension cubed = new(ElectricCurrent: 3);
+		PlannedQuantity predefined = new(squared, [new("CurrentSquared", [new(AtomicUnits.Amp, 2)])], false);
+		PowerMethodOperation square = new(current, 2, squared, "Squared");
+		PowerMethodOperation cube = new(current, 3, cubed, "Cubed");
+
+		QuantityGenerationPlan predefinedPlan = new([], [predefined], [], [], [square]);
+
+		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefinedPlan, [], [], [square, cube]);
+
+		Assert.Multiple(
+			() => Assert.Equal(cube, Assert.Single(result.PowerMethodOperations)),
+			() => Assert.Equal(cubed, Assert.Single(result.AdditionalQuantities).Dimension));
+	}
+
+	[Theory]
+	[InlineData("Squared", 2, 1)]
+	[InlineData("SquareRoot", 1, 2)]
+	public void ConvenienceMethodsReuseExplicitCanonicalPowerOperations(string method, int numerator, int denominator)
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Rational exponent = new(numerator, denominator);
+		Dimension resultDimension = current.Pow(exponent);
+		string exponentType = TypeSystemTypeNameFormatter.Format(TypeSystemNumberCodec.CreateType(exponent));
+		PowerOperation expected = new(current, exponent, resultDimension, exponentType);
+		PowerMethodOperation convenience = new(current, exponent, resultDimension, method);
+
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [expected], [convenience]);
+
+		Assert.Multiple(
+			() => Assert.Equal(expected, Assert.Single(result.PowerOperations)),
+			() => Assert.Equal(convenience, Assert.Single(result.PowerMethodOperations)));
+	}
+
+	[Fact]
+	public void ConvenienceMethodAddsCanonicalPowerAlongsideAnExplicitAlternativeEncoding()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		string alternativeType = TypeSystemTypeNameFormatter.Format(typeof(Fraction<TerminalHex4, TerminalHex2>));
+		string canonicalType = TypeSystemTypeNameFormatter.Format(typeof(TerminalHex2));
+		PowerOperation alternative = new(current, 2, squared, alternativeType);
+		PowerOperation canonical = new(current, 2, squared, canonicalType);
+		PowerMethodOperation convenience = new(current, 2, squared, "Squared");
+
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [alternative], [convenience]);
+
+		Assert.Multiple(
+			() => Assert.Equal(2, result.PowerOperations.Length),
+			() => Assert.Contains(alternative, result.PowerOperations),
+			() => Assert.Contains(canonical, result.PowerOperations));
+	}
+
+	[Fact]
+	public void ConvenienceMethodsDeduplicateByOperandAndNameAndPlanTheirDimensions()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension cubed = new(ElectricCurrent: 3);
+		PowerMethodOperation square = new(current, 2, squared, "Squared");
+		PowerMethodOperation cube = new(current, 3, cubed, "Cubed");
+		PowerMethodOperation squareAgain = new(squared, 2, new(ElectricCurrent: 4), "Squared");
+		PowerMethodOperation[] expected = [square, cube, squareAgain];
+
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [], [square, square, cube, squareAgain]);
+
+		Assert.Multiple(
+			() => Assert.Equal(expected, result.PowerMethodOperations),
+			() => Assert.Equal("CurrentSquared", result.GetQuantityName(squared)),
+			() => Assert.Equal("CurrentCubed", result.GetQuantityName(cubed)),
+			() => Assert.Equal(3, result.AdditionalQuantities.Length));
+	}
+
 	[Fact]
 	public void PlanKeepsCatalogueNameAndDeduplicatesOrderedOperations()
 	{

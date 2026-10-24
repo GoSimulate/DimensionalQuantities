@@ -579,6 +579,42 @@ public sealed class QuantityExpressionAnalyserTests
 			() => Assert.Equal(expectedPower, Assert.Single(result.PowerOperations)));
 	}
 
+	[Fact]
+	public void TracksConveniencePowersThroughLocalsIntoArithmetic()
+	{
+		const string source = """
+			class Consumer
+			{
+				object Value(Current current, Resistance resistance)
+				{
+					var squared = current.Squared();
+					var root = squared.SquareRoot();
+					return root * resistance;
+				}
+			}
+			""";
+		CSharpCompilation compilation = Compile(source);
+		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
+		ReturnStatementSyntax statement = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<ReturnStatementSyntax>().Single();
+		QuantityExpressionAnalyser analyser = new(compilation.GetSemanticModel(tree));
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension resistance = new(Length: 2, Mass: 1, Time: -3, ElectricCurrent: -2);
+		Dimension voltage = new(Length: 2, Mass: 1, Time: -3, ElectricCurrent: -1);
+		PowerMethodOperation[] expectedMethods =
+		[
+			new(current, 2, squared, "Squared"),
+			new(squared, new Rational(1, 2), current, "SquareRoot")
+		];
+		ArithmeticOperation expectedArithmetic = new(ArithmeticOperationKind.Multiply, current, resistance, voltage);
+
+		QuantityExpressionAnalysis result = analyser.Analyse(statement.Expression!, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Equal(expectedMethods, result.PowerMethodOperations),
+			() => Assert.Equal(expectedArithmetic, Assert.Single(result.ArithmeticOperations)));
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");

@@ -8,17 +8,36 @@ namespace DimensionalQuantities.Roslyn.Generators;
 
 internal static class QuantityDiscovery
 {
-	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations) => Discover(operations, []);
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations) => Discover(operations, [], []);
 
-	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations)
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations) => Discover(operations, powerOperations, []);
+
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations,
+		IEnumerable<PowerMethodOperation> powerMethodOperations)
+		=> Discover([], [], [], operations, powerOperations, powerMethodOperations);
+
+	public static QuantityGenerationPlan DiscoverWithPredefinedQuantities(QuantityGenerationPlan predefinedPlan,
+		IEnumerable<ArithmeticOperation> operations,
+		IEnumerable<PowerOperation> powerOperations, IEnumerable<PowerMethodOperation> powerMethodOperations)
+		=> Discover(predefinedPlan.AdditionalQuantities, predefinedPlan.PowerOperations, predefinedPlan.PowerMethodOperations,
+			operations, powerOperations, powerMethodOperations);
+
+	private static QuantityGenerationPlan Discover(IReadOnlyList<PlannedQuantity> predefinedQuantities,
+		IReadOnlyList<PowerOperation> predefinedPowers, IReadOnlyList<PowerMethodOperation> predefinedPowerMethods,
+		IEnumerable<ArithmeticOperation> operations,
+		IEnumerable<PowerOperation> powerOperations, IEnumerable<PowerMethodOperation> powerMethodOperations)
 	{
 		List<PlannedQuantity> knownQuantities = [];
 		List<PlannedQuantity> additionalQuantities = [];
 		HashSet<Dimension> dimensions = [];
 		HashSet<(ArithmeticOperationKind Kind, Dimension Left, Dimension Right)> seenOperations = [];
 		List<ArithmeticOperation> orderedOperations = [];
-		HashSet<(Dimension Operand, string ExponentTypeName)> seenPowers = [];
+		HashSet<(Dimension Operand, string ExponentTypeName)> seenPowers = new(predefinedPowers
+			.Select(operation => (operation.Operand, operation.ExponentTypeName)));
 		List<PowerOperation> orderedPowers = [];
+		HashSet<(Dimension Operand, string MethodName)> seenPowerMethods = new(predefinedPowerMethods
+			.Select(operation => (operation.Operand, operation.MethodName)));
+		List<PowerMethodOperation> orderedPowerMethods = [];
 		Dimension[] baseDimensions =
 		[
 			new(Length: 1),
@@ -42,6 +61,14 @@ internal static class QuantityDiscovery
 			dimensions.Add(entry.Key);
 		}
 
+		foreach (PlannedQuantity quantity in predefinedQuantities)
+		{
+			if (dimensions.Add(quantity.Dimension))
+			{
+				knownQuantities.Add(quantity);
+			}
+		}
+
 		foreach (ArithmeticOperation operation in operations)
 		{
 			if (!seenOperations.Add((operation.Kind, operation.Left, operation.Right)))
@@ -57,17 +84,24 @@ internal static class QuantityDiscovery
 
 		foreach (PowerOperation operation in powerOperations)
 		{
-			if (!seenPowers.Add((operation.Operand, operation.ExponentTypeName)))
+			AddPower(operation);
+		}
+
+		foreach (PowerMethodOperation operation in powerMethodOperations)
+		{
+			if (!seenPowerMethods.Add((operation.Operand, operation.MethodName)))
 			{
 				continue;
 			}
 
-			orderedPowers.Add(operation);
+			orderedPowerMethods.Add(operation);
 			AddUnknown(operation.Operand);
 			AddUnknown(operation.Result);
+			AddPower(operation.ToPowerOperation());
 		}
 
-		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray());
+		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray(),
+			orderedPowerMethods.ToImmutableArray());
 
 		void AddUnknown(Dimension dimension)
 		{
@@ -80,6 +114,18 @@ internal static class QuantityDiscovery
 				.Select(component => component.Unit.Expression.Terms.Single() with { Power = component.Exponent }).ToArray();
 			UnitDefinition unit = new(DimensionNameGenerator.GetQuantityName(dimension), terms);
 			additionalQuantities.Add(new(dimension, [unit], false));
+		}
+
+		void AddPower(PowerOperation operation)
+		{
+			if (!seenPowers.Add((operation.Operand, operation.ExponentTypeName)))
+			{
+				return;
+			}
+
+			orderedPowers.Add(operation);
+			AddUnknown(operation.Operand);
+			AddUnknown(operation.Result);
 		}
 	}
 }

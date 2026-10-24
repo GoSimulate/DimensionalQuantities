@@ -12,11 +12,15 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		context.RegisterPostInitializationOutput(static output =>
+		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
+		context.RegisterPostInitializationOutput(output =>
 		{
-			QuantityGenerationPlan plan = QuantityDiscovery.Discover([]);
-			string source = QuantitySourceEmitter.Emit(plan.KnownQuantities);
+			string source = QuantitySourceEmitter.Emit([.. defaultPlan.KnownQuantities, .. defaultPlan.AdditionalQuantities]);
 			output.AddSource("Quantities.g.cs", SourceText.From(source, Encoding.UTF8));
+			string powerSource = PowerSourceEmitter.Emit(defaultPlan, "DefaultPowerExtensions");
+			output.AddSource("DefaultPowers.g.cs", SourceText.From(powerSource, Encoding.UTF8));
+			string methodSource = PowerMethodSourceEmitter.Emit(defaultPlan, "DefaultPowerMethodExtensions");
+			output.AddSource("DefaultPowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
 		});
 
 		IncrementalValuesProvider<QuantityExpressionAnalysis> arithmeticExpressions = context.SyntaxProvider.CreateSyntaxProvider(
@@ -25,7 +29,8 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				(BinaryExpressionSyntax)syntaxContext.Node, syntaxContext.SemanticModel, cancellationToken));
 
 		IncrementalValuesProvider<QuantityExpressionAnalysis> powerExpressions = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
+			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
+				&& (member.Name.Identifier.ValueText == "Of" || PowerMethodDiscovery.IsSupportedName(member.Name.Identifier.ValueText)),
 			static (syntaxContext, cancellationToken) => new QuantityExpressionAnalyser(syntaxContext.SemanticModel)
 				.Analyse((InvocationExpressionSyntax)syntaxContext.Node, cancellationToken));
 
@@ -47,23 +52,26 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			}
 		});
 
-		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), static (output, discovered) =>
+		context.RegisterSourceOutput(arithmeticExpressions.Collect().Combine(powerExpressions.Collect()), (output, discovered) =>
 		{
 			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 			ImmutableArray<PowerOperation>.Builder discoveredPowers = ImmutableArray.CreateBuilder<PowerOperation>();
+			ImmutableArray<PowerMethodOperation>.Builder discoveredPowerMethods = ImmutableArray.CreateBuilder<PowerMethodOperation>();
 			foreach (QuantityExpressionAnalysis expression in discovered.Left.Concat(discovered.Right))
 			{
 				output.CancellationToken.ThrowIfCancellationRequested();
 				discoveredOperations.AddRange(expression.ArithmeticOperations);
 				discoveredPowers.AddRange(expression.PowerOperations);
+				discoveredPowerMethods.AddRange(expression.PowerMethodOperations);
 			}
 
-			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0)
+			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0 && discoveredPowerMethods.Count == 0)
 			{
 				return;
 			}
 
-			QuantityGenerationPlan plan = QuantityDiscovery.Discover(discoveredOperations, discoveredPowers);
+			QuantityGenerationPlan plan = QuantityDiscovery.DiscoverWithPredefinedQuantities(defaultPlan,
+				discoveredOperations, discoveredPowers, discoveredPowerMethods);
 			if (!plan.AdditionalQuantities.IsEmpty)
 			{
 				string quantitySource = QuantitySourceEmitter.Emit(plan.AdditionalQuantities);
@@ -80,6 +88,12 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			{
 				string powerSource = PowerSourceEmitter.Emit(plan);
 				output.AddSource("Powers.g.cs", SourceText.From(powerSource, Encoding.UTF8));
+			}
+
+			if (!plan.PowerMethodOperations.IsEmpty)
+			{
+				string methodSource = PowerMethodSourceEmitter.Emit(plan);
+				output.AddSource("PowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
 			}
 		});
 	}
