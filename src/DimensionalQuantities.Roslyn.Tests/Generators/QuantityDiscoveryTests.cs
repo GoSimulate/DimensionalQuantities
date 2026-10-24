@@ -10,6 +10,26 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 public sealed class QuantityDiscoveryTests
 {
 	[Fact]
+	public void ConvenienceMethodsDeduplicateByOperandAndNameAndPlanTheirDimensions()
+	{
+		Dimension current = new(ElectricCurrent: 1);
+		Dimension squared = new(ElectricCurrent: 2);
+		Dimension cubed = new(ElectricCurrent: 3);
+		PowerMethodOperation square = new(current, 2, squared, "Squared");
+		PowerMethodOperation cube = new(current, 3, cubed, "Cubed");
+		PowerMethodOperation squareAgain = new(squared, 2, new(ElectricCurrent: 4), "Squared");
+		PowerMethodOperation[] expected = [square, cube, squareAgain];
+
+		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [], [square, square, cube, squareAgain]);
+
+		Assert.Multiple(
+			() => Assert.Equal(expected, result.PowerMethodOperations),
+			() => Assert.Equal("CurrentSquared", result.GetQuantityName(squared)),
+			() => Assert.Equal("CurrentCubed", result.GetQuantityName(cubed)),
+			() => Assert.Equal(3, result.AdditionalQuantities.Length));
+	}
+
+	[Fact]
 	public void PlanKeepsCatalogueNameAndDeduplicatesOrderedOperations()
 	{
 		Dimension current = new(ElectricCurrent: 1);

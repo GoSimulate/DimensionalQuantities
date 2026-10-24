@@ -8,9 +8,12 @@ namespace DimensionalQuantities.Roslyn.Generators;
 
 internal static class QuantityDiscovery
 {
-	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations) => Discover(operations, []);
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations) => Discover(operations, [], []);
 
-	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations)
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations) => Discover(operations, powerOperations, []);
+
+	public static QuantityGenerationPlan Discover(IEnumerable<ArithmeticOperation> operations, IEnumerable<PowerOperation> powerOperations,
+		IEnumerable<PowerMethodOperation> powerMethodOperations)
 	{
 		List<PlannedQuantity> knownQuantities = [];
 		List<PlannedQuantity> additionalQuantities = [];
@@ -19,6 +22,8 @@ internal static class QuantityDiscovery
 		List<ArithmeticOperation> orderedOperations = [];
 		HashSet<(Dimension Operand, string ExponentTypeName)> seenPowers = [];
 		List<PowerOperation> orderedPowers = [];
+		HashSet<(Dimension Operand, string MethodName)> seenPowerMethods = [];
+		List<PowerMethodOperation> orderedPowerMethods = [];
 		Dimension[] baseDimensions =
 		[
 			new(Length: 1),
@@ -67,7 +72,20 @@ internal static class QuantityDiscovery
 			AddUnknown(operation.Result);
 		}
 
-		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray());
+		foreach (PowerMethodOperation operation in powerMethodOperations)
+		{
+			if (!seenPowerMethods.Add((operation.Operand, operation.MethodName)))
+			{
+				continue;
+			}
+
+			orderedPowerMethods.Add(operation);
+			AddUnknown(operation.Operand);
+			AddUnknown(operation.Result);
+		}
+
+		return new(knownQuantities.ToImmutableArray(), additionalQuantities.ToImmutableArray(), orderedOperations.ToImmutableArray(), orderedPowers.ToImmutableArray(),
+			orderedPowerMethods.ToImmutableArray());
 
 		void AddUnknown(Dimension dimension)
 		{

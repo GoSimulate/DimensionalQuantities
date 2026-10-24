@@ -45,7 +45,7 @@ internal static class PowerSourceEmitter
 		return $"public static {result} Of({operand} value) => {result}.FromSiBaseUnit({magnitude});";
 	}
 
-	private static string RenderMagnitude(Rational exponent)
+	internal static string RenderMagnitude(Rational exponent)
 	{
 		string value = "value.AsSiBaseUnit()";
 		string power = ((double)exponent).ToString("R", CultureInfo.InvariantCulture) + "d";

@@ -888,6 +888,168 @@ public sealed class QuantityGeneratorTests
 			() => Assert.Null(emptyOutput.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentCubedExtensions")));
 	}
 
+	[Theory]
+	[InlineData("Squared", 3, 9)]
+	[InlineData("Cubed", 3, 27)]
+	[InlineData("Pow4", 2, 16)]
+	[InlineData("Pow5", 2, 32)]
+	[InlineData("Pow6", 2, 64)]
+	[InlineData("SquareRoot", 9, 3)]
+	[InlineData("CubeRoot", 27, 3)]
+	[InlineData("Root4", 16, 2)]
+	[InlineData("Root5", 32, 2)]
+	[InlineData("Root6", 64, 2)]
+	public void ConveniencePowersCompileAndExecute(string method, double value, double expected)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static double Value() => Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}}).{{method}}().AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void ConveniencePowersShareQuantityTypesWithGenericPowersAndArithmetic()
+	{
+		const string source = """
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Length length = Length.FromMetres(3);
+					Area area = length.Squared();
+					Volume volume = length.Cubed();
+					Length root = area.SquareRoot();
+					Length cubeRoot = volume.CubeRoot();
+					var fourthPower = length.Pow4();
+					Length fourthRoot = fourthPower.Root4();
+					Area fromGeneric = Power<NumberTwo>.Of(root);
+					Area fromProduct = root * cubeRoot;
+					return area.AsSquareMetres() + volume.AsCubicMetres() + fourthRoot.AsMetres()
+						+ fromGeneric.AsSquareMetres() + fromProduct.AsSquareMetres();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(57, result, 12);
+	}
+
+	[Theory]
+	[InlineData("current.Squared().SquareRoot() * resistance", 12)]
+	[InlineData("Power<NumberHalf>.Of(current.Squared()) * resistance", 12)]
+	[InlineData("Power<NumberTwo>.Of(current).SquareRoot() * resistance", 12)]
+	[InlineData("(current * resistance).Squared().SquareRoot()", 12)]
+	public void ConveniencePowersWorkInsideNestedExpressions(string expression, double expected)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Current current = Current.FromAmps(3);
+					Resistance resistance = Resistance.FromOhms(4);
+					Voltage voltage = {{expression}};
+					return voltage.AsVolts();
+				}
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void GeneratesOnlyTheRequestedConvenienceOverloadOnce()
+	{
+		const string source = """
+			class Consumer
+			{
+				Area First(Length value) => value.Squared();
+				Area Second(Length value) => value.Squared();
+			}
+			""";
+		CSharpCompilation output = Compile(source);
+		string[] convenienceNames = ["Squared", "Cubed", "Pow4", "Pow5", "Pow6", "SquareRoot", "CubeRoot", "Root4", "Root5", "Root6"];
+		string[] result = output.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
+			.Select(method => method.Identifier.ValueText).Where(convenienceNames.Contains).ToArray();
+		string[] expected = ["Squared"];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void ExistingQuantityExtensionMethodKeepsItsBehaviour()
+	{
+		const string source = """
+			public static class UserMethods { public static double Squared(this Length value) => 42; }
+			public static class Consumer { public static double Value() => Length.FromMetres(3).Squared(); }
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(42, result);
+	}
+
+	[Fact]
+	public void ConvenienceMethodCoexistsWithAnExistingOverload()
+	{
+		const string source = """
+			public static class UserMethods { public static double Squared(this Length value, int factor) => value.AsMetres() * factor; }
+			public static class Consumer
+			{
+				public static double[] Value()
+				{
+					Length length = Length.FromMetres(3);
+					return [length.Squared().AsSiBaseUnit(), length.Squared(4)];
+				}
+			}
+			""";
+		double[] result = EvaluateSource<double[]>(source);
+		double[] expected = [9, 12];
+
+		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData("(3d).Squared()")]
+	[InlineData("Length.FromMetres(3).Pow7()")]
+	public void UnsupportedConvenienceCallsRemainCompilerErrors(string expression)
+	{
+		string source = $$"""class Consumer { object Value() => {{expression}}; }""";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS1061"));
+	}
+
+	[Fact]
+	public void RemovingConvenienceCallsRemovesTheirGeneratedMethods()
+	{
+		const string source = "class Consumer { object Value(Current value) => value.Squared(); }";
+		CSharpCompilation input = CreateInputCompilation(source);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
+		driver.RunGeneratorsAndUpdateCompilation(input.RemoveAllSyntaxTrees(), out Compilation removed, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		string[] originalMethods = original.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
+			.Select(method => method.Identifier.ValueText).ToArray();
+		string[] remainingMethods = removed.SyntaxTrees.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
+			.Select(method => method.Identifier.ValueText).ToArray();
+
+		Assert.Multiple(
+			() => Assert.Contains("Squared", originalMethods),
+			() => Assert.DoesNotContain("Squared", remainingMethods),
+			() => Assert.Empty(diagnostics));
+	}
+
 	private static T Evaluate<T>(string expression)
 	{
 		string source = $$"""

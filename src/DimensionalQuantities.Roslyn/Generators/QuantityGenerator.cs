@@ -25,7 +25,8 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 				(BinaryExpressionSyntax)syntaxContext.Node, syntaxContext.SemanticModel, cancellationToken));
 
 		IncrementalValuesProvider<QuantityExpressionAnalysis> powerExpressions = context.SyntaxProvider.CreateSyntaxProvider(
-			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Of" } },
+			static (node, _) => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
+				&& (member.Name.Identifier.ValueText == "Of" || PowerMethodDiscovery.IsSupportedName(member.Name.Identifier.ValueText)),
 			static (syntaxContext, cancellationToken) => new QuantityExpressionAnalyser(syntaxContext.SemanticModel)
 				.Analyse((InvocationExpressionSyntax)syntaxContext.Node, cancellationToken));
 
@@ -51,19 +52,21 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		{
 			ImmutableArray<ArithmeticOperation>.Builder discoveredOperations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 			ImmutableArray<PowerOperation>.Builder discoveredPowers = ImmutableArray.CreateBuilder<PowerOperation>();
+			ImmutableArray<PowerMethodOperation>.Builder discoveredPowerMethods = ImmutableArray.CreateBuilder<PowerMethodOperation>();
 			foreach (QuantityExpressionAnalysis expression in discovered.Left.Concat(discovered.Right))
 			{
 				output.CancellationToken.ThrowIfCancellationRequested();
 				discoveredOperations.AddRange(expression.ArithmeticOperations);
 				discoveredPowers.AddRange(expression.PowerOperations);
+				discoveredPowerMethods.AddRange(expression.PowerMethodOperations);
 			}
 
-			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0)
+			if (discoveredOperations.Count == 0 && discoveredPowers.Count == 0 && discoveredPowerMethods.Count == 0)
 			{
 				return;
 			}
 
-			QuantityGenerationPlan plan = QuantityDiscovery.Discover(discoveredOperations, discoveredPowers);
+			QuantityGenerationPlan plan = QuantityDiscovery.Discover(discoveredOperations, discoveredPowers, discoveredPowerMethods);
 			if (!plan.AdditionalQuantities.IsEmpty)
 			{
 				string quantitySource = QuantitySourceEmitter.Emit(plan.AdditionalQuantities);
@@ -80,6 +83,12 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 			{
 				string powerSource = PowerSourceEmitter.Emit(plan);
 				output.AddSource("Powers.g.cs", SourceText.From(powerSource, Encoding.UTF8));
+			}
+
+			if (!plan.PowerMethodOperations.IsEmpty)
+			{
+				string methodSource = PowerMethodSourceEmitter.Emit(plan);
+				output.AddSource("PowerMethods.g.cs", SourceText.From(methodSource, Encoding.UTF8));
 			}
 		});
 	}

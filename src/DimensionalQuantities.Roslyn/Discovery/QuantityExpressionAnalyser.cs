@@ -28,9 +28,11 @@ internal sealed class QuantityExpressionAnalyser
 		private readonly SemanticModel _semanticModel;
 		private readonly QuantityTypeReader _typeReader;
 		private readonly PowerDiscovery _powerDiscovery;
+		private readonly PowerMethodDiscovery _powerMethodDiscovery;
 		private readonly CancellationToken _cancellationToken;
 		private readonly ImmutableArray<ArithmeticOperation>.Builder _operations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 		private readonly ImmutableArray<PowerOperation>.Builder _powerOperations = ImmutableArray.CreateBuilder<PowerOperation>();
+		private readonly ImmutableArray<PowerMethodOperation>.Builder _powerMethodOperations = ImmutableArray.CreateBuilder<PowerMethodOperation>();
 		private readonly Dictionary<ILocalSymbol, Operand> _locals = new(SymbolEqualityComparer.Default);
 		private readonly HashSet<ILocalSymbol> _inProgress = new(SymbolEqualityComparer.Default);
 
@@ -39,13 +41,14 @@ internal sealed class QuantityExpressionAnalyser
 			_semanticModel = semanticModel;
 			_typeReader = new(semanticModel.Compilation);
 			_powerDiscovery = new(semanticModel);
+			_powerMethodDiscovery = new(semanticModel);
 			_cancellationToken = cancellationToken;
 		}
 
 		public QuantityExpressionAnalysis Analyse(ExpressionSyntax expression)
 		{
 			AnalyseExpression(expression);
-			return new(_operations.ToImmutable(), _powerOperations.ToImmutable());
+			return new(_operations.ToImmutable(), _powerOperations.ToImmutable(), _powerMethodOperations.ToImmutable());
 		}
 
 		private Operand AnalyseExpression(ExpressionSyntax expression)
@@ -67,6 +70,21 @@ internal sealed class QuantityExpressionAnalyser
 
 				Dimension result = operand.Dimension.Pow(exponent);
 				_powerOperations.Add(new(operand.Dimension, exponent, result, exponentTypeName));
+				return result == default ? new(OperandKind.Scalar) : new(OperandKind.Quantity, result);
+			}
+
+			if (expression is InvocationExpressionSyntax methodInvocation
+				&& _powerMethodDiscovery.TryRead(methodInvocation, out Rational methodExponent, out string methodName, _cancellationToken))
+			{
+				MemberAccessExpressionSyntax access = (MemberAccessExpressionSyntax)methodInvocation.Expression;
+				Operand operand = AnalyseExpression(access.Expression);
+				if (operand.Kind != OperandKind.Quantity)
+				{
+					return default;
+				}
+
+				Dimension result = operand.Dimension.Pow(methodExponent);
+				_powerMethodOperations.Add(new(operand.Dimension, methodExponent, result, methodName));
 				return result == default ? new(OperandKind.Scalar) : new(OperandKind.Quantity, result);
 			}
 
