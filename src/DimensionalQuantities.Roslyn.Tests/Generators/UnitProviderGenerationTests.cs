@@ -131,6 +131,39 @@ public sealed class UnitProviderGenerationTests
 	}
 
 	[Fact]
+	public void ProviderUsesCoreSiSymbolsAcrossAssemblyBoundary()
+	{
+		const string source = """
+			using DimensionalQuantities.Units.Declarations;
+			using DimensionalQuantities.Units.Symbols;
+			namespace Independent.Units;
+			[UnitProvider(GenerateSiPrefixes = true, GeneratePrefixConversions = true)]
+			internal static class CompoundUnits
+			{
+				[QuantityUnit(typeof(CurrentDensity))]
+				[UnitFactor(typeof(Amp))]
+				[UnitFactor(typeof(Metre), Power = -2)]
+				private sealed class CurrentDensityUnit;
+				[QuantityUnit(typeof(Density))]
+				[UnitFactor(typeof(Gram), PrefixExponent = 3)]
+				[UnitFactor(typeof(Metre), Power = -3)]
+				private sealed class DensityUnit;
+			}
+			public static class Consumer
+			{
+				public static double[] Values() =>
+					[CurrentDensity.FromAmpsPerSquareMetre(2).AsSiBaseUnit(),
+					 CurrentDensity.FromPrefixedUnits(2, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit(),
+					 Density.FromGramsPerCubicMetre(2).AsSiBaseUnit(),
+					 Density.FromPrefixedUnits(2, gramPrefixExponent: 0, metrePrefixExponent: 0).AsSiBaseUnit()];
+			}
+			""";
+		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
+		Assert.Empty(diagnostics);
+		Assert.Equal([2d, 2000000d, 0.002d, 0.002d], Evaluate(compilation, "Independent.Units.Consumer"));
+	}
+
+	[Fact]
 	public void AffineConversionsApplyScaleAndOffsetInBothDirections()
 	{
 		const string source = """

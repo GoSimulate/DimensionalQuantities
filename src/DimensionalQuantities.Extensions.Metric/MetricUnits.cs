@@ -1,20 +1,11 @@
 using DimensionalQuantities.Units.Declarations;
+using DimensionalQuantities.Units.Symbols;
 
 namespace DimensionalQuantities.Extensions.Metric;
 
 [UnitProvider(GenerateSiPrefixes = true, GeneratePrefixConversions = true)]
 internal static class MetricUnits
 {
-	[UnitSymbol("Metre", "Metres", "m")]
-	private sealed class Metre { }
-	[UnitSymbol("Gram", "Grams", "g", SiBasePrefixExponent = 3)]
-	private sealed class Gram { }
-	[UnitSymbol("Second", "Seconds", "s")]
-	private sealed class Second { }
-	[UnitSymbol("Amp", "Amps", "A")]
-	private sealed class Amp { }
-	[UnitSymbol("Kelvin", "Kelvin", "K")]
-	private sealed class Kelvin { }
 	[UnitSymbol("Radian", "Radians", "rad")]
 	private sealed class Radian { }
 	[UnitSymbol("Hertz", "Hertz", "Hz")]
