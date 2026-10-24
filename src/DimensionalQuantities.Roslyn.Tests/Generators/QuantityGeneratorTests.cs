@@ -1220,6 +1220,46 @@ public sealed class QuantityGeneratorTests
 			() => Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeSquaredExtensions")));
 	}
 
+	[Theory]
+	[InlineData("public LengthCurrent Stored = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public LengthCurrent Stored { get => Length.FromMetres(2) * Current.FromAmps(3); }")]
+	[InlineData("public LengthCurrent Stored { get; } = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("private LengthCurrent Seed = Length.FromMetres(2) * Current.FromAmps(3); public LengthCurrent Stored => Seed;")]
+	public void IntermediateFieldsAndPropertiesComposeWithArithmetic(string declaration)
+	{
+		string source = $$"""
+			public class Inputs { {{declaration}} }
+			public static class Consumer
+			{
+				public static double Value() => (new Inputs().Stored * Time.FromSeconds(4)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void EditingMemberDefinitionRemovesObsoleteDependentOperations()
+	{
+		const string source = "class Inputs { public static LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3); }";
+		const string consumer = "class Consumer { object Value(Time time) => Inputs.Stored * time; }";
+		string edited = source.Replace("LengthCurrent", "LengthTime", StringComparison.Ordinal).Replace("Current.FromAmps", "Time.FromSeconds", StringComparison.Ordinal);
+		SyntaxTree memberTree = CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
+		CSharpCompilation input = CreateInputCompilation(consumer).AddSyntaxTrees(memberTree);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out _, out _, TestContext.Current.CancellationToken);
+		SyntaxTree replacement = CSharpSyntaxTree.ParseText(edited, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
+		driver.RunGeneratorsAndUpdateCompilation(input.ReplaceSyntaxTree(memberTree, replacement), out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")),
+			() => Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeSquaredExtensions")));
+	}
+
 	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
 	{
 		QuantityTypeReader reader = new(compilation);
