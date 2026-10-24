@@ -1260,6 +1260,103 @@ public sealed class QuantityGeneratorTests
 			() => Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeSquaredExtensions")));
 	}
 
+	[Theory]
+	[InlineData("public LengthCurrent Make(Length length, Current current) => length * current;")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent product = length * current; return product; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * current * 2; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() < 0) throw new System.Exception(); return length * current; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent Local(Length l, Current c) => l * c; return Local(length, current); }")]
+	[InlineData("public LengthTime Make(Length length, Time time) => length * time; public LengthCurrent Make(Length length, Current current) => length * current;")]
+	public void IntermediateMethodResultsComposeWithArithmetic(string declaration)
+	{
+		string source = $$"""
+			public class Inputs { {{declaration}} }
+			public static class Consumer
+			{
+				public static double Value() => (new Inputs().Make(Length.FromMetres(2), Current.FromAmps(3)) * Time.FromSeconds(4)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void EditingMethodDefinitionRefreshesUnchangedConsumers()
+	{
+		const string source = "class Inputs { public static LengthCurrent Make() => Length.FromMetres(2) * Current.FromAmps(3); }";
+		const string consumer = "class Consumer { object Value(Time time) => Inputs.Make() * time; }";
+		string edited = source.Replace("LengthCurrent", "LengthTime", StringComparison.Ordinal).Replace("Current.FromAmps", "Time.FromSeconds", StringComparison.Ordinal);
+		SyntaxTree memberTree = CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
+		CSharpCompilation input = CreateInputCompilation(consumer).AddSyntaxTrees(memberTree);
+		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(input, out _, out _, TestContext.Current.CancellationToken);
+		SyntaxTree replacement = CSharpSyntaxTree.ParseText(edited, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
+		driver.RunGeneratorsAndUpdateCompilation(input.ReplaceSyntaxTree(memberTree, replacement), out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Empty(result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
+			() => Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")),
+			() => Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeSquaredExtensions")));
+	}
+
+	[Theory]
+	[InlineData(false, 216)]
+	[InlineData(true, 72)]
+	public void WindingLossHelpersPreserveUnitsAndRoundTripResistance(bool delta, double expectedLoss)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				private static Current PhaseCurrent(Current line, bool delta) => delta ? line / System.Math.Sqrt(3) : line;
+				private static Power Loss(Resistance resistance, Current line, bool delta)
+				{
+					Current phase = PhaseCurrent(line, delta);
+					CurrentSquared squared = phase.Squared();
+					return 3 * squared * resistance;
+				}
+				private static Resistance Recover(Power loss, Current line, bool delta)
+				{
+					Current phase = PhaseCurrent(line, delta);
+					CurrentSquared denominator = 3 * phase.Squared();
+					return loss / denominator;
+				}
+				public static double[] Value()
+				{
+					Current line = Current.FromAmps(12);
+					Resistance resistance = Resistance.FromOhms(0.5);
+					Power loss = Loss(resistance, line, {{delta.ToString().ToLowerInvariant()}});
+					Resistance recovered = Recover(loss, line, {{delta.ToString().ToLowerInvariant()}});
+					return [loss.AsWatts(), recovered.AsOhms()];
+				}
+			}
+			""";
+		double[] result = EvaluateSource<double[]>(source);
+
+		Assert.Multiple(
+			() => Assert.Equal(expectedLoss, result[0], 12),
+			() => Assert.Equal(0.5, result[1], 12));
+	}
+
+	[Fact]
+	public void ExtensionMethodIntermediateReturnComposesWithArithmetic()
+	{
+		const string source = """
+			public static class Helpers
+			{
+				public static LengthCurrent Make(this Length length, Current current) => length * current;
+			}
+			public static class Consumer
+			{
+				public static double Value() => (Length.FromMetres(2).Make(Current.FromAmps(3)) * Time.FromSeconds(4)).AsSiBaseUnit();
+			}
+			""";
+		double result = EvaluateSource<double>(source);
+
+		Assert.Equal(24, result);
+	}
+
 	private static string[] ReadConvenienceMethods(Compilation compilation, Dimension dimension)
 	{
 		QuantityTypeReader reader = new(compilation);
