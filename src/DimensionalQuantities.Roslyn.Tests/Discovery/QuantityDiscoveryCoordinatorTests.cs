@@ -14,14 +14,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
 
 	[Theory]
-	[InlineData("var make = () => length * current; return (make() * time).AsSiBaseUnit();")]
-	[InlineData("var pair = (length * current, time); return (pair.Item1 * pair.Item2).AsSiBaseUnit();")]
-	[InlineData("var (value, duration) = (length * current, time); return (value * duration).AsSiBaseUnit();")]
-	[InlineData("return (Identity(length * current) * time).AsSiBaseUnit();")]
-	[InlineData("LengthCurrent? value = null; var fallback = length * current; return ((value ?? fallback) * time).AsSiBaseUnit();")]
-	[InlineData("object value = length * current; return (((LengthCurrent)value) * time).AsSiBaseUnit();")]
-	[InlineData("var values = new[] { length }.Select(item => item * current); return (values.First() * time).AsSiBaseUnit();")]
-	[InlineData("var values = new[] { length * current }; double result = 0; foreach (var value in values) { result += (value * time).AsSiBaseUnit(); } return result;")]
+	[InlineData("var make = () => length * current; return make() * time;")]
+	[InlineData("var pair = (length * current, time); return pair.Item1 * pair.Item2;")]
+	[InlineData("var (value, duration) = (length * current, time); return value * duration;")]
+	[InlineData("return Identity(length * current) * time;")]
+	[InlineData("LengthCurrent? value = null; var fallback = length * current; return (value ?? fallback) * time;")]
+	[InlineData("object value = length * current; return ((LengthCurrent)value) * time;")]
+	[InlineData("var values = new[] { length }.Select(item => item * current); return values.First() * time;")]
+	[InlineData("var values = new[] { length * current }; LengthTimeCurrent result = default; foreach (var value in values) { result += value * time; } return result;")]
 	public void IntermediateResultsComposeThroughOrdinaryCSharp(string body)
 	{
 		string source = $$"""
@@ -29,13 +29,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			public static class Consumer
 			{
 				private static T Identity<T>(T value) => value;
-				public static double Value()
+				public static LengthTimeCurrent Calculate()
 				{
 					Length length = Length.FromMetres(2);
 					Current current = Current.FromAmps(3);
 					Time time = Time.FromSeconds(4);
 					{{body}}
 				}
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -43,6 +44,31 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double expected = 24;
 
 		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void ForeachArithmeticOverTypedInputRetainsItsResultDimension()
+	{
+		const string source = """
+			using System.Collections.Generic;
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate(IEnumerable<LengthCurrent> values)
+				{
+					LengthTimeCurrent total = default;
+					foreach (var value in values)
+					{
+						total = total + value * Time.FromSeconds(4);
+					}
+					return total;
+				}
+				public static double Value() => Calculate(new[] { LengthCurrent.FromSiBaseUnit(2), LengthCurrent.FromSiBaseUnit(3) }).AsSiBaseUnit();
+			}
+			""";
+		QuantityDiscoveryResult discovery = Discover(source);
+		double result = Evaluate(discovery.Compilation);
+
+		Assert.Equal(20, result);
 	}
 
 	[Fact]
@@ -57,8 +83,8 @@ public sealed class QuantityDiscoveryCoordinatorTests
 					await Task.Yield();
 					return Length.FromMetres(2) * Current.FromAmps(3);
 				}
-				private static async Task<double> Calculate() => ((await Make()) * Time.FromSeconds(4)).AsSiBaseUnit();
-				public static double Value() => Calculate().GetAwaiter().GetResult();
+				private static async Task<LengthTimeCurrent> Calculate() => (await Make()) * Time.FromSeconds(4);
+				public static double Value() => Calculate().GetAwaiter().GetResult().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -82,7 +108,8 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		const string consumer = """
 			public static class Consumer
 			{
-				public static double Value() => (Measurements.Value * Time.FromSeconds(4)).AsSiBaseUnit();
+				public static LengthTimeCurrent Calculate() => Measurements.Value * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(consumer, member);
@@ -101,7 +128,8 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			public static class Consumer
 			{
 				private static LengthCurrent Make() => default;
-				public static double Value() => ({{expression}} * Time.FromSeconds(4)).AsSiBaseUnit();
+				public static LengthTimeCurrent Calculate() => {{expression}} * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -128,20 +156,21 @@ public sealed class QuantityDiscoveryCoordinatorTests
 	}
 
 	[Theory]
-	[InlineData("(Length.FromMetres(2) * Current.FromAmps(3)).Squared()", 144)]
-	[InlineData("Power<NumberTwo>.Of(Length.FromMetres(2) * Current.FromAmps(3))", 144)]
-	[InlineData("Power<NumberHalf>.Of(Length.FromMetres(3) * Current.FromAmps(3))", 12)]
-	public void PowerResultsComposeThroughInferredDelegates(string expression, double expected)
+	[InlineData("(Length.FromMetres(2) * Current.FromAmps(3)).Squared()", "LengthSquaredTimeCurrentSquared", 144)]
+	[InlineData("Power<NumberTwo>.Of(Length.FromMetres(2) * Current.FromAmps(3))", "LengthSquaredTimeCurrentSquared", 144)]
+	[InlineData("Power<NumberHalf>.Of(Length.FromMetres(3) * Current.FromAmps(3))", "SquareRootLengthTimeSquareRootCurrent", 12)]
+	public void PowerResultsComposeThroughInferredDelegates(string expression, string resultType, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
 			public static class Consumer
 			{
-				public static double Value()
+				public static {{resultType}} Calculate()
 				{
 					var make = () => {{expression}};
-					return (make() * Time.FromSeconds(4)).AsSiBaseUnit();
+					return make() * Time.FromSeconds(4);
 				}
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -163,7 +192,8 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			public static class Consumer
 			{
-				public static double Value() => ((Length.FromMetres(2) * Current.FromAmps(3)) * Time.FromSeconds(4)).AsSiBaseUnit();
+				public static Time Calculate() => (Length.FromMetres(2) * Current.FromAmps(3)) * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -182,7 +212,8 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			public static class Consumer
 			{
-				public static double Value() => ((Length.FromMetres(2) * Current.FromAmps(3)).Squared() * Current.FromAmps(3)).AsSiBaseUnit();
+				public static TimeCurrent Calculate() => (Length.FromMetres(2) * Current.FromAmps(3)).Squared() * Current.FromAmps(3);
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -206,11 +237,12 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			public static class Consumer
 			{
-				public static double Value()
+				public static TimeCurrent Calculate()
 				{
 					Wrapper wrapper = new();
-					return (({{expression}}) * Time.FromSeconds(4)).AsSiBaseUnit();
+					return ({{expression}}) * Time.FromSeconds(4);
 				}
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
@@ -291,13 +323,338 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		string source = $$"""
 			public static class Consumer
 			{
-				public static double Value() => (Length.FromMetres(2) * {{expression}}).AsSiBaseUnit();
+				public static LengthCurrent20 Calculate() => Length.FromMetres(2) * {{expression}};
+				public static double Value() => Calculate().AsSiBaseUnit();
 			}
 			""";
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
 		Assert.Equal(2, result);
+	}
+
+	[Theory]
+	[InlineData("var squared = current * current; var heating = squared * resistance;", "Power", "heating", 36)]
+	[InlineData("var squared = current * current; var copy = squared; var heating = copy * resistance; var energy = heating * time;", "Energy", "energy", 72)]
+	[InlineData("var squared = (2 * current) * current / 2; var heating = squared * resistance;", "Power", "heating", 36)]
+	[InlineData("var squared = current * current; var fourth = squared * squared;", "Current4", "fourth", 81)]
+	public void ArithmeticThroughLocalInitialisersCompilesAndExecutes(string declarations, string resultType, string resultName, double expected)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static {{resultType}} Calculate()
+				{
+					Current current = Current.FromAmps(3);
+					Resistance resistance = Resistance.FromOhms(4);
+					Time time = Time.FromSeconds(2);
+					{{declarations}}
+					return {{resultName}};
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void IdenticallyNamedLocalsInSeparateScopesRetainTheirOwnDimensions()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static double Value()
+				{
+					Current current = Current.FromAmps(3);
+					Resistance resistance = Resistance.FromOhms(4);
+					Time time = Time.FromSeconds(2);
+					double first;
+					double second;
+					{
+						var intermediate = current * current;
+						var result = intermediate * resistance;
+						Power typedResult = result;
+						first = typedResult.AsWatts();
+					}
+					{
+						var intermediate = time * time;
+						var result = intermediate * current;
+						TimeSquaredCurrent typedResult = result;
+						second = typedResult.AsSiBaseUnit();
+					}
+					return first + second;
+				}
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+		double expected = 48;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void CyclicLocalInitialisersDoNotCrashDiscovery()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Current current)
+				{
+					var first = second * current;
+					var second = first * current;
+					return second;
+				}
+			}
+			""";
+		QuantityDiscoveryResult result = Discover(source);
+
+		Assert.Multiple(
+			() => Assert.Null(result.Compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")),
+			() => Assert.DoesNotContain(result.Sources, generated => generated.HintName == "ArithmeticExtensions.g.cs"));
+	}
+
+	[Theory]
+	[InlineData("LengthCurrent value = length * current;")]
+	[InlineData("LengthCurrent first = length * current; LengthCurrent value = first;")]
+	[InlineData("LengthCurrent first = length * current; var value = first;")]
+	public void ExplicitIntermediateLocalsComposeWithFurtherArithmetic(string declarations)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					Length length = Length.FromMetres(2);
+					Current current = Current.FromAmps(3);
+					Time time = Time.FromSeconds(4);
+					{{declarations}}
+					return value * time;
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void IncorrectExplicitIntermediateTypeRemainsACompilerError()
+	{
+		const string source = """
+			class Consumer
+			{
+				object Value(Length length, Current current, Time time)
+				{
+					LengthCurrent wrong = length * time;
+					return wrong * current;
+				}
+			}
+			""";
+		QuantityDiscoveryResult result = Discover(source);
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+		Assert.Contains(errors, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+	}
+
+	[Theory]
+	[InlineData("choose ? length * current : length * current")]
+	[InlineData("choose ? length * current : throw new System.Exception()")]
+	[InlineData("choose switch { true => length * current, false => length * current }")]
+	[InlineData("choose switch { true => length * current, _ => throw new System.Exception() }")]
+	[InlineData("choose ? (choose switch { true => length * current, _ => length * current }) : length * current")]
+	public void ConditionalIntermediateResultsComposeWithArithmetic(string expression)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					bool choose = true;
+					Length length = Length.FromMetres(2);
+					Current current = Current.FromAmps(3);
+					Time time = Time.FromSeconds(4);
+					var product = {{expression}};
+					return product * time;
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("public LengthCurrent Stored = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public LengthCurrent Stored { get => Length.FromMetres(2) * Current.FromAmps(3); }")]
+	[InlineData("public LengthCurrent Stored { get; } = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("private LengthCurrent Seed = Length.FromMetres(2) * Current.FromAmps(3); public LengthCurrent Stored => Seed;")]
+	public void IntermediateFieldsAndPropertiesComposeWithArithmetic(string declaration)
+	{
+		string source = $$"""
+			public class Inputs { {{declaration}} }
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate() => new Inputs().Stored * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("public LengthCurrent Make(Length length, Current current) => length * current;")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent product = length * current; return product; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * current * 2; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() < 0) throw new System.Exception(); return length * current; }")]
+	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent Local(Length l, Current c) => l * c; return Local(length, current); }")]
+	[InlineData("public LengthTime Make(Length length, Time time) => length * time; public LengthCurrent Make(Length length, Current current) => length * current;")]
+	public void IntermediateMethodResultsComposeWithArithmetic(string declaration)
+	{
+		string source = $$"""
+			public class Inputs { {{declaration}} }
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate() => new Inputs().Make(Length.FromMetres(2), Current.FromAmps(3)) * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void ExtensionMethodIntermediateReturnComposesWithArithmetic()
+	{
+		const string source = """
+			public static class Helpers
+			{
+				public static LengthCurrent Make(this Length length, Current current) => length * current;
+			}
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate() => Length.FromMetres(2).Make(Current.FromAmps(3)) * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("public static LengthCurrent Field;", "Field")]
+	[InlineData("public static LengthCurrent Field = default;", "Field")]
+	[InlineData("public static LengthCurrent Property { get; } = new();", "Property")]
+	[InlineData("public static LengthCurrent Property { get; set; }", "Property")]
+	[InlineData("public static LengthCurrent[] Values = new LengthCurrent[1];", "Values[0]")]
+	[InlineData("public static System.Collections.Generic.List<LengthCurrent> Values = new() { default };", "Values[0]")]
+	public void TypeOnlyMemberAndCollectionValuesParticipateInArithmetic(string declaration, string operand)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				{{declaration}}
+				public static LengthTimeCurrent Calculate() => {{operand}} * Time.FromSeconds(4);
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(0, result);
+	}
+
+	[Theory]
+	[InlineData("new LengthCurrent[1]")]
+	[InlineData("new System.Collections.Generic.List<LengthCurrent> { default }")]
+	public void InferredCollectionsRetainTheirExplicitElementDimensions(string initializer)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					var values = {{initializer}};
+					return values[0] * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(0, result);
+	}
+
+	[Fact]
+	public void SourceIndexerCanDeclareAnIntermediateQuantityResult()
+	{
+		const string source = """
+			public sealed class Measurements
+			{
+				public LengthCurrent this[int index] => LengthCurrent.FromSiBaseUnit(6);
+			}
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					Measurements values = new();
+					return values[0] * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Fact]
+	public void ExplicitLocalCanBeAssignedAfterItsDeclaration()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					LengthCurrent value;
+					value = LengthCurrent.FromSiBaseUnit(6);
+					return value * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(24, result);
+	}
+
+	[Theory]
+	[InlineData("default")]
+	[InlineData("new()")]
+	public void ExplicitDefaultQuantityLocalParticipatesInArithmetic(string initializer)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static LengthTimeCurrent Calculate()
+				{
+					LengthCurrent value = {{initializer}};
+					return value * Time.FromSeconds(4);
+				}
+				public static double Value() => Calculate().AsSiBaseUnit();
+			}
+			""";
+		double result = Evaluate(Discover(source).Compilation);
+
+		Assert.Equal(0, result);
 	}
 
 	[Fact]
