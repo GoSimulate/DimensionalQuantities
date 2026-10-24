@@ -13,7 +13,7 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 
 ## Usage
 
-The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes both the runtime library and its source generator.
+The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes the runtime library, source generator, analysers and an alias quick fix.
 
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
@@ -149,9 +149,27 @@ Generated names are aliases for types in the shared runtime library. Independent
 
 A consuming project with the generator can discover quantities from referenced values, generate local conversion helpers, and use those values in further arithmetic. Quantity aliases are generated separately in each compilation; they are not exported by a referenced assembly.
 
+### Diagnostics and quick fixes
+
+The analysers and generator report dimensional mistakes and problems with generated names or type encodings:
+
+| Diagnostic | Severity | Meaning |
+| --- | --- | --- |
+| DQ0001 | Error | Arithmetic or comparison operands have incompatible dimensions. |
+| DQ0002 | Error | An assignment, return value or argument has the wrong dimensions for its destination. |
+| DQ0003 | Info | A raw `Quantity<...>` type can be written using a readable quantity alias. |
+| DQ0004 | Warning | A type-system number uses a noncanonical encoding: equivalent numeric values can still be different C# types. |
+| DQ0005 | Error | A closed type-system encoding is invalid. |
+| DQ0006 | Warning | A generated alias conflicts with a declared name or shadows an imported type. |
+| DQ0007 | Error | An unresolved English exponent in `Power<Number...>.Of(...)` cannot be parsed, for example `NumberTwoOverZero`. |
+
+DQ0003 has an IDE quick fix to replace the raw type with its readable alias, such as `Length`. The fix is offered only when the alias resolves to the same type; it is withheld inside `nameof`, where replacing the type could change the resulting string.
+
+Alias collision warnings do not suppress or rename generated aliases. Use qualified names or distinct explicit aliases to disambiguate your own types.
+
 ### Current scope
 
-Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains. Dedicated analyser diagnostics and IDE fixes are still follow-up work.
+Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains.
 
 The library is under active development; the API and supported expression patterns are still evolving.
 
