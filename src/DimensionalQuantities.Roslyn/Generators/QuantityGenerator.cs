@@ -30,8 +30,19 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		IncrementalValueProvider<(Compilation Left, ImmutableArray<SyntaxTree> Right)> inputs = context.CompilationProvider.Combine(inputTrees.Collect());
 		context.RegisterSourceOutput(inputs, (output, input) =>
 		{
-			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover((CSharpCompilation)input.Left,
+			CSharpCompilation original = (CSharpCompilation)input.Left;
+			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, input.Right, output.CancellationToken))
+			{
+				output.ReportDiagnostic(diagnostic);
+			}
+
+			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover(original,
 				input.Right, defaultPlan, output.CancellationToken);
+			foreach (Diagnostic diagnostic in AliasCollisionDiagnostics.Find(original, result, input.Right, output.CancellationToken))
+			{
+				output.ReportDiagnostic(diagnostic);
+			}
+
 			foreach (GeneratedSource source in result.Sources)
 			{
 				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));

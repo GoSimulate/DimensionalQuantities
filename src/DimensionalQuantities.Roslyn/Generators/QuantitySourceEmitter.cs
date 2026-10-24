@@ -33,7 +33,7 @@ internal static class QuantitySourceEmitter
 		Dimension dimension = quantity.Dimension;
 		IReadOnlyList<UnitDefinition> units = quantity.Units;
 		string typeName = $"global::DimensionalQuantities.TypeSystem.Quantity<global::DimensionalQuantities.TypeSystem.Dimension<{string.Join(", ", GetExponentTypes(dimension).Select(TypeSystemTypeNameFormatter.Format))}>>";
-		string[] aliases = units.Select(unit => unit.QuantityName).Append(DimensionNameGenerator.GetQuantityName(dimension)).Distinct(StringComparer.Ordinal).ToArray();
+		string[] aliases = quantity.Aliases.ToArray();
 		string quantityName = units[0].QuantityName;
 		UnitExpression canonicalExpression = units[0].Expression;
 		ConversionDefinition genericConversion = new("FromPrefixedUnits", "AsPrefixedUnits", GetTermParameters(canonicalExpression), GetTermScaleExponent(canonicalExpression));
