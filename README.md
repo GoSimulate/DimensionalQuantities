@@ -23,6 +23,18 @@ using DimensionalQuantities.Extensions.Metric;
 
 Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
 
+Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Fahrenheit, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
+
+```csharp
+Length depth = Length.FromFeet(6);
+Volume fuel = Volume.FromImperialGallons(2);
+Energy heat = Energy.FromBritishThermalUnitsIT(1);
+
+double metres = depth.AsSiBaseUnit(); // 1.8288
+```
+
+`BritishThermalUnitIT` is the International Table definition (exactly 1055.05585262 J); other BTU definitions differ. US and Imperial liquid measures are named separately. Imperial helpers do not generate SI-prefixed variants.
+
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
 Current current = Current.FromAmps(3);

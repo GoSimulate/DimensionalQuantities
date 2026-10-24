@@ -8,7 +8,9 @@ internal static class EngineeringQuantityAliases
 	{
 		{ new(Length: 2), ["Area"] },
 		{ new(Length: 3), ["Volume"] },
+		{ new(Length: 1, Time: -1), ["Speed"] },
 		{ new(Time: -1), ["Frequency", "AngularVelocity"] },
+		{ new(Length: 1, Mass: 1, Time: -2), ["Force"] },
 		{ new(Length: -3, Mass: 1), ["Density"] },
 		{ new(Length: -1, Mass: 1, Time: -2), ["Pressure", "Stress", "YoungsModulus"] },
 		{ new(Length: 2, Mass: 1, Time: -2), ["Energy", "Torque"] },

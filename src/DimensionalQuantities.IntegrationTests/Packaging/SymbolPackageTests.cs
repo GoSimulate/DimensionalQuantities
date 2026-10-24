@@ -49,23 +49,27 @@ public sealed class SymbolPackageTests : IDisposable
 		}
 	}
 
-	[Fact]
-	public void MetricSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource()
+	[Theory]
+	[InlineData("Metric")]
+	[InlineData("Imperial")]
+	public void ExtensionSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource(string extension)
 	{
-		(FileInfo package, FileInfo symbols) = Pack("DimensionalQuantities.Extensions.Metric");
+		string projectName = "DimensionalQuantities.Extensions." + extension;
+		(FileInfo package, FileInfo symbols) = Pack(projectName);
 		using ZipArchive binaries = ZipFile.OpenRead(package.FullName);
 		using ZipArchive symbolArchive = ZipFile.OpenRead(symbols.FullName);
-		SymbolDetails details = ReadSymbolDetails(binaries, symbolArchive, "lib/netstandard2.0/DimensionalQuantities.Extensions.Metric");
+		SymbolDetails details = ReadSymbolDetails(binaries, symbolArchive, "lib/netstandard2.0/" + projectName,
+			projectName + "." + extension + "Units.g.cs");
 		string commit = GetCurrentCommit();
 		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 		string configuration = typeof(SymbolPackageTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, "DimensionalQuantities.Extensions.Metric", "obj", configuration, "netstandard2.0",
-			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", "DimensionalQuantities.Extensions.Metric.MetricUnits.g.cs"));
+		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, projectName, "obj", configuration, "netstandard2.0",
+			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", projectName + "." + extension + "Units.g.cs"));
 		Assert.Multiple(
 			() => Assert.Equal(details.AssemblyGuid, details.PdbGuid),
 			() => Assert.Equal(details.AssemblyStamp, details.PdbStamp),
 			() => Assert.Contains($"https://raw.githubusercontent.com/GoSimulate/DimensionalQuantities/{commit}/*", details.SourceUrls),
-			() => Assert.Equal(generatedSource, details.EmbeddedMetricConversions));
+			() => Assert.Equal(generatedSource, details.EmbeddedGeneratedSource));
 	}
 
 	private (FileInfo Package, FileInfo Symbols) Pack(string projectName)
@@ -80,7 +84,7 @@ public sealed class SymbolPackageTests : IDisposable
 		return (package, symbols);
 	}
 
-	private static SymbolDetails ReadSymbolDetails(ZipArchive binaries, ZipArchive symbols, string stem)
+	private static SymbolDetails ReadSymbolDetails(ZipArchive binaries, ZipArchive symbols, string stem, string? generatedFileName = null)
 	{
 		byte[] assemblyBytes = ReadEntry(binaries, stem + ".dll");
 		byte[] pdbBytes = ReadEntry(symbols, stem + ".pdb");
@@ -98,14 +102,14 @@ public sealed class SymbolPackageTests : IDisposable
 		using JsonDocument sourceLinkDocument = JsonDocument.Parse(sourceLink);
 		string[] sourceUrls = sourceLinkDocument.RootElement.GetProperty("documents").EnumerateObject()
 			.Select(mapping => mapping.Value.GetString()!).ToArray();
-		byte[]? embeddedMetricConversions = reader.Documents
-			.Where(handle => reader.GetString(reader.GetDocument(handle).Name).EndsWith("DimensionalQuantities.Extensions.Metric.MetricUnits.g.cs", StringComparison.Ordinal))
+		byte[]? embeddedGeneratedSource = reader.Documents
+			.Where(handle => generatedFileName is not null && reader.GetString(reader.GetDocument(handle).Name).EndsWith(generatedFileName, StringComparison.Ordinal))
 			.SelectMany(handle => reader.GetCustomDebugInformation(handle))
 			.Select(reader.GetCustomDebugInformation)
 			.Where(info => reader.GetGuid(info.Kind) == _embeddedSourceKind)
 			.Select(info => DecodeEmbeddedSource(reader.GetBlobBytes(info.Value)))
 			.SingleOrDefault();
-		return new(codeViewData.Guid, codeView.Stamp, new Guid(pdbId.AsSpan(0, 16)), BitConverter.ToUInt32(pdbId, 16), sourceUrls, embeddedMetricConversions);
+		return new(codeViewData.Guid, codeView.Stamp, new Guid(pdbId.AsSpan(0, 16)), BitConverter.ToUInt32(pdbId, 16), sourceUrls, embeddedGeneratedSource);
 	}
 
 	private static byte[] DecodeEmbeddedSource(byte[] blob)
@@ -161,7 +165,7 @@ public sealed class SymbolPackageTests : IDisposable
 		return commit;
 	}
 
-	private sealed record SymbolDetails(Guid AssemblyGuid, uint AssemblyStamp, Guid PdbGuid, uint PdbStamp, string[] SourceUrls, byte[]? EmbeddedMetricConversions);
+	private sealed record SymbolDetails(Guid AssemblyGuid, uint AssemblyStamp, Guid PdbGuid, uint PdbStamp, string[] SourceUrls, byte[]? EmbeddedGeneratedSource);
 
 	public void Dispose() => Directory.Delete(_scratch, recursive: true);
 }
