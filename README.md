@@ -53,7 +53,7 @@ Named compound units remain a single factor where appropriate: `Voltage.FromPref
 
 ### Arithmetic and generated intermediate quantities
 
-The generator follows multiplication and division through nested expressions, derives their dimensions, and generates the required operators and intermediate aliases:
+The generator derives dimensions through arithmetic and generates the required operators and intermediate aliases. Quantities also support addition, subtraction and equality checks with quantities of the same dimension:
 
 ```csharp
 Current current = Current.FromAmps(3);
@@ -63,6 +63,8 @@ CurrentSquared squared = current * current;
 Power heating = current * current * resistance; // 36 W
 Current doubled = 2 * current;
 Current halved = current / 2;
+Current total = current + doubled;
+double ratio = doubled / current; // 2: matching dimensions cancel
 Frequency frequency = 1 / Time.FromSeconds(0.02); // 50 Hz
 ```
 
@@ -70,9 +72,53 @@ Known dimensions use names from the engineering catalogue, such as `Power`, `Vol
 
 Aliases with the same dimensions share a type. For example, `Energy` and `Torque` are interchangeable: the library checks dimensions, not the physical meaning of a calculation. Magnitudes are stored as `double` in coherent SI base units.
 
+### Powers and roots
+
+SI base and catalogue quantities have `Squared()`, `Cubed()`, `Pow4()` through `Pow6()`, and the corresponding `SquareRoot()`, `CubeRoot()`, `Root4()` through `Root6()` helpers. Helpers for intermediate quantities are generated when called.
+
+For other integer or rational powers, use `Power<TExponent>.Of(...)`. English exponent aliases such as `NumberTwo`, `NumberHalf` and `NumberTwoOverThree` are generated on demand:
+
+```csharp
+using DimensionalQuantities.TypeSystem;
+
+Length length = Length.FromMetres(3);
+Area area = length.Squared();
+Volume volume = length.Cubed();
+Length recovered = Power<NumberHalf>.Of(area); // 3 m
+```
+
+Fractional dimensions are supported. Results whose dimensions cancel completely, including a zeroth power, are returned as `double`.
+
+### Discovery through your code
+
+Intermediate quantities can flow through:
+
+- `var` locals and explicitly typed locals.
+- Conditional (`?:`) and switch expressions whose value branches have matching dimensions.
+- Fields, properties and helper method returns, including declarations in other source files.
+- Parameters, arrays, generic collections and indexers.
+
+Canonical compound names can also be used directly in type declarations, without first writing an expression that produces them:
+
+```csharp
+static LengthCurrent Combine(Length length, Current current) => length * current;
+
+LengthCurrent combined = Combine(Length.FromMetres(2), Current.FromAmps(3));
+var timed = combined * Time.FromSeconds(4);
+double value = timed.AsSiBaseUnit(); // 24
+```
+
+The generator recognises canonical names such as `LengthCurrent`, `LengthPerTime` and `SquareRootLength`. Canonical-name discovery leaves existing bound types and explicit aliases alone. Incompatible dimensions remain compiler errors.
+
+### Sharing quantities between packages
+
+Generated names are aliases for types in the shared runtime library. Independently compiled packages can therefore exchange the same quantity through method parameters, return values, collections and containing objects.
+
+A consuming project with the generator can discover quantities from referenced values, generate local conversion helpers, and use those values in further arithmetic. Quantity aliases are generated separately in each compilation; they are not exported by a referenced assembly.
+
 ### Current scope
 
-Arithmetic discovery currently supports multiplication and division with known quantity operands, scalar factors, nested expressions, and intermediate `var` locals inferred through their initialisers. Roots, powers, dimensionless results and inference through unresolved explicit type names are not yet supported by discovery.
+Discovery follows supported expressions and declarations; it is not general control-flow or data-flow analysis. For example, it does not infer unresolved quantity results through async methods, iterator bodies or arbitrary reassignment chains. Dedicated analyser diagnostics and IDE fixes are still follow-up work.
 
 The library is under active development; the API and supported expression patterns are still evolving.
 
