@@ -697,6 +697,39 @@ public sealed class QuantityExpressionAnalyserTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData("public static LengthCurrent Stored = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public static LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public static LengthCurrent Stored { get => Length.FromMetres(2) * Current.FromAmps(3); }")]
+	[InlineData("public static LengthCurrent Stored { get; } = Length.FromMetres(2) * Current.FromAmps(3);")]
+	public void FollowsFieldAndPropertyDefinitionsAcrossFiles(string declaration)
+	{
+		const string source = "class Consumer { object Test(Time time) => Inputs.Stored * time; }";
+		string memberSource = $$"""public class Inputs { {{declaration}} }""";
+		CSharpCompilation compilation = Compile(source, memberSource);
+		ArithmeticOperation expected = new(ArithmeticOperationKind.Multiply, new(Length: 1, ElectricCurrent: 1), new(Time: 1), new(Length: 1, Time: 1, ElectricCurrent: 1));
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Contains(expected, result);
+	}
+
+	[Theory]
+	[InlineData("public static object Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public static Missing Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public static LengthTime Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[InlineData("public static LengthCurrent Stored => Other; public static LengthCurrent Other => Stored;")]
+	public void DoesNotInferUnrelatedMismatchedOrCyclicMemberDefinitions(string declaration)
+	{
+		const string source = "class Consumer { object Test(Time time) => Inputs.Stored * time; }";
+		string memberSource = $$"""public class Inputs { {{declaration}} }""";
+		CSharpCompilation compilation = Compile(source, memberSource);
+
+		ImmutableArray<ArithmeticOperation> result = Analyse(compilation);
+
+		Assert.Empty(result);
+	}
+
 	private static ImmutableArray<ArithmeticOperation> Analyse(CSharpCompilation compilation)
 	{
 		SyntaxTree tree = compilation.SyntaxTrees.Single(candidate => candidate.FilePath == "Consumer.cs");
@@ -706,7 +739,7 @@ public sealed class QuantityExpressionAnalyserTests
 		return analyser.Analyse(expressionBody.Expression, TestContext.Current.CancellationToken).ArithmeticOperations;
 	}
 
-	private static CSharpCompilation Compile(string source)
+	private static CSharpCompilation Compile(string source, params string[] additionalSources)
 	{
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
@@ -715,7 +748,8 @@ public sealed class QuantityExpressionAnalyserTests
 		SyntaxTree knownQuantities = CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), _parseOptions,
 			path: "KnownQuantities.g.cs");
 		return CSharpCompilation.Create("DiscoveryConsumer",
-			[CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Consumer.cs"), knownQuantities], references,
+			[CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Consumer.cs"), knownQuantities,
+				.. additionalSources.Select((text, index) => CSharpSyntaxTree.ParseText(text, _parseOptions, path: $"Additional{index}.cs", cancellationToken: TestContext.Current.CancellationToken))], references,
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 
