@@ -59,7 +59,7 @@ public sealed class TypeSystemNumberReaderTests
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		return CSharpCompilation.Create("PowerDiscoveryConsumer", [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.CSharp14))],
+		return CSharpCompilation.Create("PowerDiscoveryConsumer", [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],
 			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 }

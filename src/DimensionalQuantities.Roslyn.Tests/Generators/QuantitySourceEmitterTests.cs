@@ -12,7 +12,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
 public sealed class QuantitySourceEmitterTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 	private static readonly string[] _prefixes =
 	[
 		"Quetta", "Ronna", "Yotta", "Zetta", "Exa", "Peta", "Tera", "Giga", "Mega", "Kilo", "Hecto", "Deca",

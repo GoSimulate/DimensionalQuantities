@@ -12,7 +12,7 @@ namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
 public sealed class ArithmeticSourceEmitterTests
 {
-	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp14);
+	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
 	public void ExplicitPlanEmitsUsableArithmetic()
