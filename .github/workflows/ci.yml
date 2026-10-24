@@ -19,16 +19,10 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
-      - name: Restore
-        run: dotnet restore src/DimensionalQuantities.slnx
-      - name: Build
-        run: dotnet build src/DimensionalQuantities.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=true
+      - name: Build and check NuGet package
+        run: bash .github/scripts/pack.sh 0.0.0-ci
       - name: Test
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
-      - name: Check NuGet package
-        run: |
-          rm -rf src/DimensionalQuantities.Roslyn/bin src/DimensionalQuantities.Roslyn/obj
-          bash .github/scripts/pack.sh 0.0.0-ci
       - uses: actions/upload-artifact@v7.0.2
         if: ${{ always() && !env.ACT }}
         with:
