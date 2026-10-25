@@ -6,6 +6,9 @@ namespace DimensionalQuantities.Tests.Units;
 
 public sealed class UnitExpressionTests
 {
+	private static readonly AtomicUnit _newton = new("Newton", "Newtons", "N");
+	private static readonly AtomicUnit _volt = new("Volt", "Volts", "V");
+	private static readonly AtomicUnit _watt = new("Watt", "Watts", "W");
 	[Theory]
 	[InlineData(1, "Metres")]
 	[InlineData(2, "SquareMetres")]
@@ -33,6 +36,31 @@ public sealed class UnitExpressionTests
 		Assert.Equal(expected, result);
 	}
 
+	[Theory]
+	[InlineData(1, 12, "Root12Amps")]
+	[InlineData(4, 5, "Root5Power4Amps")]
+	[InlineData(-3, 2, "InverseSquareRootCubicAmp")]
+	public void GetNameFormatsHigherAndInverseRationalPowers(int numerator, int denominator, string expected)
+	{
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp, new Rational(numerator, denominator)));
+		string result = original.GetName();
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void GetNameKeepsFractionalPowersWithTheirFactorsInOrderedCompound()
+	{
+		UnitExpression original = new(
+			new UnitTerm(AtomicUnits.Metre, new Rational(1, 2)),
+			new UnitTerm(AtomicUnits.Amp),
+			new UnitTerm(AtomicUnits.Second, new Rational(-3, 2)));
+		string result = original.GetName();
+		string expected = "SquareRootMetreAmpsPerSquareRootCubicSecond";
+
+		Assert.Equal(expected, result);
+	}
+
 	[Fact]
 	public void GetNameFormatsCompoundNumeratorAndDenominator()
 	{
@@ -46,7 +74,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetNamePluralisesOnlyTheLastNumeratorFactor()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Newton), new UnitTerm(AtomicUnits.Metre));
+		UnitExpression original = new(new UnitTerm(_newton), new UnitTerm(AtomicUnits.Metre));
 		string result = original.GetName();
 		string expected = "NewtonMetres";
 
@@ -199,7 +227,7 @@ public sealed class UnitExpressionTests
 	[InlineData(-30, -30)]
 	public void GetSiScaleExponentAppliesVoltagePrefix(int prefixExponent, int expected)
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Volt, prefixExponent: prefixExponent));
+		UnitExpression original = new(new UnitTerm(_volt, prefixExponent: prefixExponent));
 		Rational result = original.GetSiScaleExponent();
 
 		Assert.Equal(expected, result);
@@ -233,7 +261,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetSiScaleExponentCancelsKilogramInWattsPerKilogram()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Watt), new UnitTerm(AtomicUnits.Gram, -1, 3));
+		UnitExpression original = new(new UnitTerm(_watt), new UnitTerm(AtomicUnits.Gram, -1, 3));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = Rational.Zero;
 
@@ -243,7 +271,7 @@ public sealed class UnitExpressionTests
 	[Fact]
 	public void GetSiScaleExponentIncludesKilowattPrefix()
 	{
-		UnitExpression original = new(new UnitTerm(AtomicUnits.Watt, prefixExponent: 3), new UnitTerm(AtomicUnits.Gram, -1, 3));
+		UnitExpression original = new(new UnitTerm(_watt, prefixExponent: 3), new UnitTerm(AtomicUnits.Gram, -1, 3));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = 3;
 
@@ -261,5 +289,39 @@ public sealed class UnitExpressionTests
 		Assert.Multiple(
 			() => Assert.Equal(expected, result),
 			() => Assert.Equal(expectedOriginal, original));
+	}
+
+	[Fact]
+	public void GetScaleCombinesNonDecimalFactorsAndNegativePowers()
+	{
+		AtomicUnit foot = new("Foot", "Feet", "ft", Scale: 0.3048);
+		AtomicUnit minute = new("Minute", "Minutes", "min", Scale: 60);
+		UnitExpression original = new(new UnitTerm(foot, 2), new UnitTerm(minute, -1));
+		double result = original.GetScale();
+		double expected = 0.001548384;
+
+		Assert.Equal(expected, result, 12);
+	}
+
+	[Fact]
+	public void GetScaleAppliesFractionalPowers()
+	{
+		AtomicUnit unit = new("Sample", "Samples", "x", Scale: 16);
+		UnitExpression original = new(new UnitTerm(unit, new Rational(3, 2)));
+		double result = original.GetScale();
+		double expected = 64;
+
+		Assert.Equal(expected, result);
+	}
+
+	[Fact]
+	public void GetNameAcceptsAReferenceWithDifferentFactors()
+	{
+		UnitExpression reference = new(new UnitTerm(AtomicUnits.Amp));
+		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
+		string result = original.GetName(reference);
+		string expected = "AmpsPerSquareMetre";
+
+		Assert.Equal(expected, result);
 	}
 }

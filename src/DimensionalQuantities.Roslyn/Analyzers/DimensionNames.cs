@@ -7,7 +7,7 @@ namespace DimensionalQuantities.Roslyn.Analyzers;
 internal static class DimensionNames
 {
 	public static string Get(Dimension dimension) =>
-		EngineeringCatalogue.Entries.TryGetValue(dimension, out UnitDefinition[]? units)
-			? units[0].QuantityName
+		EngineeringQuantityAliases.Entries.TryGetValue(dimension, out string[]? aliases)
+			? aliases[0]
 			: dimension == default ? "Dimensionless" : DimensionNameGenerator.GetQuantityName(dimension);
 }

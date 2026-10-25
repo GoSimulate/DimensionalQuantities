@@ -32,6 +32,8 @@ internal readonly record struct UnitExpression
 		return exponent;
 	}
 
+	public double GetScale() => Terms.Aggregate(1d, (scale, term) => scale * Math.Pow(term.Unit.Scale, (double)term.Power));
+
 	public string GetName(UnitExpression? reference = null, int variableFactorIndex = -1)
 	{
 		StringBuilder numerator = new();
@@ -48,7 +50,8 @@ internal readonly record struct UnitExpression
 			AppendRootName(destination, power);
 			AppendPowerName(destination, power.Numerator);
 			bool generatedPrefix = index == variableFactorIndex ||
-				(reference is { } original && term.PrefixExponent != original.Terms[index].PrefixExponent);
+				(reference is { } original && original.Terms.Length == Terms.Length
+					&& term.PrefixExponent != original.Terms[index].PrefixExponent);
 			AppendUnitName(destination, term, index == lastNumerator, generatedPrefix);
 		}
 

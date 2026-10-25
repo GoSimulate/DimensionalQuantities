@@ -15,6 +15,14 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 
 The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes the runtime library, source generator, analysers and an alias quick fix.
 
+Core includes the seven SI base quantities' conversion helpers. Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, and import its namespace:
+
+```csharp
+using DimensionalQuantities.Extensions.Metric;
+```
+
+Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
+
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
 Current current = Current.FromAmps(3);
@@ -162,12 +170,52 @@ The analysers and generator report dimensional mistakes and problems with genera
 | DQ0005 | Error | A closed type-system encoding is invalid. |
 | DQ0006 | Warning | A generated alias conflicts with a declared name or shadows an imported type. |
 | DQ0007 | Error | An unresolved English exponent in `Power<Number...>.Of(...)` cannot be parsed, for example `NumberTwoOverZero`. |
+| DQ0008 | Error | A unit provider declaration is invalid, for example a missing unit symbol or a zero power denominator. |
 
 DQ0003 has an IDE quick fix to replace the raw type with its readable alias, such as `Length`. The fix is offered only when the alias resolves to the same type; it is withheld inside `nameof`, where replacing the type could change the resulting string.
 
 Alias collision warnings do not suppress or rename generated aliases. Use qualified names or distinct explicit aliases to disambiguate your own types.
 
+### Defining an extension
+
+An extension project references core and declares its units using attributes. The generator compiles public conversion helpers into that extension's assembly; consumers reference the extension and import its namespace.
+
+```csharp
+using DimensionalQuantities.Units.Declarations;
+
+namespace Example.Units;
+
+[UnitProvider]
+internal static class CustomUnits
+{
+    [QuantityUnit(typeof(Length))]
+    [UnitFactor(typeof(CustomSymbols.Foot))]
+    private sealed class LengthUnit;
+
+    [QuantityUnit(typeof(Pressure))]
+    [QuantityUnit(typeof(Stress))]
+    [QuantityUnit(typeof(YoungsModulus))]
+    [UnitFactor(typeof(CustomSymbols.Pascal))]
+    private sealed class PascalUnit;
+}
+
+internal static class CustomSymbols
+{
+    [UnitSymbol("Foot", "Feet", "ft", Scale = 0.3048)]
+    internal sealed class Foot;
+
+    [UnitSymbol("Pascal", "Pascals", "Pa")]
+    internal sealed class Pascal;
+}
+```
+
+Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`. The Pascal declaration associates the same unit with Pressure, Stress and Young’s modulus; their shared underlying type receives one set of conversion helpers.
+
+`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. An optional `[UnitConversion(Offset = ...)]` on the unit declaration supplies an offset added after scaling into SI and subtracted before converting back; it applies to every associated quantity. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
+
 ### Current scope
+
+When upgrading from the combined package, add the Metric package and namespace wherever you use catalogue conversions, including their `FromPrefixedUnits` and `AsPrefixedUnits` helpers. Their names and conversion behaviour are unchanged. Core-only consumers can use `FromSiBaseUnit`, `AsSiBaseUnit`, `FromArbitrarySiComponents` and `AsArbitrarySiComponents` for every quantity.
 
 Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains.
 

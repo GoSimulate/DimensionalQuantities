@@ -2,23 +2,18 @@ namespace DimensionalQuantities.Units;
 
 internal static class AtomicUnits
 {
-	public static readonly AtomicUnit Metre = new("Metre", "Metres", "m", SiBasePrefixExponents.Length);
-	public static readonly AtomicUnit Gram = new("Gram", "Grams", "g", SiBasePrefixExponents.Mass);
-	public static readonly AtomicUnit Second = new("Second", "Seconds", "s", SiBasePrefixExponents.Time);
-	public static readonly AtomicUnit Amp = new("Amp", "Amps", "A", SiBasePrefixExponents.ElectricCurrent);
-	public static readonly AtomicUnit Kelvin = new("Kelvin", "Kelvin", "K", SiBasePrefixExponents.Temperature);
-	public static readonly AtomicUnit Mole = new("Mole", "Moles", "mol", SiBasePrefixExponents.AmountOfSubstance);
-	public static readonly AtomicUnit Candela = new("Candela", "Candelas", "cd", SiBasePrefixExponents.LuminousIntensity);
-	public static readonly AtomicUnit Radian = new("Radian", "Radians", "rad");
-	public static readonly AtomicUnit Hertz = new("Hertz", "Hertz", "Hz");
-	public static readonly AtomicUnit Pascal = new("Pascal", "Pascals", "Pa");
-	public static readonly AtomicUnit Joule = new("Joule", "Joules", "J");
-	public static readonly AtomicUnit Newton = new("Newton", "Newtons", "N");
-	public static readonly AtomicUnit Watt = new("Watt", "Watts", "W");
-	public static readonly AtomicUnit Volt = new("Volt", "Volts", "V");
-	public static readonly AtomicUnit Ohm = new("Ohm", "Ohms", "Ω");
-	public static readonly AtomicUnit Henry = new("Henry", "Henries", "H");
-	public static readonly AtomicUnit Weber = new("Weber", "Webers", "Wb");
-	public static readonly AtomicUnit Tesla = new("Tesla", "Teslas", "T");
-	public static readonly AtomicUnit Siemens = new("Siemens", "Siemens", "S");
+	public static readonly AtomicUnit Metre = new(SiUnitMetadata.Metre.Singular, SiUnitMetadata.Metre.Plural,
+		SiUnitMetadata.Metre.Symbol, SiBasePrefixExponents.Length);
+	public static readonly AtomicUnit Gram = new(SiUnitMetadata.Gram.Singular, SiUnitMetadata.Gram.Plural,
+		SiUnitMetadata.Gram.Symbol, SiBasePrefixExponents.Mass);
+	public static readonly AtomicUnit Second = new(SiUnitMetadata.Second.Singular, SiUnitMetadata.Second.Plural,
+		SiUnitMetadata.Second.Symbol, SiBasePrefixExponents.Time);
+	public static readonly AtomicUnit Amp = new(SiUnitMetadata.Amp.Singular, SiUnitMetadata.Amp.Plural,
+		SiUnitMetadata.Amp.Symbol, SiBasePrefixExponents.ElectricCurrent);
+	public static readonly AtomicUnit Kelvin = new(SiUnitMetadata.Kelvin.Singular, SiUnitMetadata.Kelvin.Plural,
+		SiUnitMetadata.Kelvin.Symbol, SiBasePrefixExponents.Temperature);
+	public static readonly AtomicUnit Mole = new(SiUnitMetadata.Mole.Singular, SiUnitMetadata.Mole.Plural,
+		SiUnitMetadata.Mole.Symbol, SiBasePrefixExponents.AmountOfSubstance);
+	public static readonly AtomicUnit Candela = new(SiUnitMetadata.Candela.Singular, SiUnitMetadata.Candela.Plural,
+		SiUnitMetadata.Candela.Symbol, SiBasePrefixExponents.LuminousIntensity);
 }

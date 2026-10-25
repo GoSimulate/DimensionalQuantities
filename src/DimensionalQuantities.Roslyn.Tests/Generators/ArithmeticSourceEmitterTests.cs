@@ -35,9 +35,9 @@ public sealed class ArithmeticSourceEmitterTests
 		const string source = """
 			public static class Consumer
 			{
-				public static double Left() => (Current.FromAmps(2) * Current.FromAmps(3) * Resistance.FromOhms(4)).AsSiBaseUnit();
-				public static double Right() => (Current.FromAmps(2) * (Current.FromAmps(3) * Resistance.FromOhms(4))).AsSiBaseUnit();
-				public static double Divided() => (Voltage.FromVolts(12) / Current.FromAmps(3)).AsSiBaseUnit();
+				public static double Left() => (Current.FromAmps(2) * Current.FromAmps(3) * Resistance.FromSiBaseUnit(4)).AsSiBaseUnit();
+				public static double Right() => (Current.FromAmps(2) * (Current.FromAmps(3) * Resistance.FromSiBaseUnit(4))).AsSiBaseUnit();
+				public static double Divided() => (Voltage.FromSiBaseUnit(12) / Current.FromAmps(3)).AsSiBaseUnit();
 			}
 			""";
 		Assembly assembly = CompileAndEmit(source, plan);

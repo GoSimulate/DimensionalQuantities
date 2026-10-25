@@ -19,7 +19,7 @@ internal static class QuantityDiscoveryCoordinator
 		}
 
 		ImmutableArray<EnglishExponentAlias> aliases = DiscoverySeedCollector.FindEnglishAliases(compilation, inputTrees, cancellationToken);
-		CSharpCompilation seeded = aliases.IsEmpty ? compilation : Bind(compilation,
+		CSharpCompilation seeded = aliases.IsEmpty ? compilation : compilation.AddGeneratedSources(
 			[new("EnglishExponents.g.cs", EnglishExponentAliasEmitter.Emit(aliases))]);
 		HashSet<Dimension> requested = [.. DiscoverySeedCollector.FindRequestedDimensions(seeded, inputTrees, cancellationToken)];
 		HashSet<ArithmeticOperation> arithmetic = [];
@@ -32,7 +32,7 @@ internal static class QuantityDiscoveryCoordinator
 			QuantityGenerationPlan plan = QuantityDiscovery.DiscoverWithPredefinedQuantities(defaults,
 				arithmetic, powers, methods, requested);
 			ImmutableArray<GeneratedSource> sources = DiscoverySourceComposer.Compose(plan, aliases);
-			CSharpCompilation bound = Bind(compilation, sources);
+			CSharpCompilation bound = compilation.AddGeneratedSources(sources);
 			BoundOperationResult found = BoundOperationDiscovery.Discover(bound, inputTrees, cancellationToken);
 			bool changed = AddNew(arithmetic, found.ArithmeticOperations);
 			changed |= AddNew(powers, found.PowerOperations);
@@ -64,13 +64,5 @@ internal static class QuantityDiscoveryCoordinator
 		}
 
 		return changed;
-	}
-
-	private static CSharpCompilation Bind(CSharpCompilation compilation, ImmutableArray<GeneratedSource> sources)
-	{
-		CSharpParseOptions options = compilation.SyntaxTrees.OfType<CSharpSyntaxTree>()
-			.Select(tree => (CSharpParseOptions)tree.Options).FirstOrDefault() ?? CSharpParseOptions.Default;
-		SyntaxTree[] trees = sources.Select(source => CSharpSyntaxTree.ParseText(source.Text, options, path: source.HintName)).ToArray();
-		return compilation.AddSyntaxTrees(trees);
 	}
 }

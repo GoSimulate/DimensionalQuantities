@@ -6,6 +6,7 @@ on:
       - 'src/**'
       - '!src/*Tests/**'
       - '.github/workflows/cd.yml'
+      - '.github/scripts/check-package.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -61,10 +62,10 @@ jobs:
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
       - name: Pack
         run: >-
-          dotnet pack src/DimensionalQuantities/DimensionalQuantities.csproj
-          -c Release --no-build -o artifacts/packages
+          dotnet pack src/DimensionalQuantities.slnx
+          -c Release --no-build --no-restore -o artifacts/packages
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
-      - name: Check NuGet package
+      - name: Check NuGet packages
         run: python3 .github/scripts/check-package.py "$VERSION"
       - name: Generate release notes
         id: notes
@@ -96,7 +97,7 @@ jobs:
         run: >-
           dotnet nuget push 'artifacts/packages/*.nupkg'
           --source "$PACKAGE_SOURCE"
-          --api-key "$GITHUB_TOKEN" --skip-duplicate
+          --api-key "$GITHUB_TOKEN" --skip-duplicate --no-symbols
       - name: Create GitHub release
         uses: ncipollo/release-action@v1.21.0
         with:
@@ -104,7 +105,7 @@ jobs:
           tag: ${{ needs.version.outputs.next }}
           commit: ${{ github.sha }}
           body: ${{ steps.notes.outputs.changes }}
-          artifacts: artifacts/packages/*.nupkg
+          artifacts: artifacts/packages/*.nupkg,artifacts/packages/*.snupkg
           artifactErrorsFailBuild: true
           makeLatest: true
       - uses: actions/upload-artifact@v7.0.2

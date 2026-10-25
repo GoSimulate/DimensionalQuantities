@@ -13,6 +13,7 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 {
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
+		IncrementalValuesProvider<INamedTypeSymbol> providers = UnitProviderGenerationCoordinator.FindProviders(context);
 		QuantityGenerationPlan defaultPlan = DefaultQuantityDiscovery.Discover();
 		context.RegisterPostInitializationOutput(output =>
 		{
@@ -27,18 +28,27 @@ public sealed class QuantityGenerator : IIncrementalGenerator
 		IncrementalValuesProvider<SyntaxTree> inputTrees = context.SyntaxProvider.CreateSyntaxProvider(
 			static (node, _) => node is CompilationUnitSyntax unit && IsDiscoveryInputTree(unit.SyntaxTree),
 			static (syntaxContext, _) => syntaxContext.Node.SyntaxTree);
-		IncrementalValueProvider<(Compilation Left, ImmutableArray<SyntaxTree> Right)> inputs = context.CompilationProvider.Combine(inputTrees.Collect());
+		IncrementalValueProvider<((Compilation Left, ImmutableArray<SyntaxTree> Right) Left, ImmutableArray<INamedTypeSymbol> Right)> inputs =
+			context.CompilationProvider.Combine(inputTrees.Collect()).Combine(providers.Collect());
 		context.RegisterSourceOutput(inputs, (output, input) =>
 		{
-			CSharpCompilation original = (CSharpCompilation)input.Left;
-			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, input.Right, output.CancellationToken))
+			CSharpCompilation original = (CSharpCompilation)input.Left.Left;
+			ImmutableArray<SyntaxTree> sourceTrees = input.Left.Right;
+			ImmutableArray<GeneratedSource> providerSources = UnitProviderGenerationCoordinator.Generate(original, input.Right, output.ReportDiagnostic);
+			foreach (GeneratedSource source in providerSources)
+			{
+				output.AddSource(source.HintName, SourceText.From(source.Text, Encoding.UTF8));
+			}
+
+			CSharpCompilation withProviders = original.AddGeneratedSources(providerSources);
+			foreach (Diagnostic diagnostic in GenerationDiagnostics.FindInvalidEnglishExponents(original, sourceTrees, output.CancellationToken))
 			{
 				output.ReportDiagnostic(diagnostic);
 			}
 
-			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover(original,
-				input.Right, defaultPlan, output.CancellationToken);
-			foreach (Diagnostic diagnostic in AliasCollisionDiagnostics.Find(original, result, input.Right, output.CancellationToken))
+			QuantityDiscoveryResult result = QuantityDiscoveryCoordinator.Discover(withProviders,
+				sourceTrees, defaultPlan, output.CancellationToken);
+			foreach (Diagnostic diagnostic in AliasCollisionDiagnostics.Find(original, result, sourceTrees, output.CancellationToken))
 			{
 				output.ReportDiagnostic(diagnostic);
 			}

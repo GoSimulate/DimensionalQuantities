@@ -685,7 +685,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 				public static {{resultType}} Calculate()
 				{
 					Current current = Current.FromAmps(3);
-					Resistance resistance = Resistance.FromOhms(4);
+					Resistance resistance = Resistance.FromSiBaseUnit(4);
 					Time time = Time.FromSeconds(2);
 					{{declarations}}
 					return {{resultName}};
@@ -707,7 +707,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 				public static double Value()
 				{
 					Current current = Current.FromAmps(3);
-					Resistance resistance = Resistance.FromOhms(4);
+					Resistance resistance = Resistance.FromSiBaseUnit(4);
 					Time time = Time.FromSeconds(2);
 					double first;
 					double second;
@@ -715,7 +715,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 						var intermediate = current * current;
 						var result = intermediate * resistance;
 						Power typedResult = result;
-						first = typedResult.AsWatts();
+						first = typedResult.AsSiBaseUnit();
 					}
 					{
 						var intermediate = time * time;

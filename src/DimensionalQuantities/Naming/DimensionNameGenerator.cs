@@ -8,10 +8,6 @@ namespace DimensionalQuantities.Naming;
 
 internal static class DimensionNameGenerator
 {
-	public static string GetQuantityName(Dimension dimension) => GetName(dimension, static component => component.Unit.QuantityName);
-
-	public static string GetUnitName(Dimension dimension) => GetName(dimension, static component => component.Unit.Expression.GetName());
-
 	public static string GetUnitExpression(Dimension dimension)
 	{
 		DimensionComponent[] components = dimension.GetComponents().ToArray();
@@ -33,7 +29,7 @@ internal static class DimensionNameGenerator
 		return expression.ToString();
 	}
 
-	private static string GetName(Dimension dimension, Func<DimensionComponent, string> getFactorName)
+	public static string GetQuantityName(Dimension dimension)
 	{
 		DimensionComponent[] components = dimension.GetComponents().ToArray();
 		if (components.Length == 0)
@@ -51,11 +47,11 @@ internal static class DimensionNameGenerator
 			Rational exponent = component.Exponent;
 			if (exponent.Numerator.Sign > 0)
 			{
-				AppendFactor(numerator, getFactorName(component), exponent);
+				AppendFactor(numerator, component.Unit.Name, exponent);
 			}
 			else
 			{
-				AppendFactor(denominator, getFactorName(component), -exponent);
+				AppendFactor(denominator, component.Unit.Name, -exponent);
 			}
 		}
 
