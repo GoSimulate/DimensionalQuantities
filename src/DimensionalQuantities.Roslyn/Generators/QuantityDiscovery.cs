@@ -57,7 +57,8 @@ internal static class QuantityDiscovery
 
 		foreach (Dimension dimension in baseDimensions)
 		{
-			knownQuantities.Add(new(dimension, [dimension.GetComponents().Single().Unit], true));
+			UnitDefinition unit = dimension.GetComponents().Single().Unit;
+			knownQuantities.Add(new(dimension, [unit], true));
 			dimensions.Add(dimension);
 		}
 

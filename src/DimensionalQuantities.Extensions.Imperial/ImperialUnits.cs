@@ -119,5 +119,8 @@ internal static class ImperialUnits
 
 	[QuantityUnit(typeof(Temperature))]
 	[UnitFactor(typeof(ImperialSymbols.Rankine))]
+	[AdditionalUnit(typeof(FahrenheitUnit))]
 	private sealed class TemperatureUnit { }
+	[UnitFactor(typeof(ImperialSymbols.Fahrenheit))]
+	private sealed class FahrenheitUnit { }
 }

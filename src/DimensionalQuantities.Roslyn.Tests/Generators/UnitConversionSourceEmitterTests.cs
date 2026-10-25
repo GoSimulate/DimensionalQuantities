@@ -49,6 +49,7 @@ public sealed class UnitConversionSourceEmitterTests
 	[InlineData("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
 	[InlineData("Mass.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
 	[InlineData("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)", 1000)]
+	[InlineData("Length.FromMilliMetres(2500).AsDelta().AsMilliMetres()", 2500)]
 	public void BaseUnitPrefixesKeepTheirSiScales(string expression, double expected)
 	{
 		string source = $$"""
@@ -71,16 +72,62 @@ public sealed class UnitConversionSourceEmitterTests
 		Assert.Equal(expected, result);
 	}
 
-	private static CSharpCompilation Compile(string source)
+	[Fact]
+	public void AffineReadingsAndScaleOnlyDeltasUseTheirOwnConversionRules()
+	{
+		AtomicUnit celsius = new("Celsius", "Celsius", "°C");
+		AtomicUnit rankine = new("Rankine", "Rankine", "°R", Scale: 5d / 9d);
+		AtomicUnit fahrenheit = new("Fahrenheit", "Fahrenheit", "°F", Scale: 5d / 9d);
+		UnitConversionSpec[] units =
+		[
+			new("Temperature", "Temperature",
+			[
+				new UnitDefinition("Celsius", new UnitExpression(new UnitTerm(celsius)), offsetBeforeScale: 273.15),
+				new UnitDefinition("Rankine", new UnitExpression(new UnitTerm(rankine)),
+					[new(new UnitExpression(new UnitTerm(fahrenheit)), 459.67)])
+			], true, false, false)
+		];
+		CSharpCompilation compilation = Compile("""
+			public static class Consumer
+			{
+				public static double AbsoluteCelsius() => Temperature.FromCelsius(20).AsCelsius();
+				public static double AbsoluteFahrenheit() => Temperature.FromFahrenheit(68).AsCelsius();
+				public static double DifferenceCelsius() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsCelsius();
+				public static double DifferenceFahrenheit() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsFahrenheit();
+				public static double DifferenceRankine() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsRankine();
+				public static double ZeroDifference() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(20)).AsDelta().AsFahrenheit();
+				public static double NegativeDifference() => (Temperature.FromCelsius(10) - Temperature.FromCelsius(20)).AsDelta().AsFahrenheit();
+			}
+			""", units);
+		using MemoryStream assemblyBytes = new();
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
+		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
+		Type consumer = assembly.GetType("Consumer")!;
+		Assert.Multiple(
+			() => Assert.Equal(20, Invoke(consumer, "AbsoluteCelsius"), 10),
+			() => Assert.Equal(20, Invoke(consumer, "AbsoluteFahrenheit"), 10),
+			() => Assert.Equal(10, Invoke(consumer, "DifferenceCelsius"), 10),
+			() => Assert.Equal(18, Invoke(consumer, "DifferenceFahrenheit"), 10),
+			() => Assert.Equal(18, Invoke(consumer, "DifferenceRankine"), 10),
+			() => Assert.Equal(0, Invoke(consumer, "ZeroDifference"), 10),
+			() => Assert.Equal(-18, Invoke(consumer, "NegativeDifference"), 10));
+	}
+
+	private static double Invoke(Type consumer, string method) => (double)consumer.GetMethod(method)!.Invoke(null, null)!;
+
+	private static CSharpCompilation Compile(string source, UnitConversionSpec[]? units = null)
 	{
 		string lengthType = QuantityTypeNameFormatter.Format(new Dimension(Length: 1));
 		string massType = QuantityTypeNameFormatter.Format(new Dimension(Mass: 1));
+		string temperatureType = QuantityTypeNameFormatter.Format(new Dimension(Temperature: 1));
 		string generatedSource = $"""
 			global using Length = {lengthType};
 			global using Mass = {massType};
+			global using Temperature = {temperatureType};
 			global using DimensionalQuantities.Generated;
 
-			{UnitConversionSourceEmitter.Emit(_units, "DimensionalQuantities.Generated", "internal")}
+			{UnitConversionSourceEmitter.Emit(units ?? _units, "DimensionalQuantities.Generated", "internal")}
 			""";
 		string[] platformAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = platformAssemblies.Select(path => MetadataReference.CreateFromFile(path))

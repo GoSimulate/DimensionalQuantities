@@ -43,6 +43,9 @@ public readonly record struct Quantity<TDimension>
 	/// <summary>Returns the magnitude in coherent SI base units for its dimension.</summary>
 	public double AsSiBaseUnit() => ValueInSiBaseUnit;
 
+	/// <summary>Interprets this quantity's stored SI magnitude as a difference without changing its value.</summary>
+	public Delta<Quantity<TDimension>> AsDelta() => new(ValueInSiBaseUnit);
+
 	/// <summary>Returns the magnitude in SI base components with the selected decimal prefixes.</summary>
 	public double AsArbitrarySiComponents(
 		int lengthPrefixExponent = SiBasePrefixExponents.Length,

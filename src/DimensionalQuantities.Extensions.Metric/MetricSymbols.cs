@@ -6,6 +6,9 @@ internal static class MetricSymbols
 {
 	[UnitSymbol("Radian", "Radians", "rad")]
 	internal sealed class Radian { }
+	[UnitSymbol("Celsius", "Celsius", "°C")]
+	[AffineUnit(273.15)]
+	internal sealed class Celsius { }
 	[UnitSymbol("Hertz", "Hertz", "Hz")]
 	internal sealed class Hertz { }
 	[UnitSymbol("Pascal", "Pascals", "Pa")]

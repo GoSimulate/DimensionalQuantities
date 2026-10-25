@@ -9,5 +9,6 @@ internal static class DimensionNames
 	public static string Get(Dimension dimension) =>
 		EngineeringQuantityAliases.Entries.TryGetValue(dimension, out string[]? aliases)
 			? aliases[0]
-			: dimension == default ? "Dimensionless" : DimensionNameGenerator.GetQuantityName(dimension);
+			: dimension == default ? "Dimensionless"
+				: DimensionNameGenerator.GetQuantityName(dimension);
 }

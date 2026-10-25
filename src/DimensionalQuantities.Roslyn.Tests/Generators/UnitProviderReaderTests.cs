@@ -1,6 +1,7 @@
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.TypeSystem;
 using DimensionalQuantities.Numerics;
+using DimensionalQuantities.Units;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
@@ -78,6 +79,63 @@ public sealed class UnitProviderReaderTests
 	}
 
 	[Fact]
+	public void AffineOffsetIsReadForAnAdditionalUnit()
+	{
+		const string source = """
+			using DimensionalQuantities.Units.Declarations;
+			[UnitProvider]
+			internal static class Units
+			{
+				[QuantityUnit(typeof(Temperature))]
+				[UnitFactor(typeof(Rankine))]
+				[AdditionalUnit(typeof(FahrenheitUnit))]
+				private sealed class TemperatureUnit;
+				[UnitFactor(typeof(Fahrenheit))]
+				private sealed class FahrenheitUnit;
+				[UnitSymbol("Rankine", "Rankine", "°R", Scale = 5d / 9d)]
+				private sealed class Rankine;
+				[UnitSymbol("Fahrenheit", "Fahrenheit", "°F", Scale = 5d / 9d)]
+				[AffineUnit(459.67)]
+				private sealed class Fahrenheit;
+			}
+			""";
+		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
+		UnitDefinition unit = Assert.Single(Assert.Single(units).Units);
+		Assert.Multiple(
+			() => Assert.Empty(diagnostics),
+			() => Assert.Null(unit.OffsetBeforeScale),
+			() => Assert.Equal(459.67, Assert.Single(unit.AdditionalConversions).OffsetBeforeScale));
+	}
+
+	[Theory]
+	[InlineData("[UnitFactor(typeof(Celsius), Power = 2)]", "")]
+	[InlineData("[UnitFactor(typeof(Celsius), PrefixExponent = 3)]", "")]
+	[InlineData("[UnitFactor(typeof(Celsius))]", "[UnitFactor(typeof(Metre))]")]
+	public void AffineUnitsRejectPoweredPrefixedAndCompoundDeclarations(string factor, string additionalFactor)
+	{
+		string source = $$"""
+			using DimensionalQuantities.Units.Declarations;
+			[UnitProvider]
+			internal static class Units
+			{
+				[QuantityUnit(typeof(Temperature))]
+				{{factor}}
+				{{additionalFactor}}
+				private sealed class TemperatureUnit;
+				[UnitSymbol("Celsius", "Celsius", "°C")]
+				[AffineUnit(273.15)]
+				private sealed class Celsius;
+				[UnitSymbol("Metre", "Metres", "m")]
+				private sealed class Metre;
+			}
+			""";
+		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
+		Assert.Multiple(
+			() => Assert.Empty(units),
+			() => Assert.Equal("DQ0008", Assert.Single(diagnostics).Id));
+	}
+
+	[Fact]
 	public void OneDeclarationCanAssociateDistinctQuantityTypes()
 	{
 		const string source = """
@@ -114,7 +172,8 @@ public sealed class UnitProviderReaderTests
 		string lengthType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Length: 1));
 		string timeType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Time: 1));
 		string pressureType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Length: -1, Mass: 1, Time: -2));
-		source = $"global using Length = {lengthType};\nglobal using Time = {timeType};\nglobal using Pressure = {pressureType};\nglobal using Stress = {pressureType};\n" + source;
+		string temperatureType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Temperature: 1));
+		source = $"global using Length = {lengthType};\nglobal using Time = {timeType};\nglobal using Pressure = {pressureType};\nglobal using Stress = {pressureType};\nglobal using Temperature = {temperatureType};\n" + source;
 		CSharpCompilation input = CSharpCompilation.Create("UnitProviderReaderTest" + Guid.NewGuid().ToString("N"),
 			[CSharpSyntaxTree.ParseText(source, options)], references, new(OutputKind.DynamicallyLinkedLibrary));
 		UnitProviderReader reader = new(input);

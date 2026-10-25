@@ -13,6 +13,7 @@ internal sealed class UnitProviderReader
 	private readonly INamedTypeSymbol _quantityAttribute;
 	private readonly INamedTypeSymbol _factorAttribute;
 	private readonly INamedTypeSymbol _symbolAttribute;
+	private readonly INamedTypeSymbol _affineAttribute;
 	private readonly INamedTypeSymbol _additionalAttribute;
 	private readonly QuantityTypeReader _quantityReader;
 
@@ -22,6 +23,7 @@ internal sealed class UnitProviderReader
 		_quantityAttribute = compilation.GetRequiredType(typeof(QuantityUnitAttribute));
 		_factorAttribute = compilation.GetRequiredType(typeof(UnitFactorAttribute));
 		_symbolAttribute = compilation.GetRequiredType(typeof(UnitSymbolAttribute));
+		_affineAttribute = compilation.GetRequiredType(typeof(AffineUnitAttribute));
 		_additionalAttribute = compilation.GetRequiredType(typeof(AdditionalUnitAttribute));
 		_quantityReader = new(compilation);
 	}
@@ -94,12 +96,12 @@ internal sealed class UnitProviderReader
 		Action<Diagnostic> report, out UnitDefinition unit)
 	{
 		unit = default;
-		if (!TryReadExpression(declaration, report, out UnitExpression expression))
+		if (!TryReadExpression(declaration, report, out UnitConversion conversion))
 		{
 			return false;
 		}
 
-		if (!TryReadAlternatives(declaration, provider, report, out UnitExpression[] alternatives))
+		if (!TryReadAlternatives(declaration, provider, report, out UnitConversion[] alternatives))
 		{
 			return false;
 		}
@@ -112,14 +114,14 @@ internal sealed class UnitProviderReader
 			return false;
 		}
 
-		unit = new(name, expression, alternatives);
+		unit = new(name, conversion.Expression, alternatives, conversion.OffsetBeforeScale);
 		return true;
 	}
 
 	private bool TryReadAlternatives(INamedTypeSymbol declaration, INamedTypeSymbol provider,
-		Action<Diagnostic> report, out UnitExpression[] alternatives)
+		Action<Diagnostic> report, out UnitConversion[] alternatives)
 	{
-		List<UnitExpression> results = [];
+		List<UnitConversion> results = [];
 		foreach (AttributeData addition in FindAll(declaration, _additionalAttribute))
 		{
 			if (addition.ConstructorArguments[0].Value is not INamedTypeSymbol additionalType
@@ -130,34 +132,42 @@ internal sealed class UnitProviderReader
 				return false;
 			}
 
-			if (!TryReadExpression(additionalType, report, out UnitExpression expression))
+			if (!TryReadExpression(additionalType, report, out UnitConversion conversion))
 			{
 				alternatives = [];
 				return false;
 			}
 
-			results.Add(expression);
+			results.Add(conversion);
 		}
 
 		alternatives = [.. results];
 		return true;
 	}
 
-	private bool TryReadExpression(INamedTypeSymbol declaration, Action<Diagnostic> report, out UnitExpression expression)
+	private bool TryReadExpression(INamedTypeSymbol declaration, Action<Diagnostic> report, out UnitConversion conversion)
 	{
 		List<UnitTerm> terms = [];
+		double? offsetBeforeScale = null;
 		foreach (AttributeData factor in FindAll(declaration, _factorAttribute))
 		{
-			if (!TryReadFactor(factor, report, out UnitTerm term))
+			if (!TryReadFactor(factor, report, out UnitTerm term, out double? factorOffset))
 			{
-				expression = default;
+				conversion = default;
 				return false;
 			}
 
 			terms.Add(term);
+			offsetBeforeScale ??= factorOffset;
 		}
 
-		expression = new([.. terms]);
+		conversion = new(new UnitExpression([.. terms]), offsetBeforeScale);
+		if (offsetBeforeScale is not null && terms.Count != 1)
+		{
+			Report(report, declaration.GetAttributes().FirstOrDefault(), "An affine unit must be a single, unprefixed factor with power one.");
+			return false;
+		}
+
 		if (terms.Count > 0)
 		{
 			return true;
@@ -168,9 +178,10 @@ internal sealed class UnitProviderReader
 		return false;
 	}
 
-	private bool TryReadFactor(AttributeData factor, Action<Diagnostic> report, out UnitTerm term)
+	private bool TryReadFactor(AttributeData factor, Action<Diagnostic> report, out UnitTerm term, out double? offsetBeforeScale)
 	{
 		term = default;
+		offsetBeforeScale = null;
 		if (factor.ConstructorArguments[0].Value is not INamedTypeSymbol symbolType
 			|| Find(symbolType, _symbolAttribute) is not { } symbol)
 		{
@@ -183,6 +194,18 @@ internal sealed class UnitProviderReader
 		int prefix = GetNamed(factor, nameof(UnitFactorAttribute.PrefixExponent), 0);
 		int basePrefix = GetNamed(symbol, nameof(UnitSymbolAttribute.SiBasePrefixExponent), 0);
 		double scale = GetNamed(symbol, nameof(UnitSymbolAttribute.Scale), 1d);
+		AttributeData? affine = Find(symbolType, _affineAttribute);
+		if (affine is not null)
+		{
+			if (affine.ConstructorArguments[0].Value is not double offset || !IsFinite(offset)
+				|| power != 1 || denominator != 1 || prefix != 0 || basePrefix != 0)
+			{
+				Report(report, factor, "An affine unit must have a finite offset and be an unprefixed factor with power one.");
+				return false;
+			}
+
+			offsetBeforeScale = offset;
+		}
 		string? singular = symbol.ConstructorArguments[0].Value as string;
 		string? plural = symbol.ConstructorArguments[1].Value as string;
 		string? glyph = symbol.ConstructorArguments[2].Value as string;

@@ -78,6 +78,14 @@ public sealed class ImperialConversionsTests
 	}
 
 	[Fact]
+	public void FahrenheitConvertsToAndFromAbsoluteKelvin()
+	{
+		Assert.Multiple(
+			() => Assert.Equal(273.15, Temperature.FromFahrenheit(32).AsKelvin(), 10),
+			() => Assert.Equal(32, Temperature.FromKelvin(273.15).AsFahrenheit(), 10));
+	}
+
+	[Fact]
 	public void ProviderDoesNotGenerateSiPrefixHelpers()
 	{
 		string[] names = Assembly.Load("DimensionalQuantities.Extensions.Imperial").GetExportedTypes()

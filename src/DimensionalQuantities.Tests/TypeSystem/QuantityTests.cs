@@ -1,3 +1,4 @@
+using DimensionalQuantities.TypeSystem;
 using Xunit;
 using AllAxes = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
 	DimensionalQuantities.TypeSystem.TerminalHex1,
@@ -237,6 +238,31 @@ public sealed class QuantityTests
 		double result = original.AsSiBaseUnit();
 
 		Assert.Equal(expected, result);
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-4.5)]
+	[InlineData(12.25)]
+	public void AsDeltaPreservesSiMagnitudeForAnyQuantity(double expected)
+	{
+		Current original = Current.FromSiBaseUnit(expected);
+		Delta<Current> result = original.AsDelta();
+
+		Assert.Equal(expected, result.AsSiBaseUnit());
+	}
+
+	[Theory]
+	[InlineData(20, 10, 10)]
+	[InlineData(10, 10, 0)]
+	[InlineData(10, 20, -10)]
+	public void AsDeltaUsesTheMagnitudeAfterSubtraction(double firstValue, double secondValue, double expected)
+	{
+		Length first = Length.FromSiBaseUnit(firstValue);
+		Length second = Length.FromSiBaseUnit(secondValue);
+		Delta<Length> result = (first - second).AsDelta();
+
+		Assert.Equal(expected, result.AsSiBaseUnit());
 	}
 
 	[Fact]

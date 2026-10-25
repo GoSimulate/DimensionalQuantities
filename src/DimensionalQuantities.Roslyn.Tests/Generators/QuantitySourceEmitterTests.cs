@@ -15,6 +15,13 @@ public sealed class QuantitySourceEmitterTests
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
+	public void StandaloneTemperatureUsesTheDimensionAlias()
+	{
+		string source = QuantitySourceEmitter.Emit(QuantityDiscovery.Discover([]).KnownQuantities);
+		Assert.Contains("global using Temperature =", source);
+	}
+
+	[Fact]
 	public void DiscoveredMechanicalQuantityUsesItsGenericPrefixConversion()
 	{
 		Dimension mass = new(Mass: 1);
