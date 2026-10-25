@@ -35,6 +35,17 @@ double metres = depth.AsSiBaseUnit(); // 1.8288
 
 `BritishThermalUnitIT` is the International Table definition (exactly 1055.05585262 J); other BTU definitions differ. US and Imperial liquid measures are named separately. Imperial helpers do not generate SI-prefixed variants.
 
+Add `DimensionalQuantities.Extensions.Nautical` for international nautical miles, fathoms, square nautical miles and knots. Import its namespace to use the helpers:
+
+```csharp
+using DimensionalQuantities.Extensions.Nautical;
+
+Length passage = Length.FromNauticalMiles(12);
+Speed vesselSpeed = Speed.FromKnots(8);
+```
+
+A nautical mile is exactly 1852 m, and a knot is one nautical mile per hour. Nautical helpers do not generate SI-prefixed variants.
+
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
 Current current = Current.FromAmps(3);
