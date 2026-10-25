@@ -46,6 +46,18 @@ Speed vesselSpeed = Speed.FromKnots(8);
 
 A nautical mile is exactly 1852 m, and a knot is one nautical mile per hour. Nautical helpers do not generate SI-prefixed variants.
 
+Add `DimensionalQuantities.Extensions.CgsEmag` for practical CGS mechanical, electromagnetic (EMU), and magnetic conversions. Import its namespace to use helpers such as:
+
+```csharp
+using DimensionalQuantities.Extensions.CgsEmag;
+
+MagneticFluxDensity field = MagneticFluxDensity.FromGauss(10_000);
+MagneticFieldStrength strength = MagneticFieldStrength.FromOersteds(1);
+Energy work = Energy.FromErgs(1_000_000);
+```
+
+It includes dynes, ergs, baryes, gals, the common `ab` electrical units, maxwells, gauss and oersteds. These are named conversions into coherent SI quantities; the package does not model a separate CGS electromagnetic dimension system or generate SI-prefixed variants. See [NIST's CGS unit definitions](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-5-units-outside-si) for the distinction between EMU, ESU and Gaussian systems.
+
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
 Current current = Current.FromAmps(3);
