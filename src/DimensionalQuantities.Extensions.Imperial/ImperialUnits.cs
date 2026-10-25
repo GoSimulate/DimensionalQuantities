@@ -117,7 +117,7 @@ internal static class ImperialUnits
 	[UnitFactor(typeof(ImperialSymbols.Hour), Power = -1)]
 	private sealed class BritishThermalUnitsITPerHourUnit { }
 
-	[QuantityUnit(typeof(AbsoluteTemperature))]
+	[QuantityUnit(typeof(Temperature))]
 	[UnitFactor(typeof(ImperialSymbols.Rankine))]
 	[AdditionalUnit(typeof(FahrenheitUnit))]
 	private sealed class TemperatureUnit { }

@@ -15,7 +15,7 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 
 The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes the runtime library, source generator, analysers and an alias quick fix.
 
-Core includes the seven SI base quantities' conversion helpers. Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, plus Celsius conversions for `AbsoluteTemperature`, and import its namespace:
+Core includes the seven SI base quantities' conversion helpers. Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, plus Celsius conversions for `Temperature`, and import its namespace:
 
 ```csharp
 using DimensionalQuantities.Extensions.Metric;
@@ -23,7 +23,7 @@ using DimensionalQuantities.Extensions.Metric;
 
 Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
 
-Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Rankine and Fahrenheit conversions for `AbsoluteTemperature`, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
+Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Rankine and Fahrenheit conversions for `Temperature`, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
 
 ```csharp
 Length depth = Length.FromFeet(6);
@@ -96,13 +96,13 @@ Named compound units remain a single factor where appropriate: `Voltage.FromPref
 
 ### Affine temperature units and deltas
 
-Temperature magnitudes are stored internally in kelvin. `AbsoluteTemperature.FromCelsius(20)` stores 293.15 K, and `AbsoluteTemperature.FromFahrenheit(68)` stores the same value. Their `AsCelsius()` and `AsFahrenheit()` accessors apply the corresponding offsets when converting an absolute value.
+Temperature magnitudes are stored internally in kelvin. `Temperature.FromCelsius(20)` stores 293.15 K, and `Temperature.FromFahrenheit(68)` stores the same value. Their `AsCelsius()` and `AsFahrenheit()` accessors apply the corresponding offsets when converting an absolute value.
 
 Subtraction operates on those stored kelvin values. To convert the result as a temperature difference, call `.AsDelta()` and then use a delta accessor. Delta accessors apply scale only, without an offset:
 
 ```csharp
-AbsoluteTemperature warm = AbsoluteTemperature.FromCelsius(20);
-AbsoluteTemperature cool = AbsoluteTemperature.FromFahrenheit(50);
+Temperature warm = Temperature.FromCelsius(20);
+Temperature cool = Temperature.FromFahrenheit(50);
 
 var difference = (warm - cool).AsDelta();
 double celsiusDifference = difference.AsCelsius();   // 10

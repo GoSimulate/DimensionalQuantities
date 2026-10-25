@@ -80,7 +80,7 @@ public sealed class UnitConversionSourceEmitterTests
 		AtomicUnit fahrenheit = new("Fahrenheit", "Fahrenheit", "°F", Scale: 5d / 9d);
 		UnitConversionSpec[] units =
 		[
-			new("AbsoluteTemperature", "AbsoluteTemperature",
+			new("Temperature", "Temperature",
 			[
 				new UnitDefinition("Celsius", new UnitExpression(new UnitTerm(celsius)), offsetBeforeScale: 273.15),
 				new UnitDefinition("Rankine", new UnitExpression(new UnitTerm(rankine)),
@@ -90,13 +90,13 @@ public sealed class UnitConversionSourceEmitterTests
 		CSharpCompilation compilation = Compile("""
 			public static class Consumer
 			{
-				public static double AbsoluteCelsius() => AbsoluteTemperature.FromCelsius(20).AsCelsius();
-				public static double AbsoluteFahrenheit() => AbsoluteTemperature.FromFahrenheit(68).AsCelsius();
-				public static double DifferenceCelsius() => (AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(10)).AsDelta().AsCelsius();
-				public static double DifferenceFahrenheit() => (AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(10)).AsDelta().AsFahrenheit();
-				public static double DifferenceRankine() => (AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(10)).AsDelta().AsRankine();
-				public static double ZeroDifference() => (AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(20)).AsDelta().AsFahrenheit();
-				public static double NegativeDifference() => (AbsoluteTemperature.FromCelsius(10) - AbsoluteTemperature.FromCelsius(20)).AsDelta().AsFahrenheit();
+				public static double AbsoluteCelsius() => Temperature.FromCelsius(20).AsCelsius();
+				public static double AbsoluteFahrenheit() => Temperature.FromFahrenheit(68).AsCelsius();
+				public static double DifferenceCelsius() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsCelsius();
+				public static double DifferenceFahrenheit() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsFahrenheit();
+				public static double DifferenceRankine() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta().AsRankine();
+				public static double ZeroDifference() => (Temperature.FromCelsius(20) - Temperature.FromCelsius(20)).AsDelta().AsFahrenheit();
+				public static double NegativeDifference() => (Temperature.FromCelsius(10) - Temperature.FromCelsius(20)).AsDelta().AsFahrenheit();
 			}
 			""", units);
 		using MemoryStream assemblyBytes = new();
@@ -124,7 +124,7 @@ public sealed class UnitConversionSourceEmitterTests
 		string generatedSource = $"""
 			global using Length = {lengthType};
 			global using Mass = {massType};
-			global using AbsoluteTemperature = {temperatureType};
+			global using Temperature = {temperatureType};
 			global using DimensionalQuantities.Generated;
 
 			{UnitConversionSourceEmitter.Emit(units ?? _units, "DimensionalQuantities.Generated", "internal")}

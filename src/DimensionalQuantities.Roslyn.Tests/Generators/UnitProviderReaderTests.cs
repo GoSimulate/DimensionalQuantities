@@ -86,7 +86,7 @@ public sealed class UnitProviderReaderTests
 			[UnitProvider]
 			internal static class Units
 			{
-				[QuantityUnit(typeof(AbsoluteTemperature))]
+				[QuantityUnit(typeof(Temperature))]
 				[UnitFactor(typeof(Rankine))]
 				[AdditionalUnit(typeof(FahrenheitUnit))]
 				private sealed class TemperatureUnit;
@@ -118,7 +118,7 @@ public sealed class UnitProviderReaderTests
 			[UnitProvider]
 			internal static class Units
 			{
-				[QuantityUnit(typeof(AbsoluteTemperature))]
+				[QuantityUnit(typeof(Temperature))]
 				{{factor}}
 				{{additionalFactor}}
 				private sealed class TemperatureUnit;
@@ -173,7 +173,7 @@ public sealed class UnitProviderReaderTests
 		string timeType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Time: 1));
 		string pressureType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Length: -1, Mass: 1, Time: -2));
 		string temperatureType = QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Temperature: 1));
-		source = $"global using Length = {lengthType};\nglobal using Time = {timeType};\nglobal using Pressure = {pressureType};\nglobal using Stress = {pressureType};\nglobal using AbsoluteTemperature = {temperatureType};\n" + source;
+		source = $"global using Length = {lengthType};\nglobal using Time = {timeType};\nglobal using Pressure = {pressureType};\nglobal using Stress = {pressureType};\nglobal using Temperature = {temperatureType};\n" + source;
 		CSharpCompilation input = CSharpCompilation.Create("UnitProviderReaderTest" + Guid.NewGuid().ToString("N"),
 			[CSharpSyntaxTree.ParseText(source, options)], references, new(OutputKind.DynamicallyLinkedLibrary));
 		UnitProviderReader reader = new(input);

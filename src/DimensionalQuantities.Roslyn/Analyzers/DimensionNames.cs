@@ -10,5 +10,5 @@ internal static class DimensionNames
 		EngineeringQuantityAliases.Entries.TryGetValue(dimension, out string[]? aliases)
 			? aliases[0]
 			: dimension == default ? "Dimensionless"
-				: dimension == new Dimension(Temperature: 1) ? "AbsoluteTemperature" : DimensionNameGenerator.GetQuantityName(dimension);
+				: DimensionNameGenerator.GetQuantityName(dimension);
 }

@@ -86,7 +86,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 			public static class Consumer
 			{
 				public static double ConvertLength() => Length.FromFeet(6).AsSiBaseUnit();
-				public static double ConvertTemperature() => AbsoluteTemperature.FromRankine(491.67).AsSiBaseUnit();
+				public static double ConvertTemperature() => Temperature.FromRankine(491.67).AsSiBaseUnit();
 			}
 			""", imperial);
 		Build(consumer);
@@ -114,8 +114,8 @@ public sealed class PackagedGeneratorTests : IDisposable
 			namespace TemperatureMeasurements;
 			public static class Readings
 			{
-				public static Delta<AbsoluteTemperature> Difference() =>
-					(AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(10)).AsDelta();
+				public static Delta<Temperature> Difference() =>
+					(Temperature.FromCelsius(20) - Temperature.FromCelsius(10)).AsDelta();
 			}
 			""", metric);
 		Pack(measurements, "TemperatureMeasurements", repository, out Package measurementPackage);
@@ -135,10 +135,10 @@ public sealed class PackagedGeneratorTests : IDisposable
 
 				public static double[] AbsoluteRoundTrips() =>
 				[
-					AbsoluteTemperature.FromCelsius(20).AsCelsius(),
-					AbsoluteTemperature.FromFahrenheit(68).AsFahrenheit(),
-					AbsoluteTemperature.FromKelvin(293.15).AsCelsius(),
-					AbsoluteTemperature.FromRankine(527.67).AsFahrenheit()
+					Temperature.FromCelsius(20).AsCelsius(),
+					Temperature.FromFahrenheit(68).AsFahrenheit(),
+					Temperature.FromKelvin(293.15).AsCelsius(),
+					Temperature.FromRankine(527.67).AsFahrenheit()
 				];
 			}
 			""", metric, imperial, measurementPackage);
