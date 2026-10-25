@@ -75,6 +75,31 @@ public sealed class PackagedGeneratorTests : IDisposable
 	}
 
 	[Fact]
+	public void ImperialPackageProvidesConversionsThroughCoreDependency()
+	{
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
+		PackCore(repository);
+		Package imperial = PackSourceProject(repository, "DimensionalQuantities.Extensions.Imperial");
+		ProjectCreator consumer = CreateProject("ImperialConsumer", """
+			using DimensionalQuantities.Extensions.Imperial;
+
+			public static class Consumer
+			{
+				public static double ConvertLength() => Length.FromFeet(6).AsSiBaseUnit();
+				public static double ConvertTemperature() => Temperature.FromFahrenheit(32).AsSiBaseUnit();
+			}
+			""", imperial);
+		Build(consumer);
+
+		using PackageAssemblyContext context = new(OutputDirectory("ImperialConsumer"));
+		Type type = context.LoadFromAssemblyPath(Path.Combine(OutputDirectory("ImperialConsumer"), "ImperialConsumer.dll"))
+			.GetType("Consumer", throwOnError: true)!;
+		Assert.Multiple(
+			() => Assert.Equal(1.8288, InvokeDouble(type, "ConvertLength"), 12),
+			() => Assert.Equal(273.15, InvokeDouble(type, "ConvertTemperature"), 12));
+	}
+
+	[Fact]
 	public void MetricNamedConversionsRequireNamespaceImport()
 	{
 		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
