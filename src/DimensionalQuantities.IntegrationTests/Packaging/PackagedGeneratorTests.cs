@@ -86,7 +86,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 			public static class Consumer
 			{
 				public static double ConvertLength() => Length.FromFeet(6).AsSiBaseUnit();
-				public static double ConvertTemperature() => Temperature.FromFahrenheit(32).AsSiBaseUnit();
+				public static double ConvertTemperature() => Temperature.FromRankine(491.67).AsSiBaseUnit();
 			}
 			""", imperial);
 		Build(consumer);

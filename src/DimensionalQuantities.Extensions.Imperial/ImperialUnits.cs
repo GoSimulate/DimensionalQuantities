@@ -118,7 +118,6 @@ internal static class ImperialUnits
 	private sealed class BritishThermalUnitsITPerHourUnit { }
 
 	[QuantityUnit(typeof(Temperature))]
-	[UnitConversion(Offset = 459.67d * 5d / 9d)]
-	[UnitFactor(typeof(ImperialSymbols.Fahrenheit))]
+	[UnitFactor(typeof(ImperialSymbols.Rankine))]
 	private sealed class TemperatureUnit { }
 }

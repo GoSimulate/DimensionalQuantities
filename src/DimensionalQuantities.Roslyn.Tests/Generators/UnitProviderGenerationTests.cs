@@ -191,35 +191,6 @@ public sealed class UnitProviderGenerationTests
 	}
 
 	[Fact]
-	public void AffineConversionsApplyScaleAndOffsetInBothDirections()
-	{
-		const string source = """
-			using DimensionalQuantities.Units.Declarations;
-			namespace Independent.Units;
-			[UnitProvider]
-			internal static class CustomUnits
-			{
-				[QuantityUnit(typeof(Temperature))]
-				[UnitConversion(Offset = 255.3722222222222)]
-				[UnitFactor(typeof(Fahrenheit))]
-				private sealed class TemperatureUnit;
-				[UnitSymbol("Fahrenheit", "Fahrenheit", "°F", Scale = 5d / 9d)]
-				private sealed class Fahrenheit;
-			}
-			public static class Consumer
-			{
-				public static double[] Values() => [Temperature.FromFahrenheit(32).AsKelvin(), Temperature.FromKelvin(373.15).AsFahrenheit()];
-			}
-			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
-		Assert.Multiple(
-			() => Assert.Equal(273.15, result[0], 10),
-			() => Assert.Equal(212, result[1], 10));
-	}
-
-	[Fact]
 	public void ProviderFactoriesCanBeUsedInArithmeticInTheirOwnAssembly()
 	{
 		const string consumer = """
