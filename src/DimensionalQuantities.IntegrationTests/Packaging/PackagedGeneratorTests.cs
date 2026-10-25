@@ -86,7 +86,7 @@ public sealed class PackagedGeneratorTests : IDisposable
 			public static class Consumer
 			{
 				public static double ConvertLength() => Length.FromFeet(6).AsSiBaseUnit();
-				public static double ConvertTemperature() => Temperature.FromRankine(491.67).AsSiBaseUnit();
+				public static double ConvertTemperature() => AbsoluteTemperature.FromRankine(491.67).AsSiBaseUnit();
 			}
 			""", imperial);
 		Build(consumer);
@@ -97,6 +97,66 @@ public sealed class PackagedGeneratorTests : IDisposable
 		Assert.Multiple(
 			() => Assert.Equal(1.8288, InvokeDouble(type, "ConvertLength"), 12),
 			() => Assert.Equal(273.15, InvokeDouble(type, "ConvertTemperature"), 12));
+	}
+
+	[Fact]
+	public void AffineTemperatureConversionsAndDeltasWorkAcrossPackages()
+	{
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
+		PackCore(repository);
+		Package metric = PackMetric(repository);
+		Package imperial = PackSourceProject(repository, "DimensionalQuantities.Extensions.Imperial");
+
+		ProjectCreator measurements = CreateProject("TemperatureMeasurements", """
+			using DimensionalQuantities.Extensions.Metric;
+			using DimensionalQuantities.TypeSystem;
+
+			namespace TemperatureMeasurements;
+			public static class Readings
+			{
+				public static Delta<AbsoluteTemperature> Difference() =>
+					(AbsoluteTemperature.FromCelsius(20) - AbsoluteTemperature.FromCelsius(10)).AsDelta();
+			}
+			""", metric);
+		Pack(measurements, "TemperatureMeasurements", repository, out Package measurementPackage);
+
+		ProjectCreator consumer = CreateProject("TemperatureConsumer", """
+			using DimensionalQuantities.Extensions.Imperial;
+			using DimensionalQuantities.Extensions.Metric;
+			using TemperatureMeasurements;
+
+			public static class Consumer
+			{
+				public static double[] DifferenceInEachUnit()
+				{
+					var delta = Readings.Difference();
+					return [delta.AsCelsius(), delta.AsFahrenheit(), delta.AsKelvin(), delta.AsRankine()];
+				}
+
+				public static double[] AbsoluteRoundTrips() =>
+				[
+					AbsoluteTemperature.FromCelsius(20).AsCelsius(),
+					AbsoluteTemperature.FromFahrenheit(68).AsFahrenheit(),
+					AbsoluteTemperature.FromKelvin(293.15).AsCelsius(),
+					AbsoluteTemperature.FromRankine(527.67).AsFahrenheit()
+				];
+			}
+			""", metric, imperial, measurementPackage);
+		Build(consumer);
+
+		string outputDirectory = OutputDirectory("TemperatureConsumer");
+		using PackageAssemblyContext context = new(outputDirectory);
+		Type type = context.LoadFromAssemblyPath(Path.Combine(outputDirectory, "TemperatureConsumer.dll"))
+			.GetType("Consumer", throwOnError: true)!;
+		double[] difference = (double[])type.GetMethod("DifferenceInEachUnit")!.Invoke(null, null)!;
+		double[] absolute = (double[])type.GetMethod("AbsoluteRoundTrips")!.Invoke(null, null)!;
+
+		Assert.Multiple(
+			() => Assert.Equal([10d, 18d, 10d, 18d], difference),
+			() => Assert.Equal(20d, absolute[0], 12),
+			() => Assert.Equal(68d, absolute[1], 12),
+			() => Assert.Equal(20d, absolute[2], 12),
+			() => Assert.Equal(68d, absolute[3], 12));
 	}
 
 	[Fact]

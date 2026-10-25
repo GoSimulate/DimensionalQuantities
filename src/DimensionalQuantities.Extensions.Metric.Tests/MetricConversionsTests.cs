@@ -42,6 +42,14 @@ public sealed class MetricConversionsTests
 	}
 
 	[Fact]
+	public void CelsiusConvertsToAndFromAbsoluteKelvin()
+	{
+		Assert.Multiple(
+			() => Assert.Equal(273.15, AbsoluteTemperature.FromCelsius(0).AsKelvin(), 10),
+			() => Assert.Equal(0, AbsoluteTemperature.FromKelvin(273.15).AsCelsius(), 10));
+	}
+
+	[Fact]
 	public void CatalogueAccessorsConvertFromKnownSiValues()
 	{
 		double[] result =

@@ -56,4 +56,7 @@ internal static class ImperialSymbols
 	internal sealed class MechanicalHorsepower { }
 	[UnitSymbol("Rankine", "Rankine", "°R", Scale = 5d / 9d)]
 	internal sealed class Rankine { }
+	[UnitSymbol("Fahrenheit", "Fahrenheit", "°F", Scale = 5d / 9d)]
+	[AffineUnit(459.67)]
+	internal sealed class Fahrenheit { }
 }

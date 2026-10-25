@@ -29,14 +29,15 @@ internal static class UnitConversionSourceEmitter
 		UnitExpression canonicalExpression = quantity.Units[0].Expression;
 		ConversionDefinition generic = new("FromPrefixedUnits", "AsPrefixedUnits",
 			GetTermParameters(canonicalExpression), GetTermScaleExponent(canonicalExpression),
-			canonicalExpression.GetScale());
+			canonicalExpression.GetScale(), null);
 		ConversionDefinition[] named = quantity.IncludeNamed
 			? CollectConversions(quantity.Units, quantity.GenerateSiPrefixes ? prefixes : [])
 				.Select(conversion => new ConversionDefinition($"From{conversion.Key}", $"As{conversion.Key}", [],
-					FormatExponent(conversion.Value.Exponent), conversion.Value.Scale))
+					FormatExponent(conversion.Value.Exponent), conversion.Value.Scale, conversion.Value.OffsetBeforeScale))
 				.ToArray()
 			: [];
-		ConversionDefinition[] conversions = quantity.GeneratePrefixConversions ? [generic, .. named] : named;
+		ConversionDefinition[] conversions = quantity.GeneratePrefixConversions && quantity.Units[0].OffsetBeforeScale is null
+			? [generic, .. named] : named;
 		string variableName = char.ToLowerInvariant(quantity.ExtensionName[0]) + quantity.ExtensionName[1..];
 		string className = classNamePrefix + (quantity.ExtensionClassName ?? quantity.ExtensionName) + "Extensions";
 		if (!SyntaxFacts.IsValidIdentifier(className) || !SyntaxFacts.IsValidIdentifier(variableName)
@@ -49,6 +50,7 @@ internal static class UnitConversionSourceEmitter
 
 		string factories = string.Join("\n\t\t", conversions.Select(conversion => RenderFactory(quantity.ReceiverType, conversion)));
 		string accessors = string.Join("\n\t\t", conversions.Select(conversion => RenderAccessor(variableName, conversion)));
+		string deltaAccessors = string.Join("\n\t\t", conversions.Select(RenderDeltaAccessor));
 
 		return $$"""
 			{{accessibility}} static class {{className}}
@@ -62,50 +64,57 @@ internal static class UnitConversionSourceEmitter
 				{
 					{{accessors}}
 				}
+
+				extension(global::DimensionalQuantities.TypeSystem.Delta<{{quantity.ReceiverType}}> delta)
+				{
+					{{deltaAccessors}}
+				}
 			}
 			""";
 	}
 
-	private static IReadOnlyDictionary<string, (Rational Exponent, double Scale)> CollectConversions(
+	private static IReadOnlyDictionary<string, (Rational Exponent, double Scale, double? OffsetBeforeScale)> CollectConversions(
 		IReadOnlyList<UnitDefinition> units, int[] generatedPrefixes)
 	{
-		Dictionary<string, (Rational Exponent, double Scale)> conversions = new(StringComparer.Ordinal);
-		foreach ((string name, Rational exponent, double scale) in units.SelectMany(unit => GetConversions(unit, generatedPrefixes)))
+		Dictionary<string, (Rational Exponent, double Scale, double? OffsetBeforeScale)> conversions = new(StringComparer.Ordinal);
+		foreach ((string name, Rational exponent, double scale, double? offset) in units.SelectMany(unit => GetConversions(unit, generatedPrefixes)))
 		{
-			if (conversions.TryGetValue(name, out (Rational Exponent, double Scale) existing) && existing != (exponent, scale))
+			if (conversions.TryGetValue(name, out (Rational Exponent, double Scale, double? OffsetBeforeScale) existing)
+				&& existing != (exponent, scale, offset))
 			{
-				throw new InvalidOperationException($"Unit {name} has conflicting SI scales.");
+				throw new InvalidOperationException($"Unit {name} has conflicting SI conversions.");
 			}
 
 			if (!conversions.ContainsKey(name))
 			{
-				conversions.Add(name, (exponent, scale));
+				conversions.Add(name, (exponent, scale, offset));
 			}
 		}
 
 		return conversions;
 	}
 
-	private static IEnumerable<(string Name, Rational Exponent, double Scale)> GetConversions(
+	private static IEnumerable<(string Name, Rational Exponent, double Scale, double? OffsetBeforeScale)> GetConversions(
 		UnitDefinition unit, int[] generatedPrefixes)
 		=> GetStandardConversions(unit, generatedPrefixes).Concat(unit.AdditionalConversions
-			.Select(expression => (expression.GetName(unit.Expression), expression.GetSiScaleExponent(), expression.GetScale())));
+			.Select(conversion => (conversion.Expression.GetName(unit.Expression), conversion.Expression.GetSiScaleExponent(),
+				conversion.Expression.GetScale(), conversion.OffsetBeforeScale)));
 
-	private static IEnumerable<(string Name, Rational Exponent, double Scale)> GetStandardConversions(
+	private static IEnumerable<(string Name, Rational Exponent, double Scale, double? OffsetBeforeScale)> GetStandardConversions(
 		UnitDefinition unit, int[] generatedPrefixes)
 	{
 		UnitExpression expression = unit.Expression;
 		int firstNumerator = Array.FindIndex(expression.Terms, term => term.Power > Rational.Zero);
-		if (firstNumerator < 0 || generatedPrefixes.Length == 0)
+		if (firstNumerator < 0 || generatedPrefixes.Length == 0 || unit.OffsetBeforeScale is not null)
 		{
-			yield return (expression.GetName(), expression.GetSiScaleExponent(), expression.GetScale());
+			yield return (expression.GetName(), expression.GetSiScaleExponent(), expression.GetScale(), unit.OffsetBeforeScale);
 			yield break;
 		}
 
 		foreach (int prefix in generatedPrefixes.Prepend(0))
 		{
 			UnitExpression prefixed = expression.WithPrefix(firstNumerator, prefix);
-			yield return (prefixed.GetName(expression, firstNumerator), prefixed.GetSiScaleExponent(), prefixed.GetScale());
+			yield return (prefixed.GetName(expression, firstNumerator), prefixed.GetSiScaleExponent(), prefixed.GetScale(), null);
 		}
 	}
 
@@ -139,6 +148,11 @@ internal static class UnitConversionSourceEmitter
 	private static string RenderFactory(string quantityName, ConversionDefinition conversion)
 	{
 		string parameters = string.Concat(conversion.PrefixParameters.Select(parameter => $", int {parameter.Name} = {parameter.DefaultExponent.ToString(CultureInfo.InvariantCulture)}"));
+		if (conversion.OffsetBeforeScale is double offset)
+		{
+			return $"/// <summary>Converts an affine reading to its absolute SI value. Arithmetic does not preserve affine offsets.</summary>\n\t\t\tpublic static {quantityName} {conversion.FactoryName}(double value{parameters}) => {quantityName}.FromSiBaseUnit((value + {FormatDouble(offset)}) * {GetScaleExpression(conversion)});";
+		}
+
 		if (conversion.Scale == 1)
 		{
 			return $"public static {quantityName} {conversion.FactoryName}(double value{parameters}) => {quantityName}.FromArbitrarySiComponents(value, overallScaleExponent: {conversion.ScaleExponentExpression});";
@@ -150,6 +164,11 @@ internal static class UnitConversionSourceEmitter
 	private static string RenderAccessor(string variableName, ConversionDefinition conversion)
 	{
 		string parameters = string.Join(", ", conversion.PrefixParameters.Select(parameter => $"int {parameter.Name} = {parameter.DefaultExponent.ToString(CultureInfo.InvariantCulture)}"));
+		if (conversion.OffsetBeforeScale is double offset)
+		{
+			return $"/// <summary>Interprets this value as an absolute reading. Use AsDelta() before converting a difference.</summary>\n\t\t\tpublic double {conversion.AccessorName}({parameters}) => {variableName}.AsSiBaseUnit() / {GetScaleExpression(conversion)} - {FormatDouble(offset)};";
+		}
+
 		if (conversion.Scale == 1)
 		{
 			return $"public double {conversion.AccessorName}({parameters}) => {variableName}.AsArbitrarySiComponents(overallScaleExponent: {conversion.ScaleExponentExpression});";
@@ -158,11 +177,20 @@ internal static class UnitConversionSourceEmitter
 		return $"public double {conversion.AccessorName}({parameters}) => {variableName}.AsSiBaseUnit() / ({FormatDouble(conversion.Scale)} * global::System.Math.Pow(10, {conversion.ScaleExponentExpression}));";
 	}
 
+	private static string RenderDeltaAccessor(ConversionDefinition conversion)
+	{
+		string parameters = string.Join(", ", conversion.PrefixParameters.Select(parameter => $"int {parameter.Name} = {parameter.DefaultExponent.ToString(CultureInfo.InvariantCulture)}"));
+		return $"/// <summary>Converts a difference using scale alone; affine offsets are omitted.</summary>\n\t\t\tpublic double {conversion.AccessorName}({parameters}) => delta.AsSiBaseUnit() / {GetScaleExpression(conversion)};";
+	}
+
+	private static string GetScaleExpression(ConversionDefinition conversion)
+		=> $"({FormatDouble(conversion.Scale)} * global::System.Math.Pow(10, {conversion.ScaleExponentExpression}))";
+
 	private static string FormatExponent(Rational exponent) => ((double)exponent).ToString("R", CultureInfo.InvariantCulture) + "d";
 	private static string FormatDouble(double value) => value.ToString("R", CultureInfo.InvariantCulture) + "d";
 
 	private sealed record ConversionDefinition(string FactoryName, string AccessorName, PrefixParameterDefinition[] PrefixParameters,
-		string ScaleExponentExpression, double Scale);
+		string ScaleExponentExpression, double Scale, double? OffsetBeforeScale);
 
 	private sealed record PrefixParameterDefinition(string Name, int DefaultExponent);
 }

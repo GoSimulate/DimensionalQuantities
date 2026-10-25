@@ -46,6 +46,36 @@ public sealed class UnitProviderGenerationTests
 	}
 
 	[Fact]
+	public void AffineConversionsApplyOffsetOnlyToAbsoluteQuantities()
+	{
+		const string source = """
+			using DimensionalQuantities.Units.Declarations;
+			[UnitProvider(GenerateSiPrefixes = true, GeneratePrefixConversions = true)]
+			internal static class CustomUnits
+			{
+				[QuantityUnit(typeof(Length))]
+				[UnitFactor(typeof(OffsetMetre))]
+				private sealed class LengthUnit;
+				[UnitSymbol("OffsetMetre", "OffsetMetres", "om", Scale = 2)]
+				[AffineUnit(5)]
+				private sealed class OffsetMetre;
+			}
+			public static class Consumer
+			{
+				public static double[] Values()
+				{
+					Length first = Length.FromOffsetMetres(3);
+					Length second = Length.FromOffsetMetres(2);
+					return [first.AsMetres(), first.AsOffsetMetres(), (first - second).AsDelta().AsOffsetMetres()];
+				}
+			}
+			""";
+		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
+		Assert.Empty(diagnostics);
+		Assert.Equal([16d, 3d, 1d], Evaluate(compilation, "Consumer"));
+	}
+
+	[Fact]
 	public void ProviderConversionsArePublicAndNotRegeneratedByConsumers()
 	{
 		(Compilation provider, ImmutableArray<Diagnostic> providerDiagnostics) = Generate(FootProvider, "");

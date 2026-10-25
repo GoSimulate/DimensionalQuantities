@@ -6,7 +6,7 @@ using DimensionalQuantities.Units;
 namespace DimensionalQuantities.Roslyn.Discovery;
 
 internal sealed record PlannedQuantity(Dimension Dimension, ImmutableArray<string> Names, ImmutableArray<UnitDefinition> Units,
-	bool IncludeNamedConversions)
+	bool IncludeNamedConversions, bool IncludeDimensionNameAlias = true)
 {
 	public PlannedQuantity(Dimension dimension, ImmutableArray<UnitDefinition> units, bool includeNamedConversions)
 		: this(dimension, [.. units.Select(unit => unit.Name)], units, includeNamedConversions) { }
@@ -14,5 +14,6 @@ internal sealed record PlannedQuantity(Dimension Dimension, ImmutableArray<strin
 	public string Name => Names[0];
 
 	public ImmutableArray<string> Aliases =>
-		[.. Names.Append(DimensionNameGenerator.GetQuantityName(Dimension)).Distinct(StringComparer.Ordinal)];
+		[.. (IncludeDimensionNameAlias ? Names.Append(DimensionNameGenerator.GetQuantityName(Dimension)) : Names)
+			.Distinct(StringComparer.Ordinal)];
 }

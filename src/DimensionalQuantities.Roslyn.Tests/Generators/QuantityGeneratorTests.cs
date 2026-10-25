@@ -30,7 +30,7 @@ public sealed class QuantityGeneratorTests
 					Mass mass = Mass.FromGrams(1000);
 					Time time = Time.FromSeconds(1);
 					Current current = Current.FromAmps(1);
-					Temperature temperature = Temperature.FromKelvin(1);
+					AbsoluteTemperature temperature = AbsoluteTemperature.FromKelvin(1);
 					AmountOfSubstance amount = AmountOfSubstance.FromMoles(1);
 					LuminousIntensity intensity = LuminousIntensity.FromCandelas(1);
 					return length.AsMetres() + mass.AsGrams() + time.AsSeconds() + current.AsAmps()
