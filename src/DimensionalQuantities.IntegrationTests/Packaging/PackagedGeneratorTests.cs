@@ -265,6 +265,83 @@ public sealed class PackagedGeneratorTests : IDisposable
 			() => Assert.Equal(24, InvokeDouble(application, "IntermediateProduct")));
 	}
 
+	[Fact]
+	public void AllUnitPackagesWorkInALibraryAndItsPackagedConsumer()
+	{
+		using PackageRepository repository = PackageRepository.Create(_scratch, new Uri("https://api.nuget.org/v3/index.json"));
+		PackCore(repository);
+		Package metric = PackMetric(repository);
+		Package imperial = PackSourceProject(repository, "DimensionalQuantities.Extensions.Imperial");
+		Package nautical = PackSourceProject(repository, "DimensionalQuantities.Extensions.Nautical");
+		Package cgsEmag = PackSourceProject(repository, "DimensionalQuantities.Extensions.CgsEmag");
+
+		ProjectCreator library = CreateProject("AllUnitsLibrary", """
+			using DimensionalQuantities.Extensions.Metric;
+			using DimensionalQuantities.Extensions.Imperial;
+			using DimensionalQuantities.Extensions.Nautical;
+			using DimensionalQuantities.Extensions.CgsEmag;
+
+			namespace AllUnitsLibrary;
+			public static class Measurements
+			{
+				public static Voltage Supply() => Voltage.FromVolts(0.00000001);
+				public static Length Depth() => Length.FromFeet(6);
+				public static Speed Travel() => Speed.FromKnots(1);
+				public static MagneticFluxDensity Field() => MagneticFluxDensity.FromGauss(10_000);
+				public static double[] LocalValues() => [Supply().AsVolts(), Depth().AsFeet(), Travel().AsKnots(), Field().AsGauss()];
+			}
+			""", metric, imperial, nautical, cgsEmag);
+		Pack(library, "AllUnitsLibrary", repository, out Package libraryPackage);
+
+		ProjectCreator downstream = CreateProject("AllUnitsDownstream", """
+			using DimensionalQuantities.Extensions.Metric;
+			using DimensionalQuantities.Extensions.Imperial;
+			using DimensionalQuantities.Extensions.Nautical;
+			using DimensionalQuantities.Extensions.CgsEmag;
+			using AllUnitsLibrary;
+
+			namespace AllUnitsDownstream;
+			public static class Reader
+			{
+				public static double[] LocalValues() => Measurements.LocalValues();
+				public static double[] ConvertedValues() =>
+				[
+					Measurements.Supply().AsAbvolts(),
+					Measurements.Depth().AsFathoms(),
+					Measurements.Depth().AsFeet(),
+					Measurements.Travel().AsKnots(),
+					Measurements.Field().AsTeslas()
+				];
+			}
+			""", libraryPackage);
+		Pack(downstream, "AllUnitsDownstream", repository, out Package downstreamPackage);
+
+		ProjectCreator application = CreateProject("AllUnitsApplication", """
+			public static class Application
+			{
+				public static double[] LocalValues() => AllUnitsDownstream.Reader.LocalValues();
+				public static double[] ConvertedValues() => AllUnitsDownstream.Reader.ConvertedValues();
+			}
+			""", downstreamPackage);
+		Build(application);
+
+		string outputDirectory = OutputDirectory("AllUnitsApplication");
+		using PackageAssemblyContext context = new(outputDirectory);
+		Type type = context.LoadFromAssemblyPath(Path.Combine(outputDirectory, "AllUnitsApplication.dll"))
+			.GetType("Application", throwOnError: true)!;
+		double[] local = (double[])type.GetMethod("LocalValues")!.Invoke(null, null)!;
+		double[] converted = (double[])type.GetMethod("ConvertedValues")!.Invoke(null, null)!;
+
+		Assert.Multiple(
+			() => Assert.Equal([0.00000001d, 6d, 1d, 10_000d], local),
+			() => Assert.Equal(5, converted.Length),
+			() => Assert.Equal(1d, converted[0]),
+			() => Assert.Equal(1d, converted[1], 12),
+			() => Assert.Equal(6d, converted[2]),
+			() => Assert.Equal(1d, converted[3]),
+			() => Assert.Equal(1d, converted[4]));
+	}
+
 	private Package PackCore(PackageRepository repository)
 	{
 		return PackSourceProject(repository, "DimensionalQuantities");
