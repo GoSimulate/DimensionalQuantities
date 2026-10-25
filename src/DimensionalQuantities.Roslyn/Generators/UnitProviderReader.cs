@@ -11,7 +11,6 @@ internal sealed class UnitProviderReader
 {
 	private readonly INamedTypeSymbol _providerAttribute;
 	private readonly INamedTypeSymbol _quantityAttribute;
-	private readonly INamedTypeSymbol _conversionAttribute;
 	private readonly INamedTypeSymbol _factorAttribute;
 	private readonly INamedTypeSymbol _symbolAttribute;
 	private readonly INamedTypeSymbol _additionalAttribute;
@@ -21,7 +20,6 @@ internal sealed class UnitProviderReader
 	{
 		_providerAttribute = compilation.GetRequiredType(typeof(UnitProviderAttribute));
 		_quantityAttribute = compilation.GetRequiredType(typeof(QuantityUnitAttribute));
-		_conversionAttribute = compilation.GetRequiredType(typeof(UnitConversionAttribute));
 		_factorAttribute = compilation.GetRequiredType(typeof(UnitFactorAttribute));
 		_symbolAttribute = compilation.GetRequiredType(typeof(UnitSymbolAttribute));
 		_additionalAttribute = compilation.GetRequiredType(typeof(AdditionalUnitAttribute));
@@ -101,14 +99,6 @@ internal sealed class UnitProviderReader
 			return false;
 		}
 
-		AttributeData? conversion = Find(declaration, _conversionAttribute);
-		double offset = conversion is null ? 0d : GetNamed(conversion, nameof(UnitConversionAttribute.Offset), 0d);
-		if (!IsFinite(offset))
-		{
-			Report(report, conversion, $"{declaration.Name} has a non-finite offset.");
-			return false;
-		}
-
 		if (!TryReadAlternatives(declaration, provider, report, out UnitExpression[] alternatives))
 		{
 			return false;
@@ -122,7 +112,7 @@ internal sealed class UnitProviderReader
 			return false;
 		}
 
-		unit = new(name, expression, alternatives, offset);
+		unit = new(name, expression, alternatives);
 		return true;
 	}
 

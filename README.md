@@ -23,7 +23,7 @@ using DimensionalQuantities.Extensions.Metric;
 
 Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
 
-Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Fahrenheit, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
+Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Rankine, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
 
 ```csharp
 Length depth = Length.FromFeet(6);
@@ -246,7 +246,7 @@ internal static class CustomSymbols
 
 Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`. The Pascal declaration associates the same unit with Pressure, Stress and Young’s modulus; their shared underlying type receives one set of conversion helpers.
 
-`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. An optional `[UnitConversion(Offset = ...)]` on the unit declaration supplies an offset added after scaling into SI and subtracted before converting back; it applies to every associated quantity. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
+`Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
 
 ### Current scope
 

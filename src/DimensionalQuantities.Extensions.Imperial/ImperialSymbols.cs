@@ -54,6 +54,6 @@ internal static class ImperialSymbols
 	internal sealed class BritishThermalUnitIT { }
 	[UnitSymbol("MechanicalHorsepower", "MechanicalHorsepower", "hp", Scale = 745.69987158227022)]
 	internal sealed class MechanicalHorsepower { }
-	[UnitSymbol("Fahrenheit", "Fahrenheit", "°F", Scale = 5d / 9d)]
-	internal sealed class Fahrenheit { }
+	[UnitSymbol("Rankine", "Rankine", "°R", Scale = 5d / 9d)]
+	internal sealed class Rankine { }
 }

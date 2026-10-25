@@ -70,11 +70,11 @@ public sealed class ImperialConversionsTests
 	}
 
 	[Fact]
-	public void FahrenheitUsesAffineConversion()
+	public void RankineUsesFiveNinthsKelvinPerDegree()
 	{
 		Assert.Multiple(
-			() => Assert.Equal(273.15, Temperature.FromFahrenheit(32).AsKelvin(), 10),
-			() => Assert.Equal(212, Temperature.FromKelvin(373.15).AsFahrenheit(), 10));
+			() => Assert.Equal(273.15, Temperature.FromRankine(491.67).AsKelvin(), 10),
+			() => Assert.Equal(491.67, Temperature.FromKelvin(273.15).AsRankine(), 10));
 	}
 
 	[Fact]
