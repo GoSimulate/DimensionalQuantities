@@ -5,12 +5,10 @@ on:
 permissions:
   contents: read
 jobs:
-  build:
+  select:
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 15
-    env:
-      VERSION: 0.0.0-ci
-      REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+    outputs:
+      run_build: ${{ steps.changes.outputs.run }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -35,32 +33,39 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: python3 .github/scripts/check-pr-title.py
+  build:
+    needs: select
+    if: ${{ always() && (needs.select.result == 'failure' || (needs.select.result == 'success' && needs.select.outputs.run_build == 'true')) }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    env:
+      VERSION: 0.0.0-ci
+      REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - name: Enforce preliminary checks
+        if: needs.select.result == 'failure'
+        run: exit 1
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-dotnet@v6.0.0
-        if: steps.changes.outputs.run == 'true'
         with:
           global-json-file: global.json
       - name: Restore
-        if: steps.changes.outputs.run == 'true'
         run: dotnet restore src/DimensionalQuantities.slnx
       - name: Build
-        if: steps.changes.outputs.run == 'true'
         run: >-
           dotnet build src/DimensionalQuantities.slnx -c Release --no-restore
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
       - name: Test
-        if: steps.changes.outputs.run == 'true'
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
       - name: Pack
-        if: steps.changes.outputs.run == 'true'
         run: >-
           dotnet pack src/DimensionalQuantities.slnx
           -c Release --no-build --no-restore -o artifacts/packages
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
       - name: Check NuGet packages
-        if: steps.changes.outputs.run == 'true'
         run: python3 .github/scripts/check-package.py "$VERSION"
       - uses: actions/upload-artifact@v7.0.2
-        if: always() && steps.changes.outputs.run == 'true'
+        if: always()
         with:
           name: ci-results
           path: artifacts/
