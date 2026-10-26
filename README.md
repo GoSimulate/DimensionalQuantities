@@ -11,11 +11,13 @@ A C# library for dimensional quantities, with generated type aliases, SI unit co
 > [!WARNING]
 > We developed this library for our own internal use and are sharing it because we believe it may be useful to the wider developer community. Issues and pull requests are welcome, but we make no support commitments or warranties, and we cannot guarantee that we will respond to issues or review or merge pull requests.
 
-## Usage
+The library is under active development; the API and supported expression patterns are still evolving.
+
+## Getting started
 
 The runtime library targets .NET Standard 2.0. Consumers need a C# 14 compiler for the generated extension blocks. The `DimensionalQuantities` NuGet package includes the runtime library, source generator, analysers and an alias quick fix.
 
-Core includes the seven SI base quantities' conversion helpers. Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, plus Celsius conversions for `Temperature`, and import its namespace:
+Add `DimensionalQuantities.Extensions.Metric` for catalogue conversions such as volts, watts and pascals, plus Celsius conversions for `Temperature`, and import its namespace:
 
 ```csharp
 using DimensionalQuantities.Extensions.Metric;
@@ -23,40 +25,7 @@ using DimensionalQuantities.Extensions.Metric;
 
 Metric depends on the matching core version, so referencing Metric also supplies core and its compiler tooling. Quantity names and dimensional arithmetic are available with core alone.
 
-Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Rankine and Fahrenheit conversions for `Temperature`, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
-
-```csharp
-Length depth = Length.FromFeet(6);
-Volume fuel = Volume.FromImperialGallons(2);
-Energy heat = Energy.FromBritishThermalUnitsIT(1);
-
-double metres = depth.AsSiBaseUnit(); // 1.8288
-```
-
-`BritishThermalUnitIT` is the International Table definition (exactly 1055.05585262 J); other BTU definitions differ. US and Imperial liquid measures are named separately. Imperial helpers do not generate SI-prefixed variants.
-
-Add `DimensionalQuantities.Extensions.Nautical` for international nautical miles, fathoms, square nautical miles and knots. Import its namespace to use the helpers:
-
-```csharp
-using DimensionalQuantities.Extensions.Nautical;
-
-Length passage = Length.FromNauticalMiles(12);
-Speed vesselSpeed = Speed.FromKnots(8);
-```
-
-A nautical mile is exactly 1852 m, and a knot is one nautical mile per hour. Nautical helpers do not generate SI-prefixed variants.
-
-Add `DimensionalQuantities.Extensions.CgsEmag` for practical CGS mechanical, electromagnetic (EMU), and magnetic conversions. Import its namespace to use helpers such as:
-
-```csharp
-using DimensionalQuantities.Extensions.CgsEmag;
-
-MagneticFluxDensity field = MagneticFluxDensity.FromGauss(10_000);
-MagneticFieldStrength strength = MagneticFieldStrength.FromOersteds(1);
-Energy work = Energy.FromErgs(1_000_000);
-```
-
-It includes dynes, ergs, baryes, gals, the common `ab` electrical units, maxwells, gauss and oersteds. These are named conversions into coherent SI quantities; the package does not model a separate CGS electromagnetic dimension system or generate SI-prefixed variants. See [NIST's CGS unit definitions](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-5-units-outside-si) for the distinction between EMU, ESU and Gaussian systems.
+### First calculation
 
 ```csharp
 Voltage voltage = Voltage.FromVolts(12);
@@ -69,49 +38,9 @@ double ohms = resistance.AsOhms(); // 4
 double watts = power.AsWatts();    // 36
 ```
 
-### SI prefixes and compound units
+## Working with quantities
 
-Named helpers handle conversion into and out of SI prefixes, including powers of prefixed units:
-
-```csharp
-Length length = Length.FromMilliMetres(2500);
-double metres = length.AsMetres(); // 2.5
-
-Density density = Density.FromGramsPerCubicCentiMetre(1);
-double kilogramsPerCubicMetre = density.AsSiBaseUnit(); // 1000
-```
-
-For more control, `FromPrefixedUnits` and `AsPrefixedUnits` accept decimal prefix exponents for each unit factor. Powers are taken into account automatically:
-
-```csharp
-// 1 A/mm² = 1,000,000 A/m²
-CurrentDensity density = CurrentDensity.FromPrefixedUnits(
-    1, ampPrefixExponent: 0, metrePrefixExponent: -3);
-
-double ampsPerSquareMillimetre = density.AsPrefixedUnits(
-    ampPrefixExponent: 0, metrePrefixExponent: -3); // 1
-```
-
-Named compound units remain a single factor where appropriate: `Voltage.FromPrefixedUnits(2, -3)` means 2 millivolts, without requiring you to know the SI dimensions of a volt.
-
-### Affine temperature units and deltas
-
-Temperature magnitudes are stored internally in kelvin. `Temperature.FromCelsius(20)` stores 293.15 K, and `Temperature.FromFahrenheit(68)` stores the same value. Their `AsCelsius()` and `AsFahrenheit()` accessors apply the corresponding offsets when converting an absolute value.
-
-Subtraction operates on those stored kelvin values. To convert the result as a temperature difference, call `.AsDelta()` and then use a delta accessor. Delta accessors apply scale only, without an offset:
-
-```csharp
-Temperature warm = Temperature.FromCelsius(20);
-Temperature cool = Temperature.FromFahrenheit(50);
-
-var difference = (warm - cool).AsDelta();
-double celsiusDifference = difference.AsCelsius();   // 10
-double fahrenheitDifference = difference.AsFahrenheit(); // 18
-double kelvinDifference = difference.AsKelvin();     // 10
-double rankineDifference = difference.AsRankine();   // 18
-```
-
-`.AsDelta()` preserves and reinterprets the stored SI magnitude; it does not detect whether subtraction occurred. Calling it on an absolute reading treats that reading's full kelvin value as a difference. The library does not track reading-versus-difference provenance through arithmetic. Celsius helpers are provided by Metric; Fahrenheit and Rankine helpers are provided by Imperial. Kelvin helpers are available from core.
+Aliases with the same dimensions share a type. For example, `Energy` and `Torque` are interchangeable: the library checks dimensions, not the physical meaning of a calculation. Magnitudes are stored as `double` in coherent SI base units.
 
 ### Arithmetic and generated intermediate quantities
 
@@ -131,8 +60,6 @@ Frequency frequency = 1 / Time.FromSeconds(0.02); // 50 Hz
 ```
 
 Known dimensions use names from the engineering catalogue, such as `Power`, `Voltage`, `Permeability` and `MagneticFluxDensity`. Other dimensions receive mechanical names such as `CurrentSquared` or `TimePerCurrent`. Discovered quantities have SI base-unit and generic prefix conversion helpers.
-
-Aliases with the same dimensions share a type. For example, `Energy` and `Torque` are interchangeable: the library checks dimensions, not the physical meaning of a calculation. Magnitudes are stored as `double` in coherent SI base units.
 
 ### Comparisons and numerical helpers
 
@@ -181,6 +108,99 @@ Area? area = length?.Squared();            // 9 m²
 Length? recovered = area?.SquareRoot();    // 3 m
 ```
 
+## Units and conversions
+
+### Core and Metric
+
+Core includes the seven SI base quantities' conversion helpers. Core-only consumers can use `FromSiBaseUnit`, `AsSiBaseUnit`, `FromArbitrarySiComponents` and `AsArbitrarySiComponents` for every quantity.
+
+### SI prefixes and compound units
+
+Named helpers handle conversion into and out of SI prefixes, including powers of prefixed units:
+
+```csharp
+Length length = Length.FromMilliMetres(2500);
+double metres = length.AsMetres(); // 2.5
+
+Density density = Density.FromGramsPerCubicCentiMetre(1);
+double kilogramsPerCubicMetre = density.AsSiBaseUnit(); // 1000
+```
+
+For more control, `FromPrefixedUnits` and `AsPrefixedUnits` accept decimal prefix exponents for each unit factor. Powers are taken into account automatically:
+
+```csharp
+// 1 A/mm² = 1,000,000 A/m²
+CurrentDensity density = CurrentDensity.FromPrefixedUnits(
+    1, ampPrefixExponent: 0, metrePrefixExponent: -3);
+
+double ampsPerSquareMillimetre = density.AsPrefixedUnits(
+    ampPrefixExponent: 0, metrePrefixExponent: -3); // 1
+```
+
+Named compound units remain a single factor where appropriate: `Voltage.FromPrefixedUnits(2, -3)` means 2 millivolts, without requiring you to know the SI dimensions of a volt.
+
+### Imperial
+
+Add `DimensionalQuantities.Extensions.Imperial` for British and US customary conversions. It includes feet, miles, stones, pounds-force, US and Imperial liquid measures, Rankine and Fahrenheit conversions for `Temperature`, mechanical horsepower and the International Table British thermal unit. Import `DimensionalQuantities.Extensions.Imperial` to use its helpers:
+
+```csharp
+Length depth = Length.FromFeet(6);
+Volume fuel = Volume.FromImperialGallons(2);
+Energy heat = Energy.FromBritishThermalUnitsIT(1);
+
+double metres = depth.AsSiBaseUnit(); // 1.8288
+```
+
+`BritishThermalUnitIT` is the International Table definition (exactly 1055.05585262 J); other BTU definitions differ. US and Imperial liquid measures are named separately. Imperial helpers do not generate SI-prefixed variants.
+
+### Nautical
+
+Add `DimensionalQuantities.Extensions.Nautical` for international nautical miles, fathoms, square nautical miles and knots. Import its namespace to use the helpers:
+
+```csharp
+using DimensionalQuantities.Extensions.Nautical;
+
+Length passage = Length.FromNauticalMiles(12);
+Speed vesselSpeed = Speed.FromKnots(8);
+```
+
+A nautical mile is exactly 1852 m, and a knot is one nautical mile per hour. Nautical helpers do not generate SI-prefixed variants.
+
+### CGS mechanical and electromagnetic units
+
+Add `DimensionalQuantities.Extensions.CgsEmag` for practical CGS mechanical, electromagnetic (EMU), and magnetic conversions. Import its namespace to use helpers such as:
+
+```csharp
+using DimensionalQuantities.Extensions.CgsEmag;
+
+MagneticFluxDensity field = MagneticFluxDensity.FromGauss(10_000);
+MagneticFieldStrength strength = MagneticFieldStrength.FromOersteds(1);
+Energy work = Energy.FromErgs(1_000_000);
+```
+
+It includes dynes, ergs, baryes, gals, the common `ab` electrical units, maxwells, gauss and oersteds. These are named conversions into coherent SI quantities; the package does not model a separate CGS electromagnetic dimension system or generate SI-prefixed variants. See [NIST's CGS unit definitions](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-5-units-outside-si) for the distinction between EMU, ESU and Gaussian systems.
+
+### Affine temperature units and deltas
+
+Temperature magnitudes are stored internally in kelvin. `Temperature.FromCelsius(20)` stores 293.15 K, and `Temperature.FromFahrenheit(68)` stores the same value. Their `AsCelsius()` and `AsFahrenheit()` accessors apply the corresponding offsets when converting an absolute value.
+
+Subtraction operates on those stored kelvin values. To convert the result as a temperature difference, call `.AsDelta()` and then use a delta accessor. Delta accessors apply scale only, without an offset:
+
+```csharp
+Temperature warm = Temperature.FromCelsius(20);
+Temperature cool = Temperature.FromFahrenheit(50);
+
+var difference = (warm - cool).AsDelta();
+double celsiusDifference = difference.AsCelsius();   // 10
+double fahrenheitDifference = difference.AsFahrenheit(); // 18
+double kelvinDifference = difference.AsKelvin();     // 10
+double rankineDifference = difference.AsRankine();   // 18
+```
+
+`.AsDelta()` preserves and reinterprets the stored SI magnitude; it does not detect whether subtraction occurred. Calling it on an absolute reading treats that reading's full kelvin value as a difference. The library does not track reading-versus-difference provenance through arithmetic. Celsius helpers are provided by Metric; Fahrenheit and Rankine helpers are provided by Imperial. Kelvin helpers are available from core.
+
+## Generator behaviour and interoperability
+
 ### Discovery through your code
 
 Intermediate quantities can flow through:
@@ -205,13 +225,15 @@ double value = timed.AsSiBaseUnit(); // 24
 
 The generator recognises canonical names such as `LengthCurrent`, `LengthPerTime` and `SquareRootLength`. Canonical-name discovery leaves existing bound types and explicit aliases alone. Incompatible dimensions remain compiler errors.
 
+Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains.
+
 ### Sharing quantities between packages
 
 Generated names are aliases for types in the shared runtime library. Independently compiled packages can therefore exchange the same quantity through method parameters, return values, collections and containing objects.
 
 A consuming project with the generator can discover quantities from referenced values, generate local conversion helpers, and use those values in further arithmetic. Quantity aliases are generated separately in each compilation; they are not exported by a referenced assembly.
 
-### Diagnostics and quick fixes
+## Diagnostics and quick fixes
 
 The analysers and generator report dimensional mistakes and problems with generated names or type encodings:
 
@@ -230,7 +252,7 @@ DQ0003 has an IDE quick fix to replace the raw type with its readable alias, suc
 
 Alias collision warnings do not suppress or rename generated aliases. Use qualified names or distinct explicit aliases to disambiguate your own types.
 
-### Defining an extension
+## Defining an extension
 
 An extension project references core and declares its units using attributes. The generator compiles public conversion helpers into that extension's assembly; consumers reference the extension and import its namespace.
 
@@ -266,14 +288,6 @@ internal static class CustomSymbols
 Consumers can then use `Length.FromFeet(6)` and `length.AsFeet()` with `using Example.Units;`. The Pascal declaration associates the same unit with Pressure, Stress and Young’s modulus; their shared underlying type receives one set of conversion helpers.
 
 `Scale` converts each atomic unit to SI. Ordered `UnitFactor` attributes describe compound units, with `Power`, `PowerDenominator` and `PrefixExponent` controlling each factor. A provider can opt into named SI prefixes and parameterised prefix conversions with `GenerateSiPrefixes` and `GeneratePrefixConversions`; both default to false. `AdditionalUnit` references another factor declaration for an alternative conversion.
-
-### Current scope
-
-When upgrading from the combined package, add the Metric package and namespace wherever you use catalogue conversions, including their `FromPrefixedUnits` and `AsPrefixedUnits` helpers. Their names and conversion behaviour are unchanged. Core-only consumers can use `FromSiBaseUnit`, `AsSiBaseUnit`, `FromArbitrarySiComponents` and `AsArbitrarySiComponents` for every quantity.
-
-Discovery uses the types and operations that the compiler can resolve as generated quantities become available. It supports async methods and iterators with quantity return or element types, but does not infer a new variable type from arbitrary reassignment chains.
-
-The library is under active development; the API and supported expression patterns are still evolving.
 
 ## Licence
 
