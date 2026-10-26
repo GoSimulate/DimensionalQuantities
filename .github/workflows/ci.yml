@@ -13,31 +13,54 @@ jobs:
       REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check relevant paths
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != 'pull_request' ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            changed=$(git diff --name-only "$BASE_SHA" HEAD -- src/ .github/workflows/ci.yml)
+            if [ -n "$changed" ]; then
+              echo 'run=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'run=false' >> "$GITHUB_OUTPUT"
+            fi
+          fi
       - name: Check conventional PR title
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: python3 .github/scripts/check-pr-title.py
       - uses: actions/setup-dotnet@v6.0.0
+        if: steps.changes.outputs.run == 'true'
         with:
           global-json-file: global.json
       - name: Restore
+        if: steps.changes.outputs.run == 'true'
         run: dotnet restore src/DimensionalQuantities.slnx
       - name: Build
+        if: steps.changes.outputs.run == 'true'
         run: >-
           dotnet build src/DimensionalQuantities.slnx -c Release --no-restore
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
       - name: Test
+        if: steps.changes.outputs.run == 'true'
         run: dotnet test --solution src/DimensionalQuantities.slnx -c Release --no-build --no-restore --report-trx --results-directory artifacts/test-results
       - name: Pack
+        if: steps.changes.outputs.run == 'true'
         run: >-
           dotnet pack src/DimensionalQuantities.slnx
           -c Release --no-build --no-restore -o artifacts/packages
           -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -p:RepositoryUrl="$REPOSITORY_URL"
       - name: Check NuGet packages
+        if: steps.changes.outputs.run == 'true'
         run: python3 .github/scripts/check-package.py "$VERSION"
       - uses: actions/upload-artifact@v7.0.2
-        if: always()
+        if: always() && steps.changes.outputs.run == 'true'
         with:
           name: ci-results
           path: artifacts/
