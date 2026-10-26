@@ -1,0 +1,77 @@
+name: Licence compliance pilot
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  licence-compliance:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record PR for the comment workflow
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ort-results"
+          printf '%s\n' "$PR_NUMBER" > "$RUNNER_TEMP/ort-results/pr-number"
+      - name: Analyse NuGet dependencies with ORT
+        run: |
+          mkdir -p "$RUNNER_TEMP/ort-results" "$RUNNER_TEMP/ort-project" "$RUNNER_TEMP/ort-home"
+          cp -a "$GITHUB_WORKSPACE/." "$RUNNER_TEMP/ort-project/"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-project,target=/project" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-results,target=/results" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-home,target=/home/ort" \
+            ghcr.io/oss-review-toolkit/ort:92.0.0@sha256:b756f9ae0b8d6b435012a1b7097d4e419d327029cd8daeb36c7f400af9b51d31 \
+            --warn analyze -i /project -o /results -f JSON
+      - name: Evaluate licence policy
+        run: |
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-project,target=/project,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-results,target=/results" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-home,target=/home/ort" \
+            ghcr.io/oss-review-toolkit/ort:92.0.0@sha256:b756f9ae0b8d6b435012a1b7097d4e419d327029cd8daeb36c7f400af9b51d31 \
+            --warn evaluate -i /results/analyzer-result.json -o /results -f JSON \
+            --rules-file /project/.ort/evaluator.rules.kts
+          result=$?
+          set -e
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          results = Path(os.environ["RUNNER_TEMP"]) / "ort-results"
+          analysis = json.loads((results / "analyzer-result.json").read_text())
+          evaluation = results / "evaluation-result.json"
+          packages = analysis["analyzer"]["result"]["packages"]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"## ORT licence review\n\n{len(packages)} packages analysed.\n\n")
+              if evaluation.exists():
+                  violations = json.loads(evaluation.read_text())["evaluator"]["violations"]
+                  if violations:
+                      summary.write("| Package | Licence | Finding |\n| --- | --- | --- |\n")
+                      for violation in violations:
+                          package = violation["pkg"]
+                          licence = violation.get("license") or "Unknown"
+                          message = violation["message"]
+                          summary.write(f"| {package} | {licence} | {message} |\n")
+                  else:
+                      summary.write("All package licences matched the pilot allowlist.\n")
+              else:
+                  summary.write("ORT did not produce an evaluation result. Check the job log.\n")
+          PY
+          exit "$result"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ort-licence-results
+          path: |
+            ${{ runner.temp }}/ort-results/*.json
+            ${{ runner.temp }}/ort-results/pr-number
+          if-no-files-found: warn
