@@ -10,6 +10,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: Record PR for the comment workflow
         if: github.event_name == 'pull_request'
         env:
@@ -19,9 +21,10 @@ jobs:
           printf '%s\n' "$PR_NUMBER" > "$RUNNER_TEMP/ort-results/pr-number"
       - name: Analyse NuGet dependencies with ORT
         run: |
-          mkdir -p "$RUNNER_TEMP/ort-results"
+          mkdir -p "$RUNNER_TEMP/ort-results" "$RUNNER_TEMP/ort-project"
+          cp -a "$GITHUB_WORKSPACE/." "$RUNNER_TEMP/ort-project/"
           docker run --rm --user "$(id -u):$(id -g)" \
-            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/project,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-project,target=/project" \
             --mount "type=bind,source=$RUNNER_TEMP/ort-results,target=/results" \
             ghcr.io/oss-review-toolkit/ort:92.0.0@sha256:b756f9ae0b8d6b435012a1b7097d4e419d327029cd8daeb36c7f400af9b51d31 \
             --warn analyze -i /project -o /results -f JSON
@@ -29,7 +32,7 @@ jobs:
         run: |
           set +e
           docker run --rm --user "$(id -u):$(id -g)" \
-            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/project,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/ort-project,target=/project,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/ort-results,target=/results" \
             ghcr.io/oss-review-toolkit/ort:92.0.0@sha256:b756f9ae0b8d6b435012a1b7097d4e419d327029cd8daeb36c7f400af9b51d31 \
             --warn evaluate -i /results/analyzer-result.json -o /results -f JSON \
