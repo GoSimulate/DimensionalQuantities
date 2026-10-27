@@ -49,6 +49,18 @@ public sealed class MetricConversionsTests
 			() => Assert.Equal(0, Temperature.FromKelvin(273.15).AsCelsius(), 10));
 	}
 
+	[Theory]
+	[InlineData(0d, 0d)]
+	[InlineData(60d, 2d)]
+	[InlineData(-120d, -4d)]
+	public void RpmConvertsToAndFromRadiansPerSecond(double rpm, double multiplesOfPi)
+	{
+		double radiansPerSecond = multiplesOfPi * Math.PI;
+		Assert.Multiple(
+			() => Assert.Equal(radiansPerSecond, AngularVelocity.FromRpm(rpm).AsRadiansPerSecond(), 10),
+			() => Assert.Equal(rpm, AngularVelocity.FromRadiansPerSecond(radiansPerSecond).ToRpm(), 10));
+	}
+
 	[Fact]
 	public void CatalogueAccessorsConvertFromKnownSiValues()
 	{
