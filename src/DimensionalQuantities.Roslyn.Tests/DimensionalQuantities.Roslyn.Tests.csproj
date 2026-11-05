@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />
-    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" />
@@ -18,5 +18,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <PackageReference Include="System.Composition.AttributedModel" Version="10.0.14" />
   </ItemGroup>
 </Project>
