@@ -6,7 +6,7 @@ using Xunit;
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
 [Collection("MSBuild")]
-public sealed class PackagedGeneratorTests : IDisposable
+public sealed partial class PackagedGeneratorTests : IDisposable
 {
 	private readonly string _scratch = Directory.CreateTempSubdirectory("dimensional-quantities-").FullName;
 
