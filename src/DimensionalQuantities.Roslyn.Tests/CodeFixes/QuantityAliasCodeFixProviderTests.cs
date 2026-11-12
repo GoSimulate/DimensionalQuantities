@@ -1,13 +1,6 @@
-using System.Collections.Immutable;
 using DimensionalQuantities.Roslyn.Analyzers;
-using DimensionalQuantities.Roslyn.CodeFixes;
-using DimensionalQuantities.Roslyn.Tests.Analyzers;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CodeActions;
-using Microsoft.CodeAnalysis.CodeFixes;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
+using DimensionalQuantities.Roslyn.Tests.Testing;
+using Microsoft.CodeAnalysis.Testing;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.CodeFixes;
@@ -29,66 +22,57 @@ public sealed class QuantityAliasCodeFixProviderTests
 	[InlineData("public class Consumer { public TYPE Value { get; } }", "public class Consumer { public LengthCurrent Value { get; } }", LengthCurrentType)]
 	public async Task FixUsesAliasAndPreservesSurroundingSource(string template, string expected, string? rawType = null)
 	{
-		string source = template.Replace("TYPE", rawType ?? LengthType);
-		using AdhocWorkspace workspace = new();
-		Document document = CreateDocument(workspace, source);
-		Compilation compilation = (await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
-		Diagnostic diagnostic = Assert.Single(await compilation.WithAnalyzers([new QuantityEncodingAnalyzer()]).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken));
-		List<CodeAction> actions = [];
-		QuantityAliasCodeFixProvider provider = new();
-		await provider.RegisterCodeFixesAsync(new(document, diagnostic, (action, _) => actions.Add(action), TestContext.Current.CancellationToken));
-		CodeAction action = Assert.Single(actions);
-		ImmutableArray<CodeActionOperation> operations = await action.GetOperationsAsync(TestContext.Current.CancellationToken);
-		ApplyChangesOperation changes = Assert.Single(operations.OfType<ApplyChangesOperation>());
-		Document changed = changes.ChangedSolution.GetDocument(document.Id)!;
-		string result = (await changed.GetTextAsync(TestContext.Current.CancellationToken)).ToString();
-		CSharpCompilation finalCompilation = AnalyzerTestCompilation.Create(result);
-		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.DoesNotContain(finalCompilation.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+		string marked = template.Replace("TYPE", (rawType ?? LengthType).Replace("Quantity<", "{|#0:Quantity<") + "|}");
+		await new QuantityCodeFixTest
+		{
+			TestCode = marked,
+			FixedCode = expected,
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias).WithLocation(0).WithArguments(rawType is null ? "Length" : "LengthCurrent") },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Fact]
 	public async Task NameOfDoesNotOfferFixThatChangesTheReturnedName()
 	{
 		string source = $"public class Consumer {{ public string Value() => nameof({LengthType}); }}";
-		using AdhocWorkspace workspace = new();
-		Document document = CreateDocument(workspace, source);
-		Compilation compilation = (await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
-		Diagnostic diagnostic = Assert.Single(await compilation.WithAnalyzers([new QuantityEncodingAnalyzer()]).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken));
-		List<CodeAction> actions = [];
-		QuantityAliasCodeFixProvider provider = new();
-		await provider.RegisterCodeFixesAsync(new(document, diagnostic, (action, _) => actions.Add(action), TestContext.Current.CancellationToken));
-		Assert.Empty(actions);
+		string marked = source.Replace(LengthType, LengthType.Replace("Quantity<", "{|#0:Quantity<") + "|}");
+		await new QuantityCodeFixTest
+		{
+			TestCode = marked,
+			FixedCode = source,
+			FixedState =
+			{
+				ExpectedDiagnostics =
+				{
+					new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias)
+						.WithSpan(1, source.IndexOf("Quantity<", StringComparison.Ordinal) + 1,
+							1, source.IndexOf(LengthType, StringComparison.Ordinal) + LengthType.Length + 1).WithArguments("Length"),
+				},
+			},
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias).WithLocation(0).WithArguments("Length") },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Fact]
 	public async Task ShadowedAliasDoesNotOfferUnsafeFix()
 	{
 		string source = $"namespace ConsumerNamespace {{ public class Length {{ }} public class Consumer {{ public {LengthType} Value {{ get; }} }} }}";
-		using AdhocWorkspace workspace = new();
-		Document document = CreateDocument(workspace, source);
-		Compilation compilation = (await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
-		ImmutableArray<Diagnostic> diagnostics = await compilation.WithAnalyzers([new QuantityEncodingAnalyzer()]).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-		List<CodeAction> actions = [];
-		QuantityAliasCodeFixProvider provider = new();
-		foreach (Diagnostic diagnostic in diagnostics.Where(diagnostic => diagnostic.Id == "DQ0003"))
+		string marked = source.Replace(LengthType, LengthType.Replace("Quantity<", "{|#0:Quantity<") + "|}");
+		await new QuantityCodeFixTest
 		{
-			await provider.RegisterCodeFixesAsync(new(document, diagnostic, (action, _) => actions.Add(action), TestContext.Current.CancellationToken));
-		}
-		Assert.Empty(actions);
+			TestCode = marked,
+			FixedCode = source,
+			FixedState =
+			{
+				ExpectedDiagnostics =
+				{
+					new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias)
+						.WithSpan(1, source.IndexOf("Quantity<", StringComparison.Ordinal) + 1,
+							1, source.IndexOf(LengthType, StringComparison.Ordinal) + LengthType.Length + 1).WithArguments("Length"),
+				},
+			},
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias).WithLocation(0).WithArguments("Length") },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
-	private static Document CreateDocument(AdhocWorkspace workspace, string source)
-	{
-		CSharpCompilation compilation = AnalyzerTestCompilation.Create(source);
-		Project project = workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Create(), "Consumer", "Consumer", LanguageNames.CSharp,
-			compilationOptions: compilation.Options, parseOptions: new CSharpParseOptions(LanguageVersion.Preview), metadataReferences: compilation.References));
-		Document userDocument = workspace.AddDocument(project.Id, "Consumer.cs", SourceText.From(source));
-		foreach (SyntaxTree tree in compilation.SyntaxTrees.Where(tree => tree.FilePath != "Consumer.cs"))
-		{
-			workspace.AddDocument(project.Id, Path.GetFileName(tree.FilePath), tree.GetText());
-		}
-		return workspace.CurrentSolution.GetDocument(userDocument.Id)!;
-	}
 }

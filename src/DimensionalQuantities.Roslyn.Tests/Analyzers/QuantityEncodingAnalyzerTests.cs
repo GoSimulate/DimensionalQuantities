@@ -1,6 +1,7 @@
-using System.Collections.Immutable;
 using DimensionalQuantities.Roslyn.Analyzers;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Testing;
+using DimensionalQuantities.Roslyn.Tests.Testing;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Analyzers;
@@ -12,12 +13,12 @@ public sealed class QuantityEncodingAnalyzerTests
 	[Fact]
 	public async Task RawQuantitySuggestsReadableAlias()
 	{
-		string source = $"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {LengthType} Value {{ get; }} }}";
-		Diagnostic result = Assert.Single(await AnalyzerTestCompilation.Analyze(source, new QuantityEncodingAnalyzer()));
-		Assert.Multiple(
-			() => Assert.Equal("DQ0003", result.Id),
-			() => Assert.Contains("Length", result.GetMessage()),
-			() => Assert.Equal(LengthType, source.Substring(result.Location.SourceSpan.Start, result.Location.SourceSpan.Length)));
+		string source = $"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {{|#0:{LengthType}|}} Value {{ get; }} }}";
+		await new QuantityAnalyzerTest<QuantityEncodingAnalyzer>
+		{
+			TestCode = source,
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.ReadableAlias).WithLocation(0).WithArguments("Length") },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Theory]
@@ -28,12 +29,13 @@ public sealed class QuantityEncodingAnalyzerTests
 		string type = $"global::DimensionalQuantities.TypeSystem.Quantity<global::DimensionalQuantities.TypeSystem.Dimension<{exponent}, "
 			+ "global::DimensionalQuantities.TypeSystem.TerminalHex0, global::DimensionalQuantities.TypeSystem.TerminalHex0, global::DimensionalQuantities.TypeSystem.TerminalHex0, "
 			+ "global::DimensionalQuantities.TypeSystem.TerminalHex0, global::DimensionalQuantities.TypeSystem.TerminalHex0, global::DimensionalQuantities.TypeSystem.TerminalHex0>>";
-		string source = $"using MyLength = {type}; public class Consumer {{ }}";
-		ImmutableArray<Diagnostic> results = await AnalyzerTestCompilation.Analyze(source, new QuantityEncodingAnalyzer());
-		Diagnostic result = Assert.Single(results);
-		Assert.Multiple(
-			() => Assert.Equal("DQ0004", result.Id),
-			() => Assert.Equal(DiagnosticSeverity.Warning, result.Severity));
+		string markedType = type.Replace("Quantity<", "{|#0:Quantity<") + "|}";
+		string source = $"using MyLength = {markedType}; public class Consumer {{ }}";
+		await new QuantityAnalyzerTest<QuantityEncodingAnalyzer>
+		{
+			TestCode = source,
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.NonCanonical).WithLocation(0) },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Theory]
@@ -42,11 +44,14 @@ public sealed class QuantityEncodingAnalyzerTests
 	[InlineData("Quantity<Dimension<Fraction<TerminalHex1, TerminalHex0>, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>")]
 	public async Task InvalidClosedEncodingIsDiagnosedWithoutAnalyzerCrash(string type)
 	{
-		string source = $"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {type} Value {{ get; }} }}";
-		Diagnostic result = Assert.Single(await AnalyzerTestCompilation.Analyze(source, new QuantityEncodingAnalyzer(), generate: false));
-		Assert.Multiple(
-			() => Assert.Equal("DQ0005", result.Id),
-			() => Assert.Equal(DiagnosticSeverity.Error, result.Severity));
+		string source = $"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {{|#0:{type}|}} Value {{ get; }} }}";
+		await new QuantityAnalyzerTest<QuantityEncodingAnalyzer>
+		{
+			TestCode = source,
+			Generate = false,
+			CompilerDiagnostics = CompilerDiagnostics.None,
+			ExpectedDiagnostics = { new DiagnosticResult(QuantityEncodingAnalyzer.Invalid).WithLocation(0) },
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Theory]
@@ -55,8 +60,12 @@ public sealed class QuantityEncodingAnalyzerTests
 	public async Task UnresolvedArgumentsDoNotProduceEncodingDiagnostics(string type)
 	{
 		string source = $"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {type} Value {{ get; }} }}";
-		ImmutableArray<Diagnostic> result = await AnalyzerTestCompilation.Analyze(source, new QuantityEncodingAnalyzer(), generate: false);
-		Assert.Empty(result);
+		await new QuantityAnalyzerTest<QuantityEncodingAnalyzer>
+		{
+			TestCode = source,
+			Generate = false,
+			CompilerDiagnostics = CompilerDiagnostics.None,
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Theory]
@@ -66,7 +75,9 @@ public sealed class QuantityEncodingAnalyzerTests
 	[InlineData("public class Quantity<T> { } public class Consumer { public Quantity<string> Value { get; } }")]
 	public async Task DeliberateAliasesOpenGenericsAndUnrelatedTypesAreAllowed(string source)
 	{
-		ImmutableArray<Diagnostic> result = await AnalyzerTestCompilation.Analyze(source, new QuantityEncodingAnalyzer());
-		Assert.Empty(result);
+		await new QuantityAnalyzerTest<QuantityEncodingAnalyzer>
+		{
+			TestCode = source,
+		}.RunAsync(TestContext.Current.CancellationToken);
 	}
 }
