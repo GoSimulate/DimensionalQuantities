@@ -46,6 +46,29 @@ internal sealed class PackageSandbox : IDisposable
 		.Single(path => Path.GetFileName(path).StartsWith(id + ".", StringComparison.Ordinal) &&
 						!Path.GetFileName(path)[(id.Length + 1)..].StartsWith("Extensions.", StringComparison.Ordinal));
 
+	public async Task PackProducer(string id, string source, params string[] packageIds)
+	{
+		string directory = Path.Combine(Root, id);
+		Directory.CreateDirectory(directory);
+		string references = string.Join("\n", packageIds.Select(packageId => $"<PackageReference Include=\"{packageId}\" Version=\"[{Version}]\"/>"));
+		File.WriteAllText(Path.Combine(directory, id + ".csproj"), $$"""
+			<Project Sdk="Microsoft.NET.Sdk">
+			  <PropertyGroup>
+			    <TargetFramework>net11.0</TargetFramework>
+			    <LangVersion>preview</LangVersion>
+			    <ImplicitUsings>enable</ImplicitUsings>
+			    <PackageVersion>{{Version}}</PackageVersion>
+			  </PropertyGroup>
+			  <ItemGroup>
+			    {{references}}
+			  </ItemGroup>
+			</Project>
+			""");
+		File.WriteAllText(Path.Combine(directory, id + ".cs"), source);
+		(await Run(directory, "restore", "--configfile", Path.Combine(Root, "NuGet.Config"), "--packages", Cache, "--nologo")).EnsureSuccess();
+		(await Run(directory, "pack", "-c", "Release", "--no-restore", "-o", Feed, "--nologo")).EnsureSuccess();
+	}
+
 	public void WriteConsumer(string source, params string[] packageIds)
 	{
 		string references = string.Join("\n", packageIds.Select(id => $"<PackageReference Include=\"{id}\" Version=\"[{Version}]\"/>"));
