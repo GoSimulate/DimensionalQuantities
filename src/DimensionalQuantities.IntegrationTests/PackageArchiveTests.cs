@@ -4,17 +4,25 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Xml.Linq;
 using DimensionalQuantities.IntegrationTests.Delivery;
+using DimensionalQuantities.IntegrationTests.Fixtures;
 using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests;
 
+[Collection(typeof(PackageArchiveCollection))]
 public sealed class PackageArchiveTests
 {
+	private readonly PackageArchiveFixture _fixture;
+
+	public PackageArchiveTests(PackageArchiveFixture fixture)
+	{
+		_fixture = fixture;
+	}
+
 	[Fact]
 	public async Task PackedRuntimeMatchesExecutingTestConfiguration()
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath("DimensionalQuantities"));
 		using Stream source = archive.GetEntry("lib/netstandard2.0/DimensionalQuantities.dll")!.Open();
 		using MemoryStream binary = new();
@@ -41,10 +49,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task RuntimePackageShipsExpectedNetstandardBinary(string id)
+	public void RuntimePackageShipsExpectedNetstandardBinary(string id)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		ZipArchiveEntry binary = archive.GetEntry($"lib/netstandard2.0/{id}.dll")!;
 		Assert.NotNull(binary);
@@ -65,10 +72,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task RuntimeBinaryDoesNotReferenceBuildTooling(string id)
+	public void RuntimeBinaryDoesNotReferenceBuildTooling(string id)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		ZipArchiveEntry binary = archive.GetEntry($"lib/netstandard2.0/{id}.dll")!;
 		Assert.NotNull(binary);
@@ -90,10 +96,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task RuntimePackageDeclaresExactDependencyClosure(string id)
+	public void RuntimePackageDeclaresExactDependencyClosure(string id)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		using Stream manifest = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
 		XDocument nuspec = XDocument.Load(manifest);
@@ -117,10 +122,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task RuntimePackageRecordsGitRepositoryProvenance(string id)
+	public void RuntimePackageRecordsGitRepositoryProvenance(string id)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		using Stream manifest = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
 		XDocument nuspec = XDocument.Load(manifest);
@@ -133,10 +137,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task SymbolPackageContainsPortableSymbolsMatchingRuntimeBinary(string id)
+	public void SymbolPackageContainsPortableSymbolsMatchingRuntimeBinary(string id)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		using ZipArchive symbols = ZipFile.OpenRead(sandbox.ArchivePath(id, symbols: true));
 		AssertPortablePair(archive.GetEntry($"lib/netstandard2.0/{id}.dll")!, symbols.GetEntry($"lib/netstandard2.0/{id}.pdb")!);
@@ -146,10 +149,9 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities")]
 	[InlineData("DimensionalQuantities.Roslyn")]
 	[InlineData("DimensionalQuantities.Roslyn.CodeFixes")]
-	public async Task CorePackageShipsCompilerAssetsWithMatchingPortableSymbols(string name)
+	public void CorePackageShipsCompilerAssetsWithMatchingPortableSymbols(string name)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath("DimensionalQuantities"));
 		AssertPortablePair(archive.GetEntry($"analyzers/dotnet/cs/{name}.dll")!, archive.GetEntry($"analyzers/dotnet/cs/{name}.pdb")!);
 	}

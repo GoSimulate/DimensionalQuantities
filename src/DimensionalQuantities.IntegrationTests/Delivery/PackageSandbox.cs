@@ -46,6 +46,18 @@ internal sealed class PackageSandbox : IDisposable
 		.Single(path => Path.GetFileName(path).StartsWith(id + ".", StringComparison.Ordinal) &&
 						!Path.GetFileName(path)[(id.Length + 1)..].StartsWith("Extensions.", StringComparison.Ordinal));
 
+	public PackageSandbox CreateConsumer()
+	{
+		PackageSandbox consumer = new();
+		consumer.Version = Version;
+		File.Copy(Path.Combine(Root, "global.json"), Path.Combine(consumer.Root, "global.json"));
+		foreach (string archive in Directory.GetFiles(Feed))
+		{
+			File.Copy(archive, Path.Combine(consumer.Feed, Path.GetFileName(archive)));
+		}
+		return consumer;
+	}
+
 	public async Task PackProducer(string id, string source, params string[] packageIds)
 	{
 		string directory = Path.Combine(Root, id);
@@ -90,6 +102,11 @@ internal sealed class PackageSandbox : IDisposable
 	public async Task<string> ExecuteConsumer()
 	{
 		(await BuildConsumer()).EnsureSuccess();
+		return await ExecuteBuiltConsumer();
+	}
+
+	public async Task<string> ExecuteBuiltConsumer()
+	{
 		ProcessResult result = await Run(Consumer, Path.Combine(Consumer, "bin", "Release", "net11.0", "Consumer.dll"));
 		result.EnsureSuccess();
 		return result.Output.Trim();

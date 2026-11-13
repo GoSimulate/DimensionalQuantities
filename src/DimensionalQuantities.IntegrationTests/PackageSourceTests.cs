@@ -5,12 +5,21 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Text.Json;
 using DimensionalQuantities.IntegrationTests.Delivery;
+using DimensionalQuantities.IntegrationTests.Fixtures;
 using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests;
 
+[Collection(typeof(PackageArchiveCollection))]
 public sealed class PackageSourceTests
 {
+	private readonly PackageArchiveFixture _fixture;
+
+	public PackageSourceTests(PackageArchiveFixture fixture)
+	{
+		_fixture = fixture;
+	}
+
 	[Theory]
 	[InlineData("DimensionalQuantities", "lib/netstandard2.0", "DimensionalQuantities")]
 	[InlineData("DimensionalQuantities", "analyzers/dotnet/cs", "DimensionalQuantities")]
@@ -22,8 +31,7 @@ public sealed class PackageSourceTests
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag", "lib/netstandard2.0", "DimensionalQuantities.Extensions.CgsEmag")]
 	public async Task PackagedSymbolsMapSourceToCurrentCommit(string id, string directory, string assembly)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive symbols = ZipFile.OpenRead(sandbox.ArchivePath(id, symbols: directory == "lib/netstandard2.0"));
 		using Stream stream = symbols.GetEntry($"{directory}/{assembly}.pdb")!.Open();
 		using MemoryStream pdb = new();
@@ -49,8 +57,7 @@ public sealed class PackageSourceTests
 	public async Task ExtensionSymbolsEmbedGeneratedSourceMatchingBuildOutput(string extension)
 	{
 		string id = "DimensionalQuantities.Extensions." + extension;
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		PackageSandbox sandbox = _fixture.Packages;
 		using ZipArchive symbols = ZipFile.OpenRead(sandbox.ArchivePath(id, symbols: true));
 		using Stream stream = symbols.GetEntry($"lib/netstandard2.0/{id}.pdb")!.Open();
 		using MemoryStream pdb = new();

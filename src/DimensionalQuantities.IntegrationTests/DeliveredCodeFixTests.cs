@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
 using DimensionalQuantities.IntegrationTests.Delivery;
+using DimensionalQuantities.IntegrationTests.Fixtures;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -14,13 +15,20 @@ using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests;
 
+[Collection(typeof(PackageDeliveryCollection))]
 public sealed class DeliveredCodeFixTests
 {
+	private readonly PackageDeliveryFixture _fixture;
+
+	public DeliveredCodeFixTests(PackageDeliveryFixture fixture)
+	{
+		_fixture = fixture;
+	}
+
 	[Fact]
 	public async Task PackagedMefExportLoadsAndReplacesRawQuantityWithSafeAlias()
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		string extracted = Path.Combine(sandbox.Root, "extracted");
 		ZipFile.ExtractToDirectory(sandbox.ArchivePath("DimensionalQuantities"), extracted);
 		string codeFixPath = Path.Combine(extracted, "analyzers/dotnet/cs/DimensionalQuantities.Roslyn.CodeFixes.dll");

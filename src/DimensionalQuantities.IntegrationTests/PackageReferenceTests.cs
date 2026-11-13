@@ -1,16 +1,24 @@
 using System.Text.Json;
 using DimensionalQuantities.IntegrationTests.Delivery;
+using DimensionalQuantities.IntegrationTests.Fixtures;
 using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests;
 
+[Collection(typeof(PackageDeliveryCollection))]
 public sealed class PackageReferenceTests
 {
+	private readonly PackageDeliveryFixture _fixture;
+
+	public PackageReferenceTests(PackageDeliveryFixture fixture)
+	{
+		_fixture = fixture;
+	}
+
 	[Fact]
 	public async Task CorePackageActivatesGeneratorAndRunsWithoutToolingRuntimeDependencies()
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		sandbox.WriteConsumer("""
 			Console.WriteLine((Length.FromMetres(6) * Current.FromAmps(2)).AsSiBaseUnit());
 			""", "DimensionalQuantities");
@@ -24,8 +32,7 @@ public sealed class PackageReferenceTests
 	[Fact]
 	public async Task CorePackageDeliversDimensionalMismatchAnalyzer()
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		sandbox.WriteConsumer("""
 			Console.WriteLine(Length.FromMetres(1) + Time.FromSeconds(1));
 			""", "DimensionalQuantities");
@@ -43,8 +50,7 @@ public sealed class PackageReferenceTests
 	public async Task OptionalPackageAloneSuppliesMatchingCoreAndCallableConversions(string extension, string expression)
 	{
 		string id = "DimensionalQuantities.Extensions." + extension;
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		sandbox.WriteConsumer($$"""
 			using {{id}};
 			Console.WriteLine(({{expression}}).AsSiBaseUnit() > 0);
@@ -66,8 +72,7 @@ public sealed class PackageReferenceTests
 	public async Task OptionalConversionsRequireNamespaceImport(string extension, string expression)
 	{
 		string id = "DimensionalQuantities.Extensions." + extension;
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack(id);
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		sandbox.WriteConsumer($$"""
 			Console.WriteLine(({{expression}}).AsSiBaseUnit());
 			""", id);
@@ -84,8 +89,7 @@ public sealed class PackageReferenceTests
 	[InlineData("MagneticFluxDensity.FromGauss(2)")]
 	public async Task CorePackageDoesNotSupplyOptionalConversions(string expression)
 	{
-		using PackageSandbox sandbox = new();
-		await sandbox.Pack();
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		sandbox.WriteConsumer($$"""
 			Console.WriteLine(({{expression}}).AsSiBaseUnit());
 			""", "DimensionalQuantities");
@@ -98,9 +102,8 @@ public sealed class PackageReferenceTests
 	[Fact]
 	public async Task CompatibleOptionalPackagesComposeThroughOneRuntimeType()
 	{
-		using PackageSandbox sandbox = new();
+		using PackageSandbox sandbox = _fixture.CreateConsumer();
 		string[] ids = ["DimensionalQuantities.Extensions.Metric", "DimensionalQuantities.Extensions.Imperial", "DimensionalQuantities.Extensions.Nautical", "DimensionalQuantities.Extensions.CgsEmag"];
-		await sandbox.Pack(ids);
 		sandbox.WriteConsumer("""
 			using DimensionalQuantities.Extensions.Metric;
 			using DimensionalQuantities.Extensions.Imperial;
