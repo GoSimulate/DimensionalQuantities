@@ -54,7 +54,11 @@ public sealed class DeliveredCodeFixTests
 				.AddMetadataReference(MetadataReference.CreateFromFile(Path.Combine(extracted, "lib/netstandard2.0/DimensionalQuantities.dll")));
 			Document document = project.AddDocument("Consumer.cs", SourceText.From(source));
 			Compilation compilation = (await document.Project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
-			Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
+			Diagnostic[] setupErrors = [.. compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+			if (setupErrors.Length > 0)
+			{
+				throw new InvalidOperationException("Invalid code-fix fixture:" + Environment.NewLine + string.Join(Environment.NewLine, setupErrors.Select(diagnostic => diagnostic.ToString())));
+			}
 			SyntaxNode root = (await document.GetSyntaxRootAsync(TestContext.Current.CancellationToken))!;
 			GenericNameSyntax quantity = root.DescendantNodes().OfType<FieldDeclarationSyntax>().Single().Declaration.Type.DescendantNodesAndSelf().OfType<GenericNameSyntax>().First();
 			Diagnostic diagnostic = Diagnostic.Create(new DiagnosticDescriptor("DQ0003", "Alias", "Use alias", "Usage", DiagnosticSeverity.Info, true),

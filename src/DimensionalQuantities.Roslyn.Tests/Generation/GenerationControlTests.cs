@@ -117,10 +117,10 @@ public sealed class GenerationControlTests
 		test.TestState.Sources.Add(("Second.cs", "using DimensionalQuantities.TypeSystem; class Second { Length M(Area value) => Power<NumberOneOverTwo>.Of(value); NumberHalf field; }"));
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		UsingDirectiveSyntax[] aliases = test.GeneratedSources.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<UsingDirectiveSyntax>()).Where(alias => alias.Alias?.Name.Identifier.ValueText is "NumberHalf" or "NumberOneOverTwo").ToArray();
+		ISymbol?[] calls = test.Compilation.SyntaxTrees.Where(tree => tree.FilePath.EndsWith("First.cs") || tree.FilePath.EndsWith("Second.cs")).Select(tree => test.Compilation.GetSemanticModel(tree).GetSymbolInfo(tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single(), TestContext.Current.CancellationToken).Symbol).ToArray();
 		Assert.Multiple(
 			() => Assert.Equal(2, aliases.Length),
-			() => Assert.Equal(aliases[0].Name!.ToString(), aliases[1].Name!.ToString()));
-		ISymbol?[] calls = test.Compilation.SyntaxTrees.Where(tree => tree.FilePath.EndsWith("First.cs") || tree.FilePath.EndsWith("Second.cs")).Select(tree => test.Compilation.GetSemanticModel(tree).GetSymbolInfo(tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single(), TestContext.Current.CancellationToken).Symbol).ToArray();
-		Assert.True(SymbolEqualityComparer.Default.Equals(calls[0], calls[1]));
+			() => Assert.Equal(aliases[0].Name!.ToString(), aliases[1].Name!.ToString()),
+			() => Assert.True(SymbolEqualityComparer.Default.Equals(calls[0], calls[1])));
 	}
 }

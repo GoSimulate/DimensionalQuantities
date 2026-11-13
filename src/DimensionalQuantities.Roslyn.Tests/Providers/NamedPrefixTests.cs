@@ -43,9 +43,10 @@ public sealed class NamedPrefixTests
             """ };
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", test.GeneratedSources.Where(tree => tree.ToString().Contains("namespace Custom;")));
-		Assert.Contains($"From{prefix}Metres(double value)", source);
 		MethodDeclarationSyntax method = test.GeneratedSources.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()).Single(method => method.Identifier.ValueText == $"From{prefix}Metres" && method.SyntaxTree.ToString().Contains("namespace Custom;"));
-		Assert.Contains($"overallScaleExponent: {exponent}d", method.ToString());
+		Assert.Multiple(
+			() => Assert.Contains($"From{prefix}Metres(double value)", source),
+			() => Assert.Contains($"overallScaleExponent: {exponent}d", method.ToString()));
 	}
 	[Theory]
 	[InlineData("Quetta", 30)]

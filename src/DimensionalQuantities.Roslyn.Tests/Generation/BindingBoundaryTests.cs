@@ -48,10 +48,11 @@ public sealed class BindingBoundaryTests
 		test.TestState.Sources.Add(("Producer.cs", "static class Producer { public static LengthCurrent Get() => default; }"));
 		test.TestState.Sources.Add(("Consumer.cs", "class Consumer { LengthTimeCurrent M() => Producer.Get()*Time.FromSiBaseUnit(1); }"));
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Contains("global using LengthTimeCurrent =", string.Join("\n", test.GeneratedSources));
 		SyntaxTree tree = test.Compilation.SyntaxTrees.Single(tree => tree.FilePath.EndsWith("Consumer.cs"));
 		BinaryExpressionSyntax binary = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
-		Assert.NotNull(test.Compilation.GetSemanticModel(tree).GetSymbolInfo(binary, TestContext.Current.CancellationToken).Symbol);
+		Assert.Multiple(
+			() => Assert.Contains("global using LengthTimeCurrent =", string.Join("\n", test.GeneratedSources)),
+			() => Assert.NotNull(test.Compilation.GetSemanticModel(tree).GetSymbolInfo(binary, TestContext.Current.CancellationToken).Symbol));
 	}
 
 	[Fact]

@@ -24,11 +24,10 @@ public sealed class ProviderMetadataTests
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(test.Compilation.GetSemanticModel(tree).GetSymbolInfo(call, TestContext.Current.CancellationToken).Symbol);
-		Assert.Multiple(
-			() => Assert.Equal(assemblyName, selected.ContainingAssembly.Name),
-			() => Assert.Equal(Accessibility.Public, selected.DeclaredAccessibility));
 		IMethodSymbol method = test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers("M").OfType<IMethodSymbol>().Single();
 		Assert.Multiple(
+			() => Assert.Equal(assemblyName, selected.ContainingAssembly.Name),
+			() => Assert.Equal(Accessibility.Public, selected.DeclaredAccessibility),
 			() => Assert.True(SymbolEqualityComparer.Default.Equals(method.ReturnType, selected.ReturnType)),
 			() => Assert.DoesNotContain($"{factory}(double value)", string.Join("\n", test.GeneratedSources)));
 	}

@@ -215,12 +215,13 @@ public sealed class DiscoveryBehaviourTests
 	{
 		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {result} M(Length l) => l.{method}(); }}" };
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Contains($"{method}() => global::DimensionalQuantities.TypeSystem.Power<global::DimensionalQuantities.TypeSystem.{exponent}>.Of(value);", string.Join("\n", test.GeneratedSources));
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(test.Compilation.GetSemanticModel(tree).GetSymbolInfo(call, TestContext.Current.CancellationToken).Symbol);
 		IMethodSymbol declared = test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers("M").OfType<IMethodSymbol>().Single();
-		Assert.True(SymbolEqualityComparer.Default.Equals(declared.ReturnType, selected.ReturnType));
+		Assert.Multiple(
+			() => Assert.Contains($"{method}() => global::DimensionalQuantities.TypeSystem.Power<global::DimensionalQuantities.TypeSystem.{exponent}>.Of(value);", string.Join("\n", test.GeneratedSources)),
+			() => Assert.True(SymbolEqualityComparer.Default.Equals(declared.ReturnType, selected.ReturnType)));
 	}
 
 	[Theory]

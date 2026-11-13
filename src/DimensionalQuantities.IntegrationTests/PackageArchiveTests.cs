@@ -41,28 +41,60 @@ public sealed class PackageArchiveTests
 	[InlineData("DimensionalQuantities.Extensions.Imperial")]
 	[InlineData("DimensionalQuantities.Extensions.Nautical")]
 	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
-	public async Task RuntimePackagesShipNetstandardBinaryAndExactDependencyClosure(string id)
+	public async Task RuntimePackageShipsExpectedNetstandardBinary(string id)
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack(id);
 		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		ZipArchiveEntry binary = archive.GetEntry($"lib/netstandard2.0/{id}.dll")!;
 		Assert.NotNull(binary);
-		using (MemoryStream contents = new())
+		using MemoryStream contents = new();
+		using (Stream stream = binary.Open())
 		{
-			using (Stream stream = binary.Open())
-			{
-				stream.CopyTo(contents);
-			}
-
-			contents.Position = 0;
-			using PEReader pe = new(contents);
-			MetadataReader metadata = pe.GetMetadataReader();
-			Assert.Multiple(
-				() => Assert.Equal(id, metadata.GetString(metadata.GetAssemblyDefinition().Name)),
-				() => Assert.DoesNotContain(metadata.AssemblyReferences.Select(handle => metadata.GetString(metadata.GetAssemblyReference(handle).Name)),
-					name => name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal) || name is "JetBrains.Annotations" or "PolySharp"));
+			stream.CopyTo(contents);
 		}
+		contents.Position = 0;
+		using PEReader pe = new(contents);
+		MetadataReader metadata = pe.GetMetadataReader();
+		Assert.Equal(id, metadata.GetString(metadata.GetAssemblyDefinition().Name));
+	}
+
+	[Theory]
+	[InlineData("DimensionalQuantities")]
+	[InlineData("DimensionalQuantities.Extensions.Metric")]
+	[InlineData("DimensionalQuantities.Extensions.Imperial")]
+	[InlineData("DimensionalQuantities.Extensions.Nautical")]
+	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
+	public async Task RuntimeBinaryDoesNotReferenceBuildTooling(string id)
+	{
+		using PackageSandbox sandbox = new();
+		await sandbox.Pack(id);
+		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
+		ZipArchiveEntry binary = archive.GetEntry($"lib/netstandard2.0/{id}.dll")!;
+		Assert.NotNull(binary);
+		using MemoryStream contents = new();
+		using (Stream stream = binary.Open())
+		{
+			stream.CopyTo(contents);
+		}
+		contents.Position = 0;
+		using PEReader pe = new(contents);
+		MetadataReader metadata = pe.GetMetadataReader();
+		Assert.DoesNotContain(metadata.AssemblyReferences.Select(handle => metadata.GetString(metadata.GetAssemblyReference(handle).Name)),
+			name => name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal) || name is "JetBrains.Annotations" or "PolySharp");
+	}
+
+	[Theory]
+	[InlineData("DimensionalQuantities")]
+	[InlineData("DimensionalQuantities.Extensions.Metric")]
+	[InlineData("DimensionalQuantities.Extensions.Imperial")]
+	[InlineData("DimensionalQuantities.Extensions.Nautical")]
+	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
+	public async Task RuntimePackageDeclaresExactDependencyClosure(string id)
+	{
+		using PackageSandbox sandbox = new();
+		await sandbox.Pack(id);
+		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
 		using Stream manifest = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
 		XDocument nuspec = XDocument.Load(manifest);
 		XElement[] dependencies = nuspec.Descendants().Where(e => e.Name.LocalName == "dependency").ToArray();
@@ -77,6 +109,21 @@ public sealed class PackageArchiveTests
 				() => Assert.Equal("DimensionalQuantities", (string?)dependency.Attribute("id")),
 				() => Assert.Equal($"[{sandbox.Version}]", (string?)dependency.Attribute("version")));
 		}
+	}
+
+	[Theory]
+	[InlineData("DimensionalQuantities")]
+	[InlineData("DimensionalQuantities.Extensions.Metric")]
+	[InlineData("DimensionalQuantities.Extensions.Imperial")]
+	[InlineData("DimensionalQuantities.Extensions.Nautical")]
+	[InlineData("DimensionalQuantities.Extensions.CgsEmag")]
+	public async Task RuntimePackageRecordsGitRepositoryProvenance(string id)
+	{
+		using PackageSandbox sandbox = new();
+		await sandbox.Pack(id);
+		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath(id));
+		using Stream manifest = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
+		XDocument nuspec = XDocument.Load(manifest);
 		Assert.Contains(nuspec.Descendants(), e => e.Name.LocalName == "repository" && (string?)e.Attribute("type") == "git");
 	}
 
