@@ -13,6 +13,23 @@ public sealed class QuantityAliasFixTests
 	private const string Imports = "using DimensionalQuantities.TypeSystem;\n";
 	private const string RawLength = "Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
 	private const string RawTime = "Quantity<Dimension<TerminalHex0, TerminalHex0, TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
+	private const string RawLengthCurrent = "Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0>>";
+
+	[Theory]
+	[InlineData(RawTime, "Time")]
+	[InlineData(RawLengthCurrent, "LengthCurrent")]
+	public async Task FixUsesTheSuggestedNonLengthAlias(string rawType, string alias)
+	{
+		QuantityCodeFixTest test = new()
+		{
+			TestCode = Imports + "class Measurement { {|#0:" + rawType + "|} field; }",
+			FixedCode = Imports + $"class Measurement {{ {alias} field; }}",
+			CodeActionEquivalenceKey = "UseAlias:" + alias,
+			CodeActionVerifier = (action, verifier) => Assert.Equal("Use " + alias, action.Title)
+		};
+		test.ExpectedDiagnostics.Add(Suggestion(0, alias));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+	}
 
 	[Fact]
 	public void ProviderAdvertisesOnlyAliasSuggestionAndActualBatchFixer()

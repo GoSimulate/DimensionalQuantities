@@ -150,8 +150,17 @@ public sealed class QuantityEncodingTests
 		await test.RunAsync(TestContext.Current.CancellationToken);
 	}
 
-	private static string Quantity(string exponent) => $"Quantity<Dimension<{exponent}, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
+
+	[Theory]
+	[InlineData("class Consumer { Power<Missing> exponent; }")]
+	[InlineData("class Consumer { Quantity<")]
+	[InlineData("class Consumer { Power<")]
+	public async Task UnresolvedPowerAndParserRecoveryDoNotInventInvalidClosedEncodings(string source)
+	{
+		await Case(source, compilerErrors: true).RunAsync(TestContext.Current.CancellationToken);
+	}
 	private static QuantityAnalyzerTest<QuantityEncodingAnalyzer> Case(string source, bool compilerErrors = false) => new() { TestCode = Imports + source, CompilerDiagnostics = compilerErrors ? CompilerDiagnostics.None : CompilerDiagnostics.Errors };
 	private static DiagnosticResult At(string id, DiagnosticSeverity severity) => new DiagnosticResult(id, severity).WithLocation(0);
 	private static DiagnosticResult Alias() => At("DQ0003", DiagnosticSeverity.Info).WithArguments("Length");
+	private static string Quantity(string exponent) => $"Quantity<Dimension<{exponent}, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
 }

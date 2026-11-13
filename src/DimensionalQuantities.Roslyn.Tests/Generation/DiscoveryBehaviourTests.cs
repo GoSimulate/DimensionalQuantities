@@ -55,10 +55,11 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("MagneticVectorPotential", "TerminalHex1,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
 	public async Task DefaultAliasesHaveCanonicalTargets(string alias, string exponents)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {alias} Value; }}" };
+		QuantityGeneratorTest test = new() { TestCode = "class Consumer {}" };
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		IFieldSymbol field = Assert.Single(test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").OfType<IFieldSymbol>());
-		Assert.Equal($"DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<{exponents}>>".Replace(" ", ""), field.Type.ToDisplayString().Replace("DimensionalQuantities.TypeSystem.TerminalHex", "TerminalHex").Replace(" ", ""));
+		UsingDirectiveSyntax declaration = test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>()).Single(directive => directive.Alias?.Name.Identifier.ValueText == alias);
+		ITypeSymbol target = Assert.IsAssignableFrom<ITypeSymbol>(test.Compilation.GetSemanticModel(declaration.SyntaxTree).GetSymbolInfo(declaration.Name!, TestContext.Current.CancellationToken).Symbol);
+		Assert.Equal($"DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<{exponents}>>".Replace(" ", ""), target.ToDisplayString().Replace("DimensionalQuantities.TypeSystem.TerminalHex", "TerminalHex").Replace(" ", ""));
 	}
 
 	[Theory]

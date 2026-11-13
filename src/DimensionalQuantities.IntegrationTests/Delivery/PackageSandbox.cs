@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Xml.Linq;
 
 namespace DimensionalQuantities.IntegrationTests.Delivery;
@@ -28,10 +29,11 @@ internal sealed class PackageSandbox : IDisposable
 		}
 
 		File.Copy(Path.Combine(repository, "global.json"), Path.Combine(Root, "global.json"), overwrite: true);
+		string configuration = typeof(PackageSandbox).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
 
 		foreach (string id in new[] { "DimensionalQuantities" }.Concat(optionalPackages).Distinct())
 		{
-			ProcessResult result = await Run(repository, "pack", Path.Combine(repository, "src", id, id + ".csproj"), "-c", "Release", "--no-build", "--no-restore", "-o", Feed, "-p:NuspecOutputPath=" + Path.Combine(Root, "nuspec", id), "--nologo");
+			ProcessResult result = await Run(repository, "pack", Path.Combine(repository, "src", id, id + ".csproj"), "-c", configuration, "--no-build", "--no-restore", "-o", Feed, "-p:NuspecOutputPath=" + Path.Combine(Root, "nuspec", id), "--nologo");
 			result.EnsureSuccess();
 		}
 

@@ -152,5 +152,21 @@ public sealed class GeneratorDiagnosticTests
 		Assert.Contains(test.GeneratedSources.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<UsingDirectiveSyntax>()), directive => directive.Alias?.Name.Identifier.ValueText == "Length");
 	}
 
+
+	[Fact]
+	public async Task BoundConcreteExponentIsNotAnUnresolvedEnglishRequest()
+	{
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = "using DimensionalQuantities.TypeSystem; class NumberBananas {} class Consumer { object M(Length value) => Power<NumberBananas>.Of(value); }",
+			CompilerDiagnostics = CompilerDiagnostics.None
+		};
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
+		IdentifierNameSyntax exponent = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<IdentifierNameSyntax>().Single(identifier => identifier.Identifier.ValueText == "NumberBananas");
+		Assert.Multiple(
+			() => Assert.True(SymbolEqualityComparer.Default.Equals(test.Compilation.GetTypeByMetadataName("NumberBananas"), test.Compilation.GetSemanticModel(tree).GetSymbolInfo(exponent, TestContext.Current.CancellationToken).Symbol)),
+			() => Assert.DoesNotContain(test.GeneratedSources.SelectMany(source => source.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>()), alias => alias.Alias?.Name.Identifier.ValueText == "NumberBananas"));
+	}
 	private static DiagnosticResult Collision() => new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("Length");
 }

@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Xml.Linq;
@@ -9,6 +10,31 @@ namespace DimensionalQuantities.IntegrationTests;
 
 public sealed class PackageArchiveTests
 {
+	[Fact]
+	public async Task PackedRuntimeMatchesExecutingTestConfiguration()
+	{
+		using PackageSandbox sandbox = new();
+		await sandbox.Pack();
+		using ZipArchive archive = ZipFile.OpenRead(sandbox.ArchivePath("DimensionalQuantities"));
+		using Stream source = archive.GetEntry("lib/netstandard2.0/DimensionalQuantities.dll")!.Open();
+		using MemoryStream binary = new();
+		await source.CopyToAsync(binary, TestContext.Current.CancellationToken);
+		binary.Position = 0;
+		using PEReader pe = new(binary);
+		MetadataReader metadata = pe.GetMetadataReader();
+		CustomAttribute attribute = Assert.Single(metadata.GetAssemblyDefinition().GetCustomAttributes().Select(metadata.GetCustomAttribute), candidate =>
+		{
+			MemberReference constructor = metadata.GetMemberReference((MemberReferenceHandle)candidate.Constructor);
+			TypeReference type = metadata.GetTypeReference((TypeReferenceHandle)constructor.Parent);
+			return metadata.GetString(type.Namespace) == "System.Reflection" && metadata.GetString(type.Name) == nameof(AssemblyConfigurationAttribute);
+		});
+		BlobReader value = metadata.GetBlobReader(attribute.Value);
+		value.ReadUInt16();
+		string? actual = value.ReadSerializedString();
+		string expected = typeof(PackageArchiveTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
+		Assert.Equal(expected, actual);
+	}
+
 	[Theory]
 	[InlineData("DimensionalQuantities")]
 	[InlineData("DimensionalQuantities.Extensions.Metric")]

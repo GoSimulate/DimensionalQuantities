@@ -7,6 +7,15 @@ namespace DimensionalQuantities.Roslyn.Tests.Runtime;
 
 public sealed class AdditionalShippedContractTests
 {
+	[Theory]
+	[InlineData(2, -3, 2000)]
+	[InlineData(-2, 3, -0.002)]
+	[InlineData(0, 6, 0)]
+	public void ParameterisedDeltaAccessorUsesRequestedPrefix(double siMagnitude, int prefix, double expected)
+	{
+		Assert.Equal(expected, Voltage.FromSiBaseUnit(siMagnitude).AsDelta().AsPrefixedUnits(voltPrefixExponent: prefix), 12);
+	}
+
 	[Fact]
 	public void PrefixedDeltaAccessorUsesScaleOnly()
 	{

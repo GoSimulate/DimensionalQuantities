@@ -1,6 +1,7 @@
 using DimensionalQuantities.Roslyn.Analyzers;
 using DimensionalQuantities.Roslyn.Tests.Framework;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Testing;
 using Xunit;
 
@@ -170,6 +171,39 @@ public sealed class DimensionMismatchTests
 		await test.RunAsync(TestContext.Current.CancellationToken);
 	}
 
+
+	[Theory]
+	[InlineData("object M(Length length) => length + ;")]
+	[InlineData("void M() { Length value = ; }")]
+	public async Task ParserRecoveryDoesNotGuessMissingOperandDimensions(string member)
+	{
+		await Invalid("class Consumer { " + member + " }").RunAsync(TestContext.Current.CancellationToken);
+	}
+
+
+	[Fact]
+	public async Task AmbiguousOperatorCandidatesDoNotSuppressMismatch()
+	{
+		const string source = """
+			using First;
+			using Second;
+			namespace First { public static class Operators { extension(Length) { public static string operator +(Length length, Time time) => "first"; } } }
+			namespace Second { public static class Operators { extension(Length) { public static string operator +(Length length, Time time) => "second"; } } }
+			class Consumer { object M(Length length, Time time) => {|#0:length {|#1:+|} time|}; }
+			""";
+		QuantityAnalyzerTest<DimensionMismatchAnalyzer> test = Invalid(source);
+		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0001", DiagnosticSeverity.Error).WithLocation(0).WithArguments("+", "Length", "Time"));
+		QuantityGeneratorTest binding = new() { TestCode = source };
+		binding.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS9342").WithLocation(1));
+		await binding.RunAsync(TestContext.Current.CancellationToken);
+		SyntaxTree tree = binding.Compilation.SyntaxTrees.First();
+		BinaryExpressionSyntax expression = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
+		SymbolInfo candidates = binding.Compilation.GetSemanticModel(tree).GetSymbolInfo(expression, TestContext.Current.CancellationToken);
+		Assert.Multiple(
+			() => Assert.Null(candidates.Symbol),
+			() => Assert.Equal(new[] { "First", "Second" }, candidates.CandidateSymbols.Select(symbol => symbol.ContainingNamespace.ToDisplayString()).Order()));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+	}
 	private static QuantityAnalyzerTest<DimensionMismatchAnalyzer> Invalid(string source) => new() { TestCode = source, CompilerDiagnostics = CompilerDiagnostics.None };
 	private static DiagnosticResult WrongDestination() => new DiagnosticResult("DQ0002", DiagnosticSeverity.Error).WithLocation(0).WithArguments("Length", "Time");
 }
