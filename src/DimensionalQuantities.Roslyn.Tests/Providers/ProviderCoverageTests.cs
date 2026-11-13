@@ -8,6 +8,34 @@ namespace DimensionalQuantities.Roslyn.Tests.Providers;
 
 public sealed class ProviderCoverageTests
 {
+	[Theory]
+	[InlineData("Length M() => Length.FromPrefixedUnits(3, widgetPrefixExponent: 2);", "FromPrefixedUnits", "value * 2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d))")]
+	[InlineData("double M(Length value) => value.AsPrefixedUnits(widgetPrefixExponent: 2);", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
+	[InlineData("double M(Length value) => value.AsDelta().AsPrefixedUnits(widgetPrefixExponent: 2);", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
+	public async Task FractionalParameterisedPrefixUsesFloatingPointPower(string consumer, string methodName, string expectedExpression)
+	{
+		QuantityGeneratorTest test = new() { TestCode = $$"""
+			using DimensionalQuantities.Units.Declarations;
+			namespace Custom;
+			[UnitSymbol("Widget", "Widgets", "w", Scale = 4)] class Widget {}
+			[UnitProvider(GeneratePrefixConversions = true)] class Provider {
+			    [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget), Power = 1, PowerDenominator = 2)] class Distance {}
+			}
+			class Consumer { {{consumer}} }
+			""" };
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
+		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>()
+			.Single(invocation => invocation.Expression is MemberAccessExpressionSyntax access && access.Name.Identifier.ValueText == methodName);
+		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(test.Compilation.GetSemanticModel(tree).GetSymbolInfo(call, TestContext.Current.CancellationToken).Symbol);
+		MethodDeclarationSyntax declaration = (MethodDeclarationSyntax)selected.DeclaringSyntaxReferences.Single().GetSyntax(TestContext.Current.CancellationToken);
+		Assert.Multiple(
+			() => Assert.Equal("Custom", selected.ContainingNamespace.ToDisplayString()),
+			() => Assert.Equal("widgetPrefixExponent", selected.Parameters.Last().Name),
+			() => Assert.Equal(0, selected.Parameters.Last().ExplicitDefaultValue),
+			() => Assert.Contains(expectedExpression, declaration.ExpressionBody!.Expression.ToString()));
+	}
+
 	[Fact]
 	public async Task NamedPrefixTargetsFirstPositiveFactorAfterDenominator()
 	{
