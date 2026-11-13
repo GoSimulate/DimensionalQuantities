@@ -55,7 +55,14 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("MagneticVectorPotential", "TerminalHex1,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
 	public async Task DefaultAliasesHaveCanonicalTargets(string alias, string exponents)
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class Consumer {}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		UsingDirectiveSyntax declaration = test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>()).Single(directive => directive.Alias?.Name.Identifier.ValueText == alias);
 		ITypeSymbol target = Assert.IsAssignableFrom<ITypeSymbol>(test.Compilation.GetSemanticModel(declaration.SyntaxTree).GetSymbolInfo(declaration.Name!, TestContext.Current.CancellationToken).Symbol);
@@ -76,22 +83,54 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("MagneticFieldStrength", "CoerciveFieldStrength")]
 	public async Task SynonymsShareRuntimeIdentity(string left, string right)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {left} A; {right} B; }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{left}} A;
+					{{right}} B;
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		IFieldSymbol[] fields = test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers().OfType<IFieldSymbol>().ToArray();
 		Assert.True(SymbolEqualityComparer.Default.Equals(fields[0].Type, fields[1].Type));
 	}
 
 	[Theory]
-	[InlineData("LengthCurrent M(LengthCurrent x) => x;")]
-	[InlineData("void M() { LengthCurrent x = default; }")]
-	[InlineData("System.Collections.Generic.List<LengthCurrent> M() => null;")]
-	[InlineData("LengthCurrent[] M() => null;")]
-	[InlineData("LengthCurrent? M() => null;")]
-	[InlineData("SquareRootLength M() => default;")]
+	[InlineData("""
+		LengthCurrent M(LengthCurrent x) => x;
+		""")]
+	[InlineData("""
+		void M()
+		{
+			LengthCurrent x = default;
+		}
+		""")]
+	[InlineData("""
+		System.Collections.Generic.List<LengthCurrent> M() => null;
+		""")]
+	[InlineData("""
+		LengthCurrent[] M() => null;
+		""")]
+	[InlineData("""
+		LengthCurrent? M() => null;
+		""")]
+	[InlineData("""
+		SquareRootLength M() => default;
+		""")]
 	public async Task UnresolvedCanonicalTypePositionsRequestAliases(string member)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {member} }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{member}}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string generated = string.Join("\n", test.GeneratedSources);
 		Assert.Contains(member.Contains("SquareRootLength") ? "global using SquareRootLength =" : "global using LengthCurrent =", generated);
@@ -102,7 +141,18 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("LengthCurrent.FromPrefixedUnits(6)")]
 	public async Task FactoryOnlyRequestsInferCanonicalQuantity(string expression)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ void M() {{ var result = {expression}; }} }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					void M()
+					{
+						var result = {{expression}};
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		VariableDeclaratorSyntax variable = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<VariableDeclaratorSyntax>().Single();
@@ -115,7 +165,19 @@ public sealed class DiscoveryBehaviourTests
 	[Fact]
 	public async Task BoundConsumerTypeRetainsItsMeaning()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class LengthCurrent {} class Consumer { LengthCurrent Value; }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class LengthCurrent
+				{
+				}
+
+				class Consumer
+				{
+					LengthCurrent Value;
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		IFieldSymbol field = test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").OfType<IFieldSymbol>().Single();
 		Assert.Multiple(
@@ -133,7 +195,19 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("i/l", "CurrentPerLength")]
 	public async Task ArithmeticBindsToExpectedDimension(string expression, string expected)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ void M(Length l, Current i, Resistance r) {{ var result = {expression}; {expected} check = result; }} }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					void M(Length l, Current i, Resistance r)
+					{
+						var result = {{expression}};
+						{{expected}} check = result;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
@@ -160,7 +234,15 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("Length? l, Current? i", "(l*i)/i", "Length?", true)]
 	public async Task NullableOperationsUseCompilerLifting(string parameters, string expression, string result, bool lifted)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {result} M({parameters}) => {expression}; }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{result}} M({{parameters}}) => {{expression}};
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		BinaryExpressionSyntax binary = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<BinaryExpressionSyntax>().First();
@@ -182,7 +264,19 @@ public sealed class DiscoveryBehaviourTests
 	[Fact]
 	public async Task CancellationReturnsScalarAndEmitsMagnitudeMultiplication()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class Consumer { Length M(Length l, InverseLength inverse) { double scalar = l*inverse; return scalar*l; } }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+					Length M(Length l, InverseLength inverse)
+					{
+						double scalar = l*inverse;
+						return scalar*l;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string generated = string.Join("\n", test.GeneratedSources);
 		Assert.Multiple(
@@ -195,7 +289,15 @@ public sealed class DiscoveryBehaviourTests
 	[Fact]
 	public async Task ScalarInverseDividesByStoredMagnitude()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class Consumer { Frequency M(Time t) => 1/t; }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+					Frequency M(Time t) => 1/t;
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.Contains(".FromSiBaseUnit(left / right.AsSiBaseUnit())", string.Join("\n", test.GeneratedSources));
 	}
@@ -213,7 +315,15 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("Root6", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex6>", "Root6Length")]
 	public async Task PredefinedHelpersDelegateToExactPower(string method, string exponent, string result)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {result} M(Length l) => l.{method}(); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{result}} M(Length l) => l.{{method}}();
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -235,7 +345,17 @@ public sealed class DiscoveryBehaviourTests
 	[InlineData("NumberTwentyOne", "Length", "Length21")]
 	public async Task EnglishPowersProduceExactResultTypes(string exponent, string input, string output)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"using DimensionalQuantities.TypeSystem; class Consumer {{ {output} M({input} value) => Power<{exponent}>.Of(value); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Consumer
+				{
+					{{output}} M({{input}} value) => Power<{{exponent}}>.Of(value);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -249,7 +369,21 @@ public sealed class DiscoveryBehaviourTests
 	[Fact]
 	public async Task DiscoveredHelperChainSupportsConditionalAccess()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class Consumer { LengthCurrent? M(Length l, Current i) { var product = l*i; var square = product.Squared(); LengthCurrent? restored = square.SquareRoot(); return restored?.Squared().SquareRoot(); } }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+					LengthCurrent? M(Length l, Current i)
+					{
+						var product = l*i;
+						var square = product.Squared();
+						LengthCurrent? restored = square.SquareRoot();
+						return restored?.Squared().SquareRoot();
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string generated = string.Join("\n", test.GeneratedSources);
 		Assert.Multiple(

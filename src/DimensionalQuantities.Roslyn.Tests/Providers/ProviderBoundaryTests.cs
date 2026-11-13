@@ -9,18 +9,42 @@ public sealed class ProviderBoundaryTests
 {
 	[Theory]
 	[InlineData("", "", "")]
-	[InlineData("namespace Custom { class Outer {", "} }", "using Custom;")]
+	[InlineData("""
+		namespace Custom
+		{
+			class Outer
+			{
+		""", "} }", """
+		using Custom;
+		""")]
 	public async Task OrdinaryProviderShapesPublishPublicConversions(string opening, string closing, string import)
 	{
 		QuantityGeneratorTest test = new();
 		test.TestState.Sources.Add(("Provider.cs", $$"""
 			using DimensionalQuantities.Units.Declarations;
 			{{opening}}
-			[UnitSymbol("Widget", "Widgets", "w")] class Widget {}
-			[UnitProvider] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget))] private class Distance {} }
+			[UnitSymbol("Widget", "Widgets", "w")]
+			class Widget
+			{
+			}
+			[UnitProvider]
+			class Provider
+			{
+				[QuantityUnit(typeof(Length))]
+				[UnitFactor(typeof(Widget))]
+				private class Distance
+				{
+				}
+			}
 			{{closing}}
 			"""));
-		test.TestState.Sources.Add(("Consumer.cs", $"{import} class Consumer {{ Length M() => Length.FromWidgets(1); }}"));
+		test.TestState.Sources.Add(("Consumer.cs", $$"""
+			{{import}}
+			class Consumer
+			{
+				Length M() => Length.FromWidgets(1);
+			}
+			"""));
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.Single(source => source.FilePath.EndsWith("Consumer.cs"));
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -31,15 +55,32 @@ public sealed class ProviderBoundaryTests
 	[Fact]
 	public async Task OneDeclarationCanAssociateDistinctQuantityReceivers()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.Units.Declarations;
-			namespace Custom;
-			[UnitSymbol("Widget", "Widgets", "w")] class Widget {}
-			[UnitProvider] class Provider {
-			    [QuantityUnit(typeof(Length))] [QuantityUnit(typeof(Time))] [UnitFactor(typeof(Widget))] class Reading {}
-			}
-			class Consumer { Length Distance() => Length.FromWidgets(1); Time Duration() => Time.FromWidgets(1); }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				namespace Custom;
+				[UnitSymbol("Widget", "Widgets", "w")]
+				class Widget
+				{
+				}
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[QuantityUnit(typeof(Time))]
+					[UnitFactor(typeof(Widget))]
+					class Reading
+					{
+					}
+				}
+				class Consumer
+				{
+					Length Distance() => Length.FromWidgets(1);
+					Time Duration() => Time.FromWidgets(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		MethodDeclarationSyntax[] factories = test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "FromWidgets").ToArray();
 		ITypeSymbol[] returns = factories.Select(method => ((IMethodSymbol)test.Compilation.GetSemanticModel(method.SyntaxTree).GetDeclaredSymbol(method)!).ReturnType).ToArray();
@@ -52,17 +93,32 @@ public sealed class ProviderBoundaryTests
 	[Fact]
 	public async Task NumericallyEqualNoncanonicalReceiversRemainDistinct()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.TypeSystem;
-			using DimensionalQuantities.Units.Declarations;
-			namespace Custom;
-			[UnitSymbol("Widget", "Widgets", "w")] class Widget {}
-			[UnitProvider] class Provider {
-			    [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget))] class Distance {}
-			    [QuantityUnit(typeof(Quantity<Dimension<Fraction<TerminalHex2, TerminalHex2>, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>))]
-			    [UnitFactor(typeof(Widget))] class OtherDistance {}
-			}
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.TypeSystem;
+				using DimensionalQuantities.Units.Declarations;
+				namespace Custom;
+				[UnitSymbol("Widget", "Widgets", "w")]
+				class Widget
+				{
+				}
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Widget))]
+					class Distance
+					{
+					}
+					[QuantityUnit(typeof(Quantity<Dimension<Fraction<TerminalHex2, TerminalHex2>, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>))]
+					[UnitFactor(typeof(Widget))]
+					class OtherDistance
+					{
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		MethodDeclarationSyntax[] factories = test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "FromWidgets").ToArray();
 		Assert.Equal(2, factories.Length);
@@ -73,14 +129,33 @@ public sealed class ProviderBoundaryTests
 	[Fact]
 	public async Task PartialProviderEmitsEachConversionOnce()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.Units.Declarations;
-			namespace Custom;
-			[UnitSymbol("Widget", "Widgets", "w")] class Widget {}
-			[UnitProvider] partial class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget))] class Distance {} }
-			partial class Provider {}
-			class Consumer { Length M() => Length.FromWidgets(1); }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				namespace Custom;
+				[UnitSymbol("Widget", "Widgets", "w")]
+				class Widget
+				{
+				}
+				[UnitProvider]
+				partial class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Widget))]
+					class Distance
+					{
+					}
+				}
+				partial class Provider
+				{
+				}
+				class Consumer
+				{
+					Length M() => Length.FromWidgets(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.Single(test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()), method => method.Identifier.ValueText == "FromWidgets");
 	}
@@ -88,13 +163,27 @@ public sealed class ProviderBoundaryTests
 	[Fact]
 	public async Task ReciprocalOnlyUnitDoesNotInventNumeratorPrefixes()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.Units.Declarations;
-			using DimensionalQuantities.Units.Symbols;
-			namespace Custom;
-			[UnitProvider(GenerateSiPrefixes = true)] class Provider { [QuantityUnit(typeof(Frequency))] [UnitFactor(typeof(Second), Power = -1)] class Rate {} }
-			class Consumer { Frequency M() => Frequency.FromInverseSecond(1); }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+				namespace Custom;
+				[UnitProvider(GenerateSiPrefixes = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(Frequency))]
+					[UnitFactor(typeof(Second), Power = -1)]
+					class Rate
+					{
+					}
+				}
+				class Consumer
+				{
+					Frequency M() => Frequency.FromInverseSecond(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		IEnumerable<string> factories = test.GeneratedSources.Where(tree => tree.ToString().Contains("namespace Custom;")).SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()).Select(method => method.Identifier.ValueText).Where(name => name.StartsWith("From"));
 		Assert.Equal(new[] { "FromInverseSecond" }, factories);

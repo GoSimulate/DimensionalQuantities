@@ -9,20 +9,41 @@ namespace DimensionalQuantities.Roslyn.Tests.Providers;
 public sealed class ProviderCoverageTests
 {
 	[Theory]
-	[InlineData("Length M() => Length.FromPrefixedUnits(3, widgetPrefixExponent: 2);", "FromPrefixedUnits", "value * 2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d))")]
-	[InlineData("double M(Length value) => value.AsPrefixedUnits(widgetPrefixExponent: 2);", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
-	[InlineData("double M(Length value) => value.AsDelta().AsPrefixedUnits(widgetPrefixExponent: 2);", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
+	[InlineData("""
+		Length M() => Length.FromPrefixedUnits(3, widgetPrefixExponent: 2);
+		""", "FromPrefixedUnits", "value * 2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d))")]
+	[InlineData("""
+		double M(Length value) => value.AsPrefixedUnits(widgetPrefixExponent: 2);
+		""", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
+	[InlineData("""
+		double M(Length value) => value.AsDelta().AsPrefixedUnits(widgetPrefixExponent: 2);
+		""", "AsPrefixedUnits", "AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)))")]
 	public async Task FractionalParameterisedPrefixUsesFloatingPointPower(string consumer, string methodName, string expectedExpression)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			using DimensionalQuantities.Units.Declarations;
-			namespace Custom;
-			[UnitSymbol("Widget", "Widgets", "w", Scale = 4)] class Widget {}
-			[UnitProvider(GeneratePrefixConversions = true)] class Provider {
-			    [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget), Power = 1, PowerDenominator = 2)] class Distance {}
-			}
-			class Consumer { {{consumer}} }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Units.Declarations;
+				namespace Custom;
+				[UnitSymbol("Widget", "Widgets", "w", Scale = 4)]
+				class Widget
+				{
+				}
+				[UnitProvider(GeneratePrefixConversions = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Widget), Power = 1, PowerDenominator = 2)]
+					class Distance
+					{
+					}
+				}
+				class Consumer
+				{
+					{{consumer}}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>()
@@ -39,15 +60,28 @@ public sealed class ProviderCoverageTests
 	[Fact]
 	public async Task NamedPrefixTargetsFirstPositiveFactorAfterDenominator()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.Units.Declarations;
-			using DimensionalQuantities.Units.Symbols;
-			namespace Custom;
-			[UnitProvider(GenerateSiPrefixes = true)] class Provider {
-			    [QuantityUnit(typeof(CurrentDensity))] [UnitFactor(typeof(Metre), Power = -2)] [UnitFactor(typeof(Amp))] class Reading {}
-			}
-			class Consumer { CurrentDensity M() => CurrentDensity.FromKiloAmpsPerSquareMetre(1); }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+				namespace Custom;
+				[UnitProvider(GenerateSiPrefixes = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(CurrentDensity))]
+					[UnitFactor(typeof(Metre), Power = -2)]
+					[UnitFactor(typeof(Amp))]
+					class Reading
+					{
+					}
+				}
+				class Consumer
+				{
+					CurrentDensity M() => CurrentDensity.FromKiloAmpsPerSquareMetre(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		MethodDeclarationSyntax factory = test.GeneratedSources.SelectMany(tree => tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()).Single(method => method.Identifier.ValueText == "FromKiloAmpsPerSquareMetre");
 		Assert.Multiple(
@@ -58,15 +92,28 @@ public sealed class ProviderCoverageTests
 	[Fact]
 	public async Task ParameterisedDeltaAccessorUsesItsOwnDefaultsAndWeightedFormula()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-			using DimensionalQuantities.Units.Declarations;
-			using DimensionalQuantities.Units.Symbols;
-			namespace Custom;
-			[UnitProvider(GeneratePrefixConversions = true)] class Provider {
-			    [QuantityUnit(typeof(CurrentDensity))] [UnitFactor(typeof(Metre), Power = -2, PrefixExponent = -2)] [UnitFactor(typeof(Amp), PrefixExponent = 3)] class Reading {}
-			}
-			class Consumer { double M(CurrentDensity value) => value.AsDelta().AsPrefixedUnits(-4, 1); }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+				namespace Custom;
+				[UnitProvider(GeneratePrefixConversions = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(CurrentDensity))]
+					[UnitFactor(typeof(Metre), Power = -2, PrefixExponent = -2)]
+					[UnitFactor(typeof(Amp), PrefixExponent = 3)]
+					class Reading
+					{
+					}
+				}
+				class Consumer
+				{
+					double M(CurrentDensity value) => value.AsDelta().AsPrefixedUnits(-4, 1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single(invocation => invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AsPrefixedUnits" });
@@ -80,46 +127,123 @@ public sealed class ProviderCoverageTests
 	}
 
 	[Theory]
-	[InlineData("[UnitSymbol(\"Widget\", \"Widgets\", \"w\", SiBasePrefixExponent = 0)]", "[UnitSymbol(\"Widget\", \"Widgets\", \"w\", SiBasePrefixExponent = 3)]")]
-	[InlineData("[UnitSymbol(\"Widget\", \"Widgets\", \"w\")] [AffineUnit(10)]", "[UnitSymbol(\"Widget\", \"Widgets\", \"w\")] [AffineUnit(20)]")]
+	[InlineData("""
+		[UnitSymbol("Widget", "Widgets", "w", SiBasePrefixExponent = 0)]
+		""",
+		"""
+			[UnitSymbol("Widget", "Widgets", "w", SiBasePrefixExponent = 3)]
+			""")]
+	[InlineData("""
+		[UnitSymbol("Widget", "Widgets", "w")]
+		[AffineUnit(10)]
+		""",
+		"""
+			[UnitSymbol("Widget", "Widgets", "w")]
+			[AffineUnit(20)]
+			""")]
 	public async Task SameNameWithDifferentExponentOrOffsetIsRejected(string first, string second)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			using DimensionalQuantities.Units.Declarations;
-			namespace Custom;
-			{{first}} class First {}
-			{{second}} class Second {}
-			[UnitProvider] class {|#0:Provider|} {
-			    [QuantityUnit(typeof(Temperature))] [UnitFactor(typeof(First))] [AdditionalUnit(typeof(Alternative))] class Reading {}
-			    [UnitFactor(typeof(Second))] class Alternative {}
-			}
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Units.Declarations;
+				namespace Custom;
+				{{first}}
+				class First
+				{
+				}
+				{{second}}
+				class Second
+				{
+				}
+				[UnitProvider]
+				class {|#0:Provider|}
+				{
+					[QuantityUnit(typeof(Temperature))]
+					[UnitFactor(typeof(First))]
+					[AdditionalUnit(typeof(Alternative))]
+					class Reading
+					{
+					}
+					[UnitFactor(typeof(Second))]
+					class Alternative
+					{
+					}
+				}
+				"""
+		};
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("DQ0008").WithLocation(0));
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.DoesNotContain("FromWidgets", string.Join("\n", test.GeneratedSources));
 	}
 
 	[Theory]
-	[InlineData("namespace First {", "}", "namespace Second {", "}", "First", "Second")]
-	[InlineData("namespace Custom { class First {", "} }", "namespace Custom { class Second {", "} }", "Custom", "Custom")]
+	[InlineData("""
+		namespace First
+		{
+		""", "}", """
+		namespace Second
+		{
+		""", "}", "First", "Second")]
+	[InlineData("""
+		namespace Custom
+		{
+			class First
+			{
+		""", "} }", """
+		namespace Custom
+		{
+			class Second
+			{
+		""", "} }", "Custom", "Custom")]
 	public async Task SameShortProviderNamesKeepIndependentPublicSurfaces(string firstStart, string firstEnd, string secondStart, string secondEnd, string firstNamespace, string secondNamespace)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			using DimensionalQuantities.Units.Declarations;
-			{{firstStart}}
-			[UnitSymbol("Widget", "Widgets", "w")] class Widget {}
-			[UnitProvider] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget))] class Distance {} }
-			{{firstEnd}}
-			{{secondStart}}
-			[UnitSymbol("Step", "Steps", "s")] class Step {}
-			[UnitProvider] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Step))] class Distance {} }
-			{{secondEnd}}
-			namespace Consumer {
-			    using {{firstNamespace}};
-			    using {{secondNamespace}};
-			    class Reader { Length First() => Length.FromWidgets(1); Length Second() => Length.FromSteps(1); }
-			}
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Units.Declarations;
+				{{firstStart}}
+				[UnitSymbol("Widget", "Widgets", "w")]
+				class Widget
+				{
+				}
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Widget))]
+					class Distance
+					{
+					}
+				}
+				{{firstEnd}}
+				{{secondStart}}
+				[UnitSymbol("Step", "Steps", "s")]
+				class Step
+				{
+				}
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Step))]
+					class Distance
+					{
+					}
+				}
+				{{secondEnd}}
+				namespace Consumer
+				{
+					using {{firstNamespace}};
+					using {{secondNamespace}};
+					class Reader
+					{
+						Length First() => Length.FromWidgets(1);
+						Length Second() => Length.FromSteps(1);
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		IMethodSymbol[] methods = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Select(call => (IMethodSymbol)test.Compilation.GetSemanticModel(tree).GetSymbolInfo(call, TestContext.Current.CancellationToken).Symbol!).ToArray();

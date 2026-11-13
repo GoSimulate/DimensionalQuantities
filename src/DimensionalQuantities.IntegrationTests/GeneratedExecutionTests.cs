@@ -13,7 +13,9 @@ public sealed class GeneratedExecutionTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer($"Console.WriteLine(({expression}).AsSiBaseUnit().ToString(\"R\", System.Globalization.CultureInfo.InvariantCulture));", "DimensionalQuantities");
+		sandbox.WriteConsumer($$"""
+			Console.WriteLine(({{expression}}).AsSiBaseUnit().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+			""", "DimensionalQuantities");
 		Assert.Equal(expected, double.Parse(await sandbox.ExecuteConsumer(), CultureInfo.InvariantCulture), 12);
 	}
 
@@ -25,7 +27,11 @@ public sealed class GeneratedExecutionTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer($"using DimensionalQuantities.TypeSystem; Console.WriteLine(Power<{exponent}>.Of({quantity}.FromSiBaseUnit({value})).AsSiBaseUnit().ToString(\"R\", System.Globalization.CultureInfo.InvariantCulture));", "DimensionalQuantities");
+		sandbox.WriteConsumer($$"""
+			using DimensionalQuantities.TypeSystem;
+
+			Console.WriteLine(Power<{{exponent}}>.Of({{quantity}}.FromSiBaseUnit({{value}})).AsSiBaseUnit().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+			""", "DimensionalQuantities");
 		Assert.Equal(expected, double.Parse(await sandbox.ExecuteConsumer(), CultureInfo.InvariantCulture), 12);
 	}
 
@@ -41,7 +47,11 @@ public sealed class GeneratedExecutionTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer($"using DimensionalQuantities.TypeSystem; Console.WriteLine(Power<{exponent}>.Of(Length.FromSiBaseUnit({value})).AsSiBaseUnit().ToString(\"R\", System.Globalization.CultureInfo.InvariantCulture));", "DimensionalQuantities");
+		sandbox.WriteConsumer($$"""
+			using DimensionalQuantities.TypeSystem;
+
+			Console.WriteLine(Power<{{exponent}}>.Of(Length.FromSiBaseUnit({{value}})).AsSiBaseUnit().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+			""", "DimensionalQuantities");
 		double actual = double.Parse(await sandbox.ExecuteConsumer(), CultureInfo.InvariantCulture);
 		if (double.IsNaN(expected))
 		{
@@ -63,23 +73,23 @@ public sealed class GeneratedExecutionTests
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
 		sandbox.WriteConsumer("""
-            using DimensionalQuantities.Units.Declarations;
-            using DimensionalQuantities.Units.Symbols;
-            using ConsumerUnits;
-            var value = CurrentDensity.FromPrefixedUnits(2, ampPrefixExponent: 1, metrePrefixExponent: -4);
-            Console.WriteLine(value.AsSiBaseUnit().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
-            namespace ConsumerUnits
-            {
-                [UnitProvider(GeneratePrefixConversions = true)]
-                internal static class Units
-                {
-                    [QuantityUnit(typeof(CurrentDensity))]
-                    [UnitFactor(typeof(Amp))]
-                    [UnitFactor(typeof(Metre), Power = -2)]
-                    private sealed class Density;
-                }
-            }
-            """, "DimensionalQuantities");
+			using DimensionalQuantities.Units.Declarations;
+			using DimensionalQuantities.Units.Symbols;
+			using ConsumerUnits;
+			var value = CurrentDensity.FromPrefixedUnits(2, ampPrefixExponent: 1, metrePrefixExponent: -4);
+			Console.WriteLine(value.AsSiBaseUnit().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+			namespace ConsumerUnits
+			{
+				[UnitProvider(GeneratePrefixConversions = true)]
+				internal static class Units
+				{
+					[QuantityUnit(typeof(CurrentDensity))]
+					[UnitFactor(typeof(Amp))]
+					[UnitFactor(typeof(Metre), Power = -2)]
+					private sealed class Density;
+				}
+			}
+			""", "DimensionalQuantities");
 		Assert.Equal(2e9, double.Parse(await sandbox.ExecuteConsumer(), CultureInfo.InvariantCulture), 6);
 	}
 }

@@ -9,13 +9,39 @@ namespace DimensionalQuantities.Roslyn.Tests.Generation;
 public sealed class MetadataDiscoveryTests
 {
 	[Theory]
-	[InlineData("public static LengthCurrent Value;", "Producer.Value")]
-	[InlineData("public static LengthCurrent Value => default;", "Producer.Value")]
-	[InlineData("public static LengthCurrent[] Values() => null;", "Producer.Values()[0]")]
-	[InlineData("public sealed class Holder { public LengthCurrent Value; } public static Holder Get() => null;", "Producer.Get().Value")]
+	[InlineData("""
+		public static LengthCurrent Value;
+		""", "Producer.Value")]
+	[InlineData("""
+		public static LengthCurrent Value => default;
+		""", "Producer.Value")]
+	[InlineData("""
+		public static LengthCurrent[] Values() => null;
+		""", "Producer.Values()[0]")]
+	[InlineData("""
+		public sealed class Holder
+		{
+			public LengthCurrent Value;
+		}
+
+		public static Holder Get() => null;
+		""", "Producer.Get().Value")]
 	public async Task ReachableMetadataValuesSeedLocalArithmetic(string members, string expression)
 	{
-		QuantityGeneratorTest producer = new() { TestCode = $"public static class Producer {{ {members} }} public class Unused {{ public LengthMassCurrent Value; }}" };
+		QuantityGeneratorTest producer = new()
+		{
+			TestCode = $$"""
+				public static class Producer
+				{
+					{{members}}
+				}
+
+				public class Unused
+				{
+					public LengthMassCurrent Value;
+				}
+				"""
+		};
 		await producer.RunAsync(TestContext.Current.CancellationToken);
 		using MemoryStream assembly = new();
 		EmitResult emitted = producer.Compilation.WithAssemblyName("MetadataValues").Emit(assembly, cancellationToken: TestContext.Current.CancellationToken);
@@ -24,7 +50,15 @@ public sealed class MetadataDiscoveryTests
 			throw new InvalidOperationException(string.Join("\n", emitted.Diagnostics));
 		}
 
-		QuantityGeneratorTest consumer = new() { TestCode = $"class Consumer {{ LengthTimeCurrent M() => {expression}*Time.FromSiBaseUnit(1); }}" };
+		QuantityGeneratorTest consumer = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					LengthTimeCurrent M() => {{expression}}*Time.FromSiBaseUnit(1);
+				}
+				"""
+		};
 		consumer.TestState.AdditionalReferences.Add(MetadataReference.CreateFromImage(assembly.ToArray()));
 		await consumer.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", consumer.GeneratedSources);
@@ -40,7 +74,15 @@ public sealed class MetadataDiscoveryTests
 	[Fact]
 	public async Task IndependentProducersShareCanonicalRuntimeIdentity()
 	{
-		QuantityGeneratorTest first = new() { TestCode = "public static class First { public static LengthCurrent Get() => default; }" };
+		QuantityGeneratorTest first = new()
+		{
+			TestCode = """
+				public static class First
+				{
+					public static LengthCurrent Get() => default;
+				}
+				"""
+		};
 		await first.RunAsync(TestContext.Current.CancellationToken);
 		using MemoryStream firstAssembly = new();
 		EmitResult firstEmit = first.Compilation.WithAssemblyName("FirstProducer").Emit(firstAssembly, cancellationToken: TestContext.Current.CancellationToken);
@@ -49,7 +91,15 @@ public sealed class MetadataDiscoveryTests
 			throw new InvalidOperationException(string.Join("\n", firstEmit.Diagnostics));
 		}
 
-		QuantityGeneratorTest second = new() { TestCode = "public static class Second { public static LengthCurrent Echo(LengthCurrent value) => value; }" };
+		QuantityGeneratorTest second = new()
+		{
+			TestCode = """
+				public static class Second
+				{
+					public static LengthCurrent Echo(LengthCurrent value) => value;
+				}
+				"""
+		};
 		await second.RunAsync(TestContext.Current.CancellationToken);
 		using MemoryStream secondAssembly = new();
 		EmitResult secondEmit = second.Compilation.WithAssemblyName("SecondProducer").Emit(secondAssembly, cancellationToken: TestContext.Current.CancellationToken);
@@ -58,7 +108,15 @@ public sealed class MetadataDiscoveryTests
 			throw new InvalidOperationException(string.Join("\n", secondEmit.Diagnostics));
 		}
 
-		QuantityGeneratorTest consumer = new() { TestCode = "class Consumer { LengthCurrent M() => Second.Echo(First.Get()); }" };
+		QuantityGeneratorTest consumer = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+					LengthCurrent M() => Second.Echo(First.Get());
+				}
+				"""
+		};
 		consumer.TestState.AdditionalReferences.Add(MetadataReference.CreateFromImage(firstAssembly.ToArray()));
 		consumer.TestState.AdditionalReferences.Add(MetadataReference.CreateFromImage(secondAssembly.ToArray()));
 		await consumer.RunAsync(TestContext.Current.CancellationToken);

@@ -13,16 +13,32 @@ public sealed class CompoundFactorTests
 		QuantityGeneratorTest test = new()
 		{
 			TestCode = $$"""
-                using DimensionalQuantities.Units.Declarations;
-                using DimensionalQuantities.Units.Symbols;
-                namespace Custom;
-                [UnitSymbol("Foot", "Feet", "ft", Scale = 0.3048)] class Foot {}
-                [UnitProvider] class Provider
-                {
-                    [QuantityUnit(typeof(Area))] [UnitFactor(typeof({{first}}))] [UnitFactor(typeof({{second}}))] class AreaUnit {}
-                }
-                class Consumer { Area M() => Area.{{factory}}(1); }
-                """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+
+				namespace Custom;
+
+				[UnitSymbol("Foot", "Feet", "ft", Scale = 0.3048)]
+				class Foot
+				{
+				}
+
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Area))]
+					[UnitFactor(typeof({{first}}))]
+					[UnitFactor(typeof({{second}}))]
+					class AreaUnit
+					{
+					}
+				}
+
+				class Consumer
+				{
+					Area M() => Area.{{factory}}(1);
+				}
+				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", test.GeneratedSources.Where(tree => tree.ToString().Contains("namespace Custom;")));

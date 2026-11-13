@@ -11,7 +11,17 @@ public sealed class ComposedDiscoveryTests
 	[Fact]
 	public async Task ZerothPowerEmitsScalarMagnitudeWithZeroExponent()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "using DimensionalQuantities.TypeSystem; class Consumer { double M(Length value) => Power<NumberZero>.Of(value); }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.TypeSystem;
+
+				class Consumer
+				{
+					double M(Length value) => Power<NumberZero>.Of(value);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.Contains("public static double Of(Length value) => global::System.Math.Pow(value.AsSiBaseUnit(), 0d);", string.Join("\n", test.GeneratedSources));
 	}
@@ -21,17 +31,20 @@ public sealed class ComposedDiscoveryTests
 	[InlineData("NumberHalf", "Fraction<TerminalHex1, TerminalHex2>")]
 	public async Task ExplicitPowerRebindsGeneratedArgumentAndInferredDelegate(string exponent, string expectedExponent)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			using DimensionalQuantities.TypeSystem;
-			class Consumer
-			{
-			    void M(Length length, Current current, Time time)
-			    {
-			        var make = () => Power<{{exponent}}>.Of(length * current);
-			        var result = make() * time;
-			    }
-			}
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+				class Consumer
+				{
+					void M(Length length, Current current, Time time)
+					{
+						var make = () => Power<{{exponent}}>.Of(length * current);
+						var result = make() * time;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
@@ -55,10 +68,26 @@ public sealed class ComposedDiscoveryTests
 	[InlineData("/")]
 	public async Task ConsumerOperatorResultFeedsFurtherGeneratedArithmetic(string operation)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			static class Custom { extension(LengthCurrent) { public static Time operator {{operation}}(LengthCurrent left, Current right) => default; } }
-			class Consumer { void M(LengthCurrent left, Current right) { var result = (left {{operation}} right) * left; } }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				static class Custom
+				{
+					extension(LengthCurrent)
+					{
+						public static Time operator {{operation}}(LengthCurrent left, Current right) => default;
+					}
+				}
+
+				class Consumer
+				{
+					void M(LengthCurrent left, Current right)
+					{
+						var result = (left {{operation}} right) * left;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
@@ -77,7 +106,23 @@ public sealed class ComposedDiscoveryTests
 	[Fact]
 	public async Task ConsumerHelperOnGeneratedReceiverFeedsFurtherArithmetic()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "static class Custom { public static Time Squared(this LengthCurrent value) => default; } class Consumer { void M(Length length, Current current) { var result = (length * current).Squared() * current; } }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				static class Custom
+				{
+					public static Time Squared(this LengthCurrent value) => default;
+				}
+
+				class Consumer
+				{
+					void M(Length length, Current current)
+					{
+						var result = (length * current).Squared() * current;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
@@ -97,14 +142,25 @@ public sealed class ComposedDiscoveryTests
 	[InlineData("-wrapper")]
 	public async Task BoundWrapperOperatorResultFeedsGeneratedArithmetic(string expression)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			class Wrapper {
-			    public static Current operator +(Wrapper left, Wrapper right) => default;
-			    public static Current operator -(Wrapper left, Wrapper right) => default;
-			    public static Current operator -(Wrapper value) => default;
-			}
-			class Consumer { void M(Wrapper wrapper, LengthCurrent quantity) { var result = ({{expression}}) * quantity; } }
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Wrapper
+				{
+					public static Current operator +(Wrapper left, Wrapper right) => default;
+					public static Current operator -(Wrapper left, Wrapper right) => default;
+					public static Current operator -(Wrapper value) => default;
+				}
+
+				class Consumer
+				{
+					void M(Wrapper wrapper, LengthCurrent quantity)
+					{
+						var result = ({{expression}}) * quantity;
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);

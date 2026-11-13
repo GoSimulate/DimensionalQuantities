@@ -10,7 +10,6 @@ namespace DimensionalQuantities.Roslyn.Tests.CodeFixes;
 
 public sealed class QuantityAliasFixTests
 {
-	private const string Imports = "using DimensionalQuantities.TypeSystem;\n";
 	private const string RawLength = "Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
 	private const string RawTime = "Quantity<Dimension<TerminalHex0, TerminalHex0, TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>>";
 	private const string RawLengthCurrent = "Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0>>";
@@ -22,8 +21,22 @@ public sealed class QuantityAliasFixTests
 	{
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = Imports + "class Measurement { {|#0:" + rawType + "|} field; }",
-			FixedCode = Imports + $"class Measurement {{ {alias} field; }}",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					{|#0:{{rawType}}|} field;
+				}
+				""",
+			FixedCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					{{alias}} field;
+				}
+				""",
 			CodeActionEquivalenceKey = "UseAlias:" + alias,
 			CodeActionVerifier = (action, verifier) => Assert.Equal("Use " + alias, action.Title)
 		};
@@ -41,17 +54,61 @@ public sealed class QuantityAliasFixTests
 	}
 
 	[Theory]
-	[InlineData("{0} field;", "Length field;")]
-	[InlineData("{0}?[] field;", "Length?[] field;")]
-	[InlineData("System.Collections.Generic.List<{0}> field;", "System.Collections.Generic.List<Length> field;")]
-	[InlineData("global::DimensionalQuantities.TypeSystem.{0} field;", "Length field;")]
-	[InlineData("/* before */ {0} /* after */ field;", "/* before */ Length /* after */ field;")]
+	[InlineData(
+		"""
+			{0} field;
+			""",
+		"""
+			Length field;
+			""")]
+	[InlineData(
+		"""
+			{0}?[] field;
+			""",
+		"""
+			Length?[] field;
+			""")]
+	[InlineData(
+		"""
+			System.Collections.Generic.List<{0}> field;
+			""",
+		"""
+			System.Collections.Generic.List<Length> field;
+			""")]
+	[InlineData(
+		"""
+			global::DimensionalQuantities.TypeSystem.{0} field;
+			""",
+		"""
+			Length field;
+			""")]
+	[InlineData(
+		"""
+			/* before */ {0} /* after */ field;
+			""",
+		"""
+			/* before */ Length /* after */ field;
+			""")]
 	public async Task TypeReplacementPreservesWrappersAndExteriorSyntax(string declaration, string fixedDeclaration)
 	{
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = Imports + "class Measurement { " + string.Format(declaration, "{|#0:" + RawLength + "|}") + " }",
-			FixedCode = Imports + "class Measurement { " + fixedDeclaration + " }",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					{{string.Format(declaration, "{|#0:" + RawLength + "|}")}}
+				}
+				""",
+			FixedCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					{{fixedDeclaration}}
+				}
+				""",
 			CodeActionEquivalenceKey = "UseAlias:Length",
 			CodeActionVerifier = (action, verifier) => Assert.Equal("Use Length", action.Title)
 		};
@@ -60,13 +117,33 @@ public sealed class QuantityAliasFixTests
 	}
 
 	[Theory]
-	[InlineData("class Length {}")]
-	[InlineData("using Length = System.String;")]
+	[InlineData(
+		"""
+			class Length
+			{
+			}
+			""")]
+	[InlineData(
+		"""
+			using Length = System.String;
+			""")]
 	public async Task DifferentlyBoundAliasWithholdsFix(string shadow)
 	{
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = Imports + "namespace Consumer { " + shadow + " class Measurement { {|#0:" + RawLength + "|} field; } }",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				namespace Consumer
+				{
+					{{shadow}}
+
+					class Measurement
+					{
+						{|#0:{{RawLength}}|} field;
+					}
+				}
+				""",
 			NumberOfIncrementalIterations = 0,
 			NumberOfFixAllIterations = 0
 		};
@@ -77,11 +154,34 @@ public sealed class QuantityAliasFixTests
 	[Fact]
 	public async Task SameTypeVisibleAliasIsEligible()
 	{
-		string prefix = Imports + "namespace Consumer { using Length = " + RawLength + "; class Measurement { ";
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = prefix + "{|#0:" + RawLength + "|} field; } }",
-			FixedCode = prefix + "Length field; } }",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				namespace Consumer
+				{
+					using Length = {{RawLength}};
+
+					class Measurement
+					{
+						{|#0:{{RawLength}}|} field;
+					}
+				}
+				""",
+			FixedCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				namespace Consumer
+				{
+					using Length = {{RawLength}};
+
+					class Measurement
+					{
+						Length field;
+					}
+				}
+				""",
 			CodeActionEquivalenceKey = "UseAlias:Length",
 			CodeActionVerifier = (action, verifier) => Assert.Equal("Use Length", action.Title)
 		};
@@ -90,13 +190,26 @@ public sealed class QuantityAliasFixTests
 	}
 
 	[Theory]
-	[InlineData("nameof({0})")]
-	[InlineData("nameof(System.Collections.Generic.List<{0}>)")]
+	[InlineData(
+		"""
+			nameof({0})
+			""")]
+	[InlineData(
+		"""
+			nameof(System.Collections.Generic.List<{0}>)
+			""")]
 	public async Task RealNameofOperationWithholdsFix(string expression)
 	{
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = Imports + "class Measurement { string name = " + string.Format(expression, "{|#0:" + RawLength + "|}") + "; }",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					string name = {{string.Format(expression, "{|#0:" + RawLength + "|}")}};
+				}
+				""",
 			NumberOfIncrementalIterations = 0,
 			NumberOfFixAllIterations = 0
 		};
@@ -109,8 +222,24 @@ public sealed class QuantityAliasFixTests
 	{
 		QuantityCodeFixTest test = new()
 		{
-			TestCode = Imports + "class Measurement { static string @nameof(System.Type type) => type.Name; string name = @nameof(typeof({|#0:" + RawLength + "|})); }",
-			FixedCode = Imports + "class Measurement { static string @nameof(System.Type type) => type.Name; string name = @nameof(typeof(Length)); }",
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					static string @nameof(System.Type type) => type.Name;
+					string name = @nameof(typeof({|#0:{{RawLength}}|}));
+				}
+				""",
+			FixedCode = """
+				using DimensionalQuantities.TypeSystem;
+
+				class Measurement
+				{
+					static string @nameof(System.Type type) => type.Name;
+					string name = @nameof(typeof(Length));
+				}
+				""",
 			CodeActionEquivalenceKey = "UseAlias:Length",
 			CodeActionVerifier = (action, verifier) => Assert.Equal("Use Length", action.Title)
 		};
@@ -128,10 +257,68 @@ public sealed class QuantityAliasFixTests
 			NumberOfFixAllIterations = 1,
 			NumberOfFixAllInDocumentIterations = 2
 		};
-		test.TestState.Sources.Add(("Measurements.cs", Imports + "class Measurement { {|#0:" + RawLength + "|} first; {|#1:" + RawLength + "|} second; {|#2:" + RawTime + "|} time; string name = nameof({|#3:" + RawLength + "|}); }"));
-		test.TestState.Sources.Add(("Other.cs", Imports + "class Other { {|#4:" + RawLength + "|} value; } namespace Hidden { class Length {} class Shadowed { {|#5:" + RawLength + "|} value; } }"));
-		test.FixedState.Sources.Add(("Measurements.cs", Imports + "class Measurement { Length first; Length second; {|#2:" + RawTime + "|} time; string name = nameof({|#3:" + RawLength + "|}); }"));
-		test.FixedState.Sources.Add(("Other.cs", Imports + "class Other { Length value; } namespace Hidden { class Length {} class Shadowed { {|#5:" + RawLength + "|} value; } }"));
+		test.TestState.Sources.Add(("Measurements.cs", $$"""
+			using DimensionalQuantities.TypeSystem;
+
+			class Measurement
+			{
+				{|#0:{{RawLength}}|} first;
+				{|#1:{{RawLength}}|} second;
+				{|#2:{{RawTime}}|} time;
+				string name = nameof({|#3:{{RawLength}}|});
+			}
+			"""));
+		test.TestState.Sources.Add(("Other.cs", $$"""
+			using DimensionalQuantities.TypeSystem;
+
+			class Other
+			{
+				{|#4:{{RawLength}}|} value;
+			}
+
+			namespace Hidden
+			{
+				class Length
+				{
+				}
+
+				class Shadowed
+				{
+					{|#5:{{RawLength}}|} value;
+				}
+			}
+			"""));
+		test.FixedState.Sources.Add(("Measurements.cs", $$"""
+			using DimensionalQuantities.TypeSystem;
+
+			class Measurement
+			{
+				Length first;
+				Length second;
+				{|#2:{{RawTime}}|} time;
+				string name = nameof({|#3:{{RawLength}}|});
+			}
+			"""));
+		test.FixedState.Sources.Add(("Other.cs", $$"""
+			using DimensionalQuantities.TypeSystem;
+
+			class Other
+			{
+				Length value;
+			}
+
+			namespace Hidden
+			{
+				class Length
+				{
+				}
+
+				class Shadowed
+				{
+					{|#5:{{RawLength}}|} value;
+				}
+			}
+			"""));
 		foreach (int location in new[] { 0, 1, 3, 4, 5 })
 		{
 			test.ExpectedDiagnostics.Add(Suggestion(location, "Length"));
@@ -144,13 +331,56 @@ public sealed class QuantityAliasFixTests
 
 	[Theory]
 	[InlineData("", "")]
-	[InlineData("using First; using Second;", "namespace First { public class Length {} } namespace Second { public class Length {} }")]
-	[InlineData("using Length = Hidden.Container.Length;", "namespace Hidden { public class Container { private class Length {} } }")]
+	[InlineData(
+		"""
+			using First;
+			using Second;
+			""",
+		"""
+			namespace First
+			{
+				public class Length
+				{
+				}
+			}
+
+			namespace Second
+			{
+				public class Length
+				{
+				}
+			}
+			""")]
+	[InlineData(
+		"""
+			using Length = Hidden.Container.Length;
+			""",
+		"""
+			namespace Hidden
+			{
+				public class Container
+				{
+					private class Length
+					{
+					}
+				}
+			}
+			""")]
 	public async Task MissingAmbiguousOrInaccessibleReplacementWithholdsFix(string directives, string declarations)
 	{
 		CSharpCodeFixTest<QuantityEncodingAnalyzer, QuantityAliasCodeFixProvider, DefaultVerifier> test = new()
 		{
-			TestCode = Imports + directives + " class Measurement { {|#0:" + RawLength + "|} field; } " + declarations,
+			TestCode = $$"""
+				using DimensionalQuantities.TypeSystem;
+				{{directives}}
+
+				class Measurement
+				{
+					{|#0:{{RawLength}}|} field;
+				}
+
+				{{declarations}}
+				""",
 			CompilerDiagnostics = CompilerDiagnostics.None,
 			NumberOfIncrementalIterations = 0,
 			NumberOfFixAllIterations = 0

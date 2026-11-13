@@ -14,17 +14,24 @@ public sealed class ConditionalHelperDiscoveryTests
 	[InlineData("value?.Squared().Squared()", "Squared", "TerminalHex4", "TerminalHex2")]
 	public async Task ConditionalCallAloneRequestsDiscoveredHelper(string expression, string helper, string finalExponent, string delegatedExponent)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-			class Holder { public LengthCurrent? Value { get; set; } }
-			class Consumer
-			{
-			    void M(Length length, Current current, Holder holder)
-			    {
-			        LengthCurrent? value = length * current;
-			        var result = {{expression}};
-			    }
-			}
-			""" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Holder
+				{
+					public LengthCurrent? Value { get; set; }
+				}
+
+				class Consumer
+				{
+					void M(Length length, Current current, Holder holder)
+					{
+						LengthCurrent? value = length * current;
+						var result = {{expression}};
+					}
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);

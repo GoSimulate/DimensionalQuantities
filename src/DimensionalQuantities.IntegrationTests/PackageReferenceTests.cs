@@ -11,7 +11,9 @@ public sealed class PackageReferenceTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer("Console.WriteLine((Length.FromMetres(6) * Current.FromAmps(2)).AsSiBaseUnit());", "DimensionalQuantities");
+		sandbox.WriteConsumer("""
+			Console.WriteLine((Length.FromMetres(6) * Current.FromAmps(2)).AsSiBaseUnit());
+			""", "DimensionalQuantities");
 		string output = await sandbox.ExecuteConsumer();
 		using JsonDocument dependencies = JsonDocument.Parse(File.ReadAllText(Path.Combine(sandbox.Consumer, "bin/Release/net11.0/Consumer.deps.json")));
 		Assert.Multiple(
@@ -24,7 +26,9 @@ public sealed class PackageReferenceTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer("Console.WriteLine(Length.FromMetres(1) + Time.FromSeconds(1));", "DimensionalQuantities");
+		sandbox.WriteConsumer("""
+			Console.WriteLine(Length.FromMetres(1) + Time.FromSeconds(1));
+			""", "DimensionalQuantities");
 		PackageSandbox.ProcessResult result = await sandbox.BuildConsumer();
 		Assert.Multiple(
 			() => Assert.NotEqual(0, result.ExitCode),
@@ -41,7 +45,10 @@ public sealed class PackageReferenceTests
 		string id = "DimensionalQuantities.Extensions." + extension;
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack(id);
-		sandbox.WriteConsumer($"using {id}; Console.WriteLine(({expression}).AsSiBaseUnit() > 0);", id);
+		sandbox.WriteConsumer($$"""
+			using {{id}};
+			Console.WriteLine(({{expression}}).AsSiBaseUnit() > 0);
+			""", id);
 		string output = await sandbox.ExecuteConsumer();
 		using JsonDocument assets = JsonDocument.Parse(File.ReadAllText(Path.Combine(sandbox.Consumer, "obj/project.assets.json")));
 		string[] direct = assets.RootElement.GetProperty("project").GetProperty("frameworks").EnumerateObject().Single().Value.GetProperty("dependencies").EnumerateObject().Select(p => p.Name).ToArray();
@@ -61,7 +68,9 @@ public sealed class PackageReferenceTests
 		string id = "DimensionalQuantities.Extensions." + extension;
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack(id);
-		sandbox.WriteConsumer($"Console.WriteLine(({expression}).AsSiBaseUnit());", id);
+		sandbox.WriteConsumer($$"""
+			Console.WriteLine(({{expression}}).AsSiBaseUnit());
+			""", id);
 		PackageSandbox.ProcessResult result = await sandbox.BuildConsumer();
 		Assert.Multiple(
 			() => Assert.NotEqual(0, result.ExitCode),
@@ -77,7 +86,9 @@ public sealed class PackageReferenceTests
 	{
 		using PackageSandbox sandbox = new();
 		await sandbox.Pack();
-		sandbox.WriteConsumer($"Console.WriteLine(({expression}).AsSiBaseUnit());", "DimensionalQuantities");
+		sandbox.WriteConsumer($$"""
+			Console.WriteLine(({{expression}}).AsSiBaseUnit());
+			""", "DimensionalQuantities");
 		PackageSandbox.ProcessResult result = await sandbox.BuildConsumer();
 		Assert.Multiple(
 			() => Assert.NotEqual(0, result.ExitCode),
@@ -91,14 +102,14 @@ public sealed class PackageReferenceTests
 		string[] ids = ["DimensionalQuantities.Extensions.Metric", "DimensionalQuantities.Extensions.Imperial", "DimensionalQuantities.Extensions.Nautical", "DimensionalQuantities.Extensions.CgsEmag"];
 		await sandbox.Pack(ids);
 		sandbox.WriteConsumer("""
-            using DimensionalQuantities.Extensions.Metric;
-            using DimensionalQuantities.Extensions.Imperial;
-            using DimensionalQuantities.Extensions.Nautical;
-            using DimensionalQuantities.Extensions.CgsEmag;
-            Length total = Length.FromFeet(1) + Length.FromNauticalMiles(1);
-            Energy work = Energy.FromJoules(2) + Energy.FromErgs(10_000_000);
-            Console.WriteLine(total.AsSiBaseUnit() > 1852 && work.AsSiBaseUnit() == 3);
-            """, ids);
+			using DimensionalQuantities.Extensions.Metric;
+			using DimensionalQuantities.Extensions.Imperial;
+			using DimensionalQuantities.Extensions.Nautical;
+			using DimensionalQuantities.Extensions.CgsEmag;
+			Length total = Length.FromFeet(1) + Length.FromNauticalMiles(1);
+			Energy work = Energy.FromJoules(2) + Energy.FromErgs(10_000_000);
+			Console.WriteLine(total.AsSiBaseUnit() > 1852 && work.AsSiBaseUnit() == 3);
+			""", ids);
 		Assert.Equal("True", await sandbox.ExecuteConsumer());
 	}
 }

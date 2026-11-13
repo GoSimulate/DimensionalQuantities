@@ -36,14 +36,17 @@ public sealed class DeliveredCodeFixTests
 				() => Assert.Equal(["DQ0003"], provider.FixableDiagnosticIds));
 
 			const string source = """
-                using DimensionalQuantities.TypeSystem;
-                using Length = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
-                    DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0,
-                    DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
-                    DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
-                    DimensionalQuantities.TypeSystem.TerminalHex0>>;
-                class Example { Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>> value; }
-                """;
+				using DimensionalQuantities.TypeSystem;
+				using Length = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
+					DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0,
+					DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
+					DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
+					DimensionalQuantities.TypeSystem.TerminalHex0>>;
+				class Example
+				{
+					Quantity<Dimension<TerminalHex1, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>> value;
+				}
+				""";
 			using AdhocWorkspace workspace = new();
 			Project project = workspace.AddProject("Consumer", LanguageNames.CSharp)
 				.WithParseOptions(new CSharpParseOptions(LanguageVersion.Preview))
@@ -71,7 +74,12 @@ public sealed class DeliveredCodeFixTests
 			Compilation updatedCompilation = (await operation.ChangedSolution.GetDocument(document.Id)!.Project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
 			Assert.Multiple(
 				() => Assert.Equal("Use Length", action.Title),
-				() => Assert.Contains("class Example { Length value; }", updated),
+				() => Assert.Contains("""
+					class Example
+					{
+						Length value;
+					}
+					""", updated),
 				() => Assert.Empty(updatedCompilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error)));
 		}
 		finally { loadContext.Unload(); }

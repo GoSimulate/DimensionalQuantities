@@ -34,13 +34,30 @@ public sealed class NamedPrefixTests
 	[InlineData("Quecto", -30)]
 	public async Task NamedPrefixesUseIndependentlySpecifiedDecimalExponents(string prefix, int exponent)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-            using DimensionalQuantities.Units.Declarations;
-            using DimensionalQuantities.Units.Symbols;
-            namespace Custom;
-            [UnitProvider(GenerateSiPrefixes = true)] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Metre))] class Distance {} }
-            class Consumer { Length M() => Length.From{{prefix}}Metres(1); }
-            """ };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+
+				namespace Custom;
+
+				[UnitProvider(GenerateSiPrefixes = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Metre))]
+					class Distance
+					{
+					}
+				}
+
+				class Consumer
+				{
+					Length M() => Length.From{{prefix}}Metres(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", test.GeneratedSources.Where(tree => tree.ToString().Contains("namespace Custom;")));
 		MethodDeclarationSyntax method = test.GeneratedSources.SelectMany(tree => tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()).Single(method => method.Identifier.ValueText == $"From{prefix}Metres" && method.SyntaxTree.ToString().Contains("namespace Custom;"));
@@ -75,13 +92,30 @@ public sealed class NamedPrefixTests
 	[InlineData("Quecto", -30)]
 	public async Task NamedPrefixAccessorBindsAndUsesIndependentExponent(string prefix, int exponent)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $$"""
-            using DimensionalQuantities.Units.Declarations;
-            using DimensionalQuantities.Units.Symbols;
-            namespace Custom;
-            [UnitProvider(GenerateSiPrefixes = true)] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Metre))] class Distance {} }
-            class Consumer { double M(Length value) => value.As{{prefix}}Metres(); }
-            """ };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+
+				namespace Custom;
+
+				[UnitProvider(GenerateSiPrefixes = true)]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Metre))]
+					class Distance
+					{
+					}
+				}
+
+				class Consumer
+				{
+					double M(Length value) => value.As{{prefix}}Metres();
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();

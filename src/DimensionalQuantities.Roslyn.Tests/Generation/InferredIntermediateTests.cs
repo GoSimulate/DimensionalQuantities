@@ -13,16 +13,62 @@ public sealed class InferredIntermediateTests
 	private const string ResultType = "DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0>>";
 
 	[Theory]
-	[InlineData("var value = length * current; var result = value * time;", "length * current")]
-	[InlineData("var make = () => length * current; var result = make() * time;", "length * current")]
-	[InlineData("var pair = (length * current, time); var result = pair.Item1 * pair.Item2;", "length * current")]
-	[InlineData("var (value, duration) = (length * current, time); var result = value * duration;", "length * current")]
-	[InlineData("var result = Identity(length * current) * time;", "length * current")]
-	[InlineData("var values = new[] { length }.Select(item => item * current); var result = values.First() * time;", "item * current")]
-	[InlineData("var values = new[] { length * current }; var result = values[0] * time;", "length * current")]
-	[InlineData("var values = new[] { length * current }; foreach (var value in values) { var result = value * time; }", "length * current")]
-	[InlineData("var value = choose ? length * current : current * length; var result = value * time;", "length * current")]
-	[InlineData("var value = choose switch { true => length * current, false => current * length }; var result = value * time;", "length * current")]
+	[InlineData(
+		"""
+			var value = length * current;
+			var result = value * time;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var make = () => length * current;
+			var result = make() * time;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var pair = (length * current, time);
+			var result = pair.Item1 * pair.Item2;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var (value, duration) = (length * current, time);
+			var result = value * duration;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var result = Identity(length * current) * time;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var values = new[] { length }.Select(item => item * current);
+			var result = values.First() * time;
+			""", "item * current")]
+	[InlineData(
+		"""
+			var values = new[] { length * current };
+			var result = values[0] * time;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var values = new[] { length * current };
+			foreach (var value in values)
+			{
+				var result = value * time;
+			}
+			""", "length * current")]
+	[InlineData(
+		"""
+			var value = choose ? length * current : current * length;
+			var result = value * time;
+			""", "length * current")]
+	[InlineData(
+		"""
+			var value = choose switch
+			{
+				true => length * current,
+				false => current * length
+			};
+			var result = value * time;
+			""", "length * current")]
 	public async Task GeneratedIntermediateFlowsThroughInferredBinding(string statements, string productExpression)
 	{
 		QuantityGeneratorTest test = new()
@@ -31,11 +77,11 @@ public sealed class InferredIntermediateTests
 				using System.Linq;
 				class Consumer
 				{
-				    private static T Identity<T>(T value) => value;
-				    void Calculate(Length length, Current current, Time time, bool choose)
-				    {
-				        {{statements}}
-				    }
+					private static T Identity<T>(T value) => value;
+					void Calculate(Length length, Current current, Time time, bool choose)
+					{
+					{{statements}}
+					}
 				}
 				"""
 		};

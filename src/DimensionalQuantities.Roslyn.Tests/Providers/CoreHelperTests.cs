@@ -17,7 +17,15 @@ public sealed class CoreHelperTests
 	[InlineData("LuminousIntensity", "Candelas")]
 	public async Task CoreNamedSiFactoriesAreAvailableWithoutOptionalReferences(string quantity, string unit)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {quantity} M() => {quantity}.From{unit}(1); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{quantity}} M() => {{quantity}}.From{{unit}}(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		InvocationExpressionSyntax call = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -30,7 +38,15 @@ public sealed class CoreHelperTests
 	[Fact]
 	public async Task AutomaticMassPrefixesApplyKilogramCorrection()
 	{
-		QuantityGeneratorTest test = new() { TestCode = "class Consumer { Mass M() => Mass.FromKiloGrams(1); }" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				class Consumer
+				{
+					Mass M() => Mass.FromKiloGrams(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", test.GeneratedSources);
 		Assert.Multiple(() => Assert.Contains("FromGrams(double value) => Mass.FromArbitrarySiComponents(value, overallScaleExponent: -3d)", source),
@@ -40,13 +56,30 @@ public sealed class CoreHelperTests
 	[Fact]
 	public async Task ExplicitKilogramsDeclarationPreservesItsSpelling()
 	{
-		QuantityGeneratorTest test = new() { TestCode = """
-            using DimensionalQuantities.Units.Declarations;
-            using DimensionalQuantities.Units.Symbols;
-            namespace Custom;
-            [UnitProvider] class Provider { [QuantityUnit(typeof(Mass))] [UnitFactor(typeof(Gram), PrefixExponent = 3)] class MassUnit {} }
-            class Consumer { Mass M() => Mass.FromKilograms(1); }
-            """ };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+
+				namespace Custom;
+
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Mass))]
+					[UnitFactor(typeof(Gram), PrefixExponent = 3)]
+					class MassUnit
+					{
+					}
+				}
+
+				class Consumer
+				{
+					Mass M() => Mass.FromKilograms(1);
+				}
+				"""
+		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.Contains("FromKilograms(double value)", string.Join("\n", test.GeneratedSources));
 	}

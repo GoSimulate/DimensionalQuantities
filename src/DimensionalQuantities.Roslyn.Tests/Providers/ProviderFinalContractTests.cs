@@ -15,11 +15,21 @@ public sealed class ProviderFinalContractTests
 		QuantityGeneratorTest test = new()
 		{
 			TestCode = """
-                using DimensionalQuantities.Units.Declarations;
-                using DimensionalQuantities.Units.Symbols;
-                namespace Custom;
-                [UnitProvider] class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Metre))] class Distance {} }
-                """
+				using DimensionalQuantities.Units.Declarations;
+				using DimensionalQuantities.Units.Symbols;
+
+				namespace Custom;
+
+				[UnitProvider]
+				class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Metre))]
+					class Distance
+					{
+					}
+				}
+				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		string source = string.Join("\n", test.GeneratedSources.Where(tree => tree.ToString().Contains("namespace Custom;")));
@@ -33,7 +43,14 @@ public sealed class ProviderFinalContractTests
 	{
 		QuantityGeneratorTest test = new()
 		{
-			TestCode = "using DimensionalQuantities.Extensions.Metric; class Consumer { double M() => {|#0:Length.FromSiBaseUnit(1).AsDelta()|}.AsCelsius(); }"
+			TestCode = """
+				using DimensionalQuantities.Extensions.Metric;
+
+				class Consumer
+				{
+					double M() => {|#0:Length.FromSiBaseUnit(1).AsDelta()|}.AsCelsius();
+				}
+				"""
 		};
 		test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("DimensionalQuantities.Extensions.Metric").Location));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(0));
@@ -46,7 +63,14 @@ public sealed class ProviderFinalContractTests
 	{
 		QuantityGeneratorTest test = new()
 		{
-			TestCode = "using DimensionalQuantities.Extensions.Metric; class Consumer { Power M() => Voltage.FromVolts(3)*Current.FromAmps(2); }"
+			TestCode = """
+				using DimensionalQuantities.Extensions.Metric;
+
+				class Consumer
+				{
+					Power M() => Voltage.FromVolts(3) * Current.FromAmps(2);
+				}
+				"""
 		};
 		test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("DimensionalQuantities.Extensions.Metric").Location));
 		await test.RunAsync(TestContext.Current.CancellationToken);

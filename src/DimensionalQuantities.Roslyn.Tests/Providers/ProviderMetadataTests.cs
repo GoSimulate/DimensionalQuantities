@@ -18,7 +18,17 @@ public sealed class ProviderMetadataTests
 	public async Task OptionalConversionsBindPublicMetadataMethods(string package, string quantity, string factory)
 	{
 		string assemblyName = $"DimensionalQuantities.Extensions.{package}";
-		QuantityGeneratorTest test = new() { TestCode = $"using {assemblyName}; class Consumer {{ {quantity} M() => {quantity}.{factory}(1); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using {{assemblyName}};
+
+				class Consumer
+				{
+					{{quantity}} M() => {{quantity}}.{{factory}}(1);
+				}
+				"""
+		};
 		test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(Assembly.Load(assemblyName).Location));
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
@@ -40,7 +50,15 @@ public sealed class ProviderMetadataTests
 	[InlineData("MagneticFluxDensity", "FromGauss")]
 	public async Task CoreDoesNotSupplyOptionalFactories(string quantity, string factory)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {quantity} M() => {quantity}.{{|#0:{factory}|}}(1); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{quantity}} M() => {{quantity}}.{|#0:{{factory}}|}(1);
+				}
+				"""
+		};
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0117").WithLocation(0));
 		await test.RunAsync(TestContext.Current.CancellationToken);
 		Assert.DoesNotContain($"{factory}(double value)", string.Join("\n", test.GeneratedSources));
@@ -53,7 +71,15 @@ public sealed class ProviderMetadataTests
 	[InlineData("Metric", "Voltage", "FromVolts")]
 	public async Task OptionalNamespaceMustBeImported(string package, string quantity, string factory)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"class Consumer {{ {quantity} M() => {quantity}.{{|#0:{factory}|}}(1); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				class Consumer
+				{
+					{{quantity}} M() => {{quantity}}.{|#0:{{factory}}|}(1);
+				}
+				"""
+		};
 		test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(Assembly.Load($"DimensionalQuantities.Extensions.{package}").Location));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0117").WithLocation(0));
 		await test.RunAsync(TestContext.Current.CancellationToken);
@@ -67,7 +93,17 @@ public sealed class ProviderMetadataTests
 	[InlineData("Metric", "Temperature", "FromKiloCelsius")]
 	public async Task UnsupportedOptionalPrefixFamiliesStayAbsent(string package, string quantity, string factory)
 	{
-		QuantityGeneratorTest test = new() { TestCode = $"using DimensionalQuantities.Extensions.{package}; class Consumer {{ {quantity} M() => {quantity}.{{|#0:{factory}|}}(1); }}" };
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = $$"""
+				using DimensionalQuantities.Extensions.{{package}};
+
+				class Consumer
+				{
+					{{quantity}} M() => {{quantity}}.{|#0:{{factory}}|}(1);
+				}
+				"""
+		};
 		test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(Assembly.Load($"DimensionalQuantities.Extensions.{package}").Location));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0117").WithLocation(0));
 		await test.RunAsync(TestContext.Current.CancellationToken);
@@ -77,12 +113,29 @@ public sealed class ProviderMetadataTests
 	[Fact]
 	public async Task CompiledProviderPublishesMethodsWithoutRegeneration()
 	{
-		QuantityGeneratorTest producer = new() { TestCode = """
-            using DimensionalQuantities.Units.Declarations;
-            namespace Custom;
-            [UnitSymbol("Widget", "Widgets", "w", Scale = 4)] class Widget {}
-            [UnitProvider] static class Provider { [QuantityUnit(typeof(Length))] [UnitFactor(typeof(Widget))] class Distance {} }
-            """ };
+		QuantityGeneratorTest producer = new()
+		{
+			TestCode = """
+				using DimensionalQuantities.Units.Declarations;
+
+				namespace Custom;
+
+				[UnitSymbol("Widget", "Widgets", "w", Scale = 4)]
+				class Widget
+				{
+				}
+
+				[UnitProvider]
+				static class Provider
+				{
+					[QuantityUnit(typeof(Length))]
+					[UnitFactor(typeof(Widget))]
+					class Distance
+					{
+					}
+				}
+				"""
+		};
 		await producer.RunAsync(TestContext.Current.CancellationToken);
 		using MemoryStream assembly = new();
 		EmitResult emitted = producer.Compilation.WithAssemblyName("CompiledProvider").Emit(assembly, cancellationToken: TestContext.Current.CancellationToken);
@@ -91,7 +144,21 @@ public sealed class ProviderMetadataTests
 			throw new InvalidOperationException(string.Join("\n", emitted.Diagnostics));
 		}
 
-		QuantityGeneratorTest consumer = new() { TestCode = "using Custom; class Consumer { Area M() { var length = Length.FromWidgets(1); return length*length; } }" };
+		QuantityGeneratorTest consumer = new()
+		{
+			TestCode = """
+				using Custom;
+
+				class Consumer
+				{
+					Area M()
+					{
+						var length = Length.FromWidgets(1);
+						return length * length;
+					}
+				}
+				"""
+		};
 		consumer.TestState.AdditionalReferences.Add(MetadataReference.CreateFromImage(assembly.ToArray()));
 		await consumer.RunAsync(TestContext.Current.CancellationToken);
 		SyntaxTree tree = consumer.Compilation.SyntaxTrees.First();
