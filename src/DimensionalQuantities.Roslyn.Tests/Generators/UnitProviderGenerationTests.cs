@@ -1,10 +1,8 @@
-using System.Collections.Immutable;
 using System.Reflection;
-using DimensionalQuantities.Roslyn.Generators;
-using DimensionalQuantities.TypeSystem;
+using DimensionalQuantities.Roslyn.Tests.Framework;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Testing;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
@@ -28,7 +26,7 @@ public sealed class UnitProviderGenerationTests
 		""";
 
 	[Fact]
-	public void IndependentProviderGeneratesScaledFactoriesAndAccessors()
+	public async Task IndependentProviderGeneratesScaledFactoriesAndAccessors()
 	{
 		const string consumer = """
 			namespace Independent.Units;
@@ -37,16 +35,22 @@ public sealed class UnitProviderGenerationTests
 				public static double[] Values() => [Length.FromFeet(10).AsMetres(), Length.FromMetres(0.6096).AsFeet()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(FootProvider, consumer);
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(FootProvider);
+		test.TestState.Sources.Add(consumer);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Multiple(
 			() => Assert.Equal(3.048, result[0], 12),
 			() => Assert.Equal(2, result[1], 12));
 	}
 
 	[Fact]
-	public void AffineConversionsApplyOffsetOnlyToAbsoluteQuantities()
+	public async Task AffineConversionsApplyOffsetOnlyToAbsoluteQuantities()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -70,17 +74,27 @@ public sealed class UnitProviderGenerationTests
 				}
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		Assert.Equal([16d, 3d, 1d], Evaluate(compilation, "Consumer"));
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Assert.Equal([16d, 3d, 1d], Evaluate(test.Compilation, "Consumer"));
 	}
 
 	[Fact]
-	public void ProviderConversionsArePublicAndNotRegeneratedByConsumers()
+	public async Task ProviderConversionsArePublicAndNotRegeneratedByConsumers()
 	{
-		(Compilation provider, ImmutableArray<Diagnostic> providerDiagnostics) = Generate(FootProvider, "");
-		Assert.Empty(providerDiagnostics);
-		MetadataReference reference = MetadataReference.CreateFromImage(Emit(provider));
+		QuantityGeneratorTest provider = new()
+		{
+			TestCode = FootProvider,
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		provider.SolutionTransforms.Add((solution, project) => solution.WithProjectAssemblyName(project, "Independent.Provider"));
+		await provider.RunAsync(TestContext.Current.CancellationToken);
+		MetadataReference reference = MetadataReference.CreateFromImage(Emit(provider.Compilation));
 		const string consumer = """
 			using Independent.Units;
 			public static class Consumer
@@ -88,18 +102,22 @@ public sealed class UnitProviderGenerationTests
 				public static Area Value() => Length.FromFeet(1) * Length.FromFeet(2);
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("", consumer, reference);
-		INamespaceSymbol? localNamespace = compilation.Assembly.GlobalNamespace.GetNamespaceMembers()
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = consumer,
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.AdditionalReferences.Add(reference);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		INamespaceSymbol? localNamespace = test.Compilation.Assembly.GlobalNamespace.GetNamespaceMembers()
 			.SingleOrDefault(symbol => symbol.Name == "Independent");
 
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Null(localNamespace));
+		Assert.Null(localNamespace);
 	}
 
 	[Fact]
-	public void ProviderCanOptIntoNamedAndParameterisedSiPrefixes()
+	public async Task ProviderCanOptIntoNamedAndParameterisedSiPrefixes()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -119,14 +137,19 @@ public sealed class UnitProviderGenerationTests
 					Voltage.FromPrefixedUnits(3, sparkPrefixExponent: 3).AsSiBaseUnit(), Voltage.FromSiBaseUnit(0.004).AsPrefixedUnits(-3)];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Equal([0.5, 2, 3000, 4], result);
 	}
 
 	[Fact]
-	public void CompoundFactorsPreserveOrderPowersAndAdditionalConversions()
+	public async Task CompoundFactorsPreserveOrderPowersAndAdditionalConversions()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -154,14 +177,19 @@ public sealed class UnitProviderGenerationTests
 					CurrentDensity.FromSiBaseUnit(1000000).AsAmpsPerSquareMilliMetre()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Equal([1000000d, 2000000d, 1d], result);
 	}
 
 	[Fact]
-	public void ProviderUsesCoreSiSymbolsAcrossAssemblyBoundary()
+	public async Task ProviderUsesCoreSiSymbolsAcrossAssemblyBoundary()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -188,13 +216,18 @@ public sealed class UnitProviderGenerationTests
 					 Density.FromPrefixedUnits(2, gramPrefixExponent: 0, metrePrefixExponent: 0).AsSiBaseUnit()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		Assert.Equal([2d, 2000000d, 0.002d, 0.002d], Evaluate(compilation, "Independent.Units.Consumer"));
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Assert.Equal([2d, 2000000d, 0.002d, 0.002d], Evaluate(test.Compilation, "Independent.Units.Consumer"));
 	}
 
 	[Fact]
-	public void OneUnitDeclarationCanServeDistinctQuantityTypes()
+	public async Task OneUnitDeclarationCanServeDistinctQuantityTypes()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -215,13 +248,18 @@ public sealed class UnitProviderGenerationTests
 					[Length.FromTokens(2).AsSiBaseUnit(), Time.FromTokens(3).AsSiBaseUnit()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		Assert.Equal([2d, 3d], Evaluate(compilation, "Independent.Units.Consumer"));
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Assert.Equal([2d, 3d], Evaluate(test.Compilation, "Independent.Units.Consumer"));
 	}
 
 	[Fact]
-	public void ProviderFactoriesCanBeUsedInArithmeticInTheirOwnAssembly()
+	public async Task ProviderFactoriesCanBeUsedInArithmeticInTheirOwnAssembly()
 	{
 		const string consumer = """
 			namespace Independent.Units;
@@ -230,14 +268,20 @@ public sealed class UnitProviderGenerationTests
 				public static double[] Values() => [(Length.FromFeet(2) * Length.FromFeet(3)).AsSiBaseUnit()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(FootProvider, consumer);
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(FootProvider);
+		test.TestState.Sources.Add(consumer);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Equal(0.55741824, Assert.Single(result), 12);
 	}
 
 	[Fact]
-	public void RecordClassProvidersGenerateConversions()
+	public async Task RecordClassProvidersGenerateConversions()
 	{
 		const string provider = """
 			using DimensionalQuantities.Units.Declarations;
@@ -259,21 +303,27 @@ public sealed class UnitProviderGenerationTests
 				public static double[] Values() => [Length.FromFeet(1).AsMetres()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(provider, consumer);
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(provider);
+		test.TestState.Sources.Add(consumer);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Equal(0.3048, Assert.Single(result), 12);
 	}
 
 	[Theory]
 	[InlineData("Bad name", "Feet")]
 	[InlineData("Foot", "Bad names")]
-	public void InvalidUnitNamesReportDeclarationDiagnostics(string singular, string plural)
+	public async Task InvalidUnitNamesReportDeclarationDiagnostics(string singular, string plural)
 	{
 		string source = $$"""
 			using DimensionalQuantities.Units.Declarations;
 			[UnitProvider(GeneratePrefixConversions = true)]
-			internal static class Units
+			internal static class {|#0:Units|}
 			{
 				[QuantityUnit(typeof(Length))]
 				[UnitFactor(typeof(Foot))]
@@ -282,14 +332,19 @@ public sealed class UnitProviderGenerationTests
 				private sealed class Foot;
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Multiple(
-			() => Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)),
-			() => Assert.Equal("DQ0008", Assert.Single(diagnostics).Id));
+		QuantityGeneratorTest test = new()
+		{
+			TestCode = source,
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0008", DiagnosticSeverity.Error)
+			.WithLocation(0).WithMessage("Unit provider for Length produces an invalid C# identifier."));
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
 	}
 
 	[Fact]
-	public void ProvidersInSameNamespaceCanConvertSameQuantity()
+	public async Task ProvidersInSameNamespaceCanConvertSameQuantity()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -317,25 +372,17 @@ public sealed class UnitProviderGenerationTests
 				public static double[] Values() => [Length.FromFeet(3).AsYards(), Length.FromYards(2).AsFeet()];
 			}
 			""";
-		(Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, "");
-		Assert.Empty(diagnostics);
-		double[] result = Evaluate(compilation, "Independent.Units.Consumer");
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(source);
+
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
 		Assert.Multiple(
 			() => Assert.Equal(1, result[0], 12),
 			() => Assert.Equal(6, result[1], 12));
-	}
-
-	private static (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string provider, string consumer, params MetadataReference[] additionalReferences)
-	{
-		CSharpParseOptions options = new(LanguageVersion.Preview);
-		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-		IEnumerable<MetadataReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
-			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location)).Concat(additionalReferences);
-		CSharpCompilation input = CSharpCompilation.Create("ProviderTest" + Guid.NewGuid().ToString("N"),
-			[CSharpSyntaxTree.ParseText(provider, options), CSharpSyntaxTree.ParseText(consumer, options)], references, new(OutputKind.DynamicallyLinkedLibrary));
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: options);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		return (output, diagnostics);
 	}
 
 	private static double[] Evaluate(Compilation compilation, string consumerType)
