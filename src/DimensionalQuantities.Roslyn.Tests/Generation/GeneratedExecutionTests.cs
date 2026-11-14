@@ -1,8 +1,4 @@
-using System.Reflection;
-using System.Runtime.Loader;
 using DimensionalQuantities.Roslyn.Tests.Framework;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Emit;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generation;
@@ -27,7 +23,7 @@ public sealed class GeneratedExecutionTests
 				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal(expected, Execute(test.Compilation), 12);
+		Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12);
 	}
 
 	[Theory]
@@ -51,7 +47,7 @@ public sealed class GeneratedExecutionTests
 				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal(expected, Execute(test.Compilation), 12);
+		Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12);
 	}
 
 	[Theory]
@@ -79,7 +75,7 @@ public sealed class GeneratedExecutionTests
 				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		double actual = Execute(test.Compilation);
+		double actual = GeneratedCodeExecution.Execute(test.Compilation);
 		if (double.IsNaN(expected))
 		{
 			Assert.True(double.IsNaN(actual));
@@ -127,30 +123,7 @@ public sealed class GeneratedExecutionTests
 				"""
 		};
 		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal(2e9, Execute(test.Compilation), 6);
+		Assert.Equal(2e9, GeneratedCodeExecution.Execute(test.Compilation), 6);
 	}
 
-	private static double Execute(Compilation compilation)
-	{
-		using MemoryStream assemblyStream = new();
-		EmitResult result = compilation.Emit(assemblyStream, cancellationToken: TestContext.Current.CancellationToken);
-		if (!result.Success)
-		{
-			throw new InvalidOperationException(string.Join(Environment.NewLine, result.Diagnostics));
-		}
-		assemblyStream.Position = 0;
-
-		// Dependencies fall back to the default context, preserving shared runtime type identity.
-		AssemblyLoadContext loadContext = new(name: null, isCollectible: true);
-		try
-		{
-			Assembly assembly = loadContext.LoadFromStream(assemblyStream);
-			MethodInfo method = assembly.GetType("Consumer", throwOnError: true)!.GetMethod("Execute")!;
-			return (double)method.Invoke(null, null)!;
-		}
-		finally
-		{
-			loadContext.Unload();
-		}
-	}
 }

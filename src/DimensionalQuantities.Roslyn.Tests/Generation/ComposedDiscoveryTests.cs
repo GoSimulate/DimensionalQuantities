@@ -27,21 +27,23 @@ public sealed class ComposedDiscoveryTests
 	}
 
 	[Theory]
-	[InlineData("NumberTwo", "TerminalHex2")]
-	[InlineData("NumberHalf", "Fraction<TerminalHex1, TerminalHex2>")]
-	public async Task ExplicitPowerRebindsGeneratedArgumentAndInferredDelegate(string exponent, string expectedExponent)
+	[InlineData("NumberTwo", "TerminalHex2", 2, 144)]
+	[InlineData("NumberHalf", "Fraction<TerminalHex1, TerminalHex2>", 3, 12)]
+	public async Task ExplicitPowerRebindsGeneratedArgumentAndInferredDelegate(string exponent, string expectedExponent, double lengthValue, double expected)
 	{
 		QuantityGeneratorTest test = new()
 		{
 			TestCode = $$"""
 				using DimensionalQuantities.TypeSystem;
-				class Consumer
+				public class Consumer
 				{
-					void M(Length length, Current current, Time time)
+					double M(Length length, Current current, Time time)
 					{
 						var make = () => Power<{{exponent}}>.Of(length * current);
 						var result = make() * time;
+						return result.AsSiBaseUnit();
 					}
+					public static double Execute() => new Consumer().M(Length.FromSiBaseUnit({{lengthValue}}), Current.FromSiBaseUnit(3), Time.FromSiBaseUnit(4));
 				}
 				"""
 		};
@@ -49,7 +51,7 @@ public sealed class ComposedDiscoveryTests
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
 		SyntaxNode root = tree.GetRoot(TestContext.Current.CancellationToken);
-		InvocationExpressionSyntax power = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberAccessExpressionSyntax);
+		InvocationExpressionSyntax power = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberAccessExpressionSyntax access && access.Name.Identifier.ValueText == "Of");
 		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(model.GetSymbolInfo(power, TestContext.Current.CancellationToken).Symbol);
 		VariableDeclaratorSyntax result = root.DescendantNodes().OfType<VariableDeclaratorSyntax>().Single(variable => variable.Identifier.ValueText == "result");
 		ILocalSymbol final = Assert.IsAssignableFrom<ILocalSymbol>(model.GetDeclaredSymbol(result, TestContext.Current.CancellationToken));
@@ -60,7 +62,8 @@ public sealed class ComposedDiscoveryTests
 			() => Assert.Equal($"{expectedExponent},TerminalHex0,TerminalHex1,{expectedExponent},TerminalHex0,TerminalHex0,TerminalHex0", Encoding(final.Type)),
 			() => Assert.True(SymbolEqualityComparer.Default.Equals(selected.ReturnType, delegateType.DelegateInvokeMethod!.ReturnType)),
 			() => Assert.Equal("TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0", Encoding(selected.Parameters.Single().Type)),
-			() => Assert.All(root.DescendantNodes().OfType<BinaryExpressionSyntax>(), binary => Assert.NotNull(model.GetSymbolInfo(binary, TestContext.Current.CancellationToken).Symbol)));
+			() => Assert.All(root.DescendantNodes().OfType<BinaryExpressionSyntax>(), binary => Assert.NotNull(model.GetSymbolInfo(binary, TestContext.Current.CancellationToken).Symbol)),
+			() => Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12));
 	}
 
 	[Theory]
@@ -111,15 +114,17 @@ public sealed class ComposedDiscoveryTests
 			TestCode = """
 				static class Custom
 				{
-					public static Time Squared(this LengthCurrent value) => default;
+					public static Time Squared(this LengthCurrent value) => Time.FromSiBaseUnit(7);
 				}
 
-				class Consumer
+				public class Consumer
 				{
-					void M(Length length, Current current)
+					double M(Length length, Current current)
 					{
 						var result = (length * current).Squared() * current;
+						return result.AsSiBaseUnit();
 					}
+					public static double Execute() => new Consumer().M(Length.FromSiBaseUnit(2), Current.FromSiBaseUnit(3));
 				}
 				"""
 		};
@@ -127,13 +132,14 @@ public sealed class ComposedDiscoveryTests
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		SemanticModel model = test.Compilation.GetSemanticModel(tree);
 		SyntaxNode root = tree.GetRoot(TestContext.Current.CancellationToken);
-		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(model.GetSymbolInfo(root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(), TestContext.Current.CancellationToken).Symbol);
+		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(model.GetSymbolInfo(root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberAccessExpressionSyntax access && access.Name.Identifier.ValueText == "Squared"), TestContext.Current.CancellationToken).Symbol);
 		ILocalSymbol result = (ILocalSymbol)model.GetDeclaredSymbol(root.DescendantNodes().OfType<VariableDeclaratorSyntax>().Single(), TestContext.Current.CancellationToken)!;
 		Assert.Multiple(
 			() => Assert.Equal("Custom", selected.ContainingType.Name),
 			() => Assert.Equal("TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0", Encoding(result.Type)),
 			() => Assert.All(root.DescendantNodes().OfType<BinaryExpressionSyntax>(), binary => Assert.NotNull(model.GetSymbolInfo(binary, TestContext.Current.CancellationToken).Symbol)),
-			() => Assert.DoesNotContain("public LengthSquaredCurrentSquared Squared()", string.Join("\n", test.GeneratedSources)));
+			() => Assert.DoesNotContain("public LengthSquaredCurrentSquared Squared()", string.Join("\n", test.GeneratedSources)),
+			() => Assert.Equal(21, GeneratedCodeExecution.Execute(test.Compilation), 12));
 	}
 
 	[Theory]
@@ -147,17 +153,19 @@ public sealed class ComposedDiscoveryTests
 			TestCode = $$"""
 				class Wrapper
 				{
-					public static Current operator +(Wrapper left, Wrapper right) => default;
-					public static Current operator -(Wrapper left, Wrapper right) => default;
-					public static Current operator -(Wrapper value) => default;
+					public static Current operator +(Wrapper left, Wrapper right) => Current.FromSiBaseUnit(3);
+					public static Current operator -(Wrapper left, Wrapper right) => Current.FromSiBaseUnit(3);
+					public static Current operator -(Wrapper value) => Current.FromSiBaseUnit(3);
 				}
 
-				class Consumer
+				public class Consumer
 				{
-					void M(Wrapper wrapper, LengthCurrent quantity)
+					double M(Wrapper wrapper, LengthCurrent quantity)
 					{
 						var result = ({{expression}}) * quantity;
+						return result.AsSiBaseUnit();
 					}
+					public static double Execute() => new Consumer().M(new Wrapper(), LengthCurrent.FromSiBaseUnit(4));
 				}
 				"""
 		};
@@ -172,7 +180,8 @@ public sealed class ComposedDiscoveryTests
 			() => Assert.Equal("Wrapper", selected.ContainingType.Name),
 			() => Assert.Equal("TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0", Encoding(selected.ReturnType)),
 			() => Assert.Equal("TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex2,TerminalHex0,TerminalHex0,TerminalHex0", Encoding(result.Type)),
-			() => Assert.NotNull(model.GetSymbolInfo(operand.Parent!, TestContext.Current.CancellationToken).Symbol));
+			() => Assert.NotNull(model.GetSymbolInfo(operand.Parent!, TestContext.Current.CancellationToken).Symbol),
+			() => Assert.Equal(12, GeneratedCodeExecution.Execute(test.Compilation), 12));
 	}
 
 	private static string Encoding(ITypeSymbol type)

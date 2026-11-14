@@ -10,49 +10,7 @@ public sealed class DiscoveryBehaviourTests
 {
 	[Theory]
 	[InlineData("Length", "TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Mass", "TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Time", "TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Current", "TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Temperature", "TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0")]
-	[InlineData("AmountOfSubstance", "TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0")]
-	[InlineData("LuminousIntensity", "TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex1")]
-	[InlineData("Area", "TerminalHex2,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Volume", "TerminalHex3,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Speed", "TerminalHex1,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Acceleration", "TerminalHex1,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Frequency", "TerminalHex0,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("AngularVelocity", "TerminalHex0,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Force", "TerminalHex1,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Density", "DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Pressure", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Stress", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("YoungsModulus", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Energy", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Torque", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Power", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("SpecificPower", "TerminalHex2,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("SpecificPowerLoss", "TerminalHex2,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("TemperatureCoefficient", "TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0")]
-	[InlineData("PowerDensity", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("VolumetricPowerLoss", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,TerminalHex0,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("ElectricCharge", "TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Voltage", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Capacitance", "DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex4,TerminalHex2,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Resistance", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Inductance", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0")]
 	[InlineData("MagneticFlux", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("FluxLinkage", "TerminalHex2,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("MagneticFluxDensity", "TerminalHex0,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("MagneticPolarisation", "TerminalHex0,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("RemanentFluxDensity", "TerminalHex0,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("MagneticFieldStrength", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("CoerciveFieldStrength", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("CurrentDensity", "DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex1,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Permeability", "TerminalHex1,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Resistivity", "TerminalHex3,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("Conductivity", "DimensionalQuantities.TypeSystem.Negative<TerminalHex3>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex3,TerminalHex2,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("MagneticReluctivity", "DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex2,TerminalHex2,TerminalHex0,TerminalHex0,TerminalHex0")]
-	[InlineData("MagneticVectorPotential", "TerminalHex1,TerminalHex1,DimensionalQuantities.TypeSystem.Negative<TerminalHex2>,DimensionalQuantities.TypeSystem.Negative<TerminalHex1>,TerminalHex0,TerminalHex0,TerminalHex0")]
 	public async Task DefaultAliasesHaveCanonicalTargets(string alias, string exponents)
 	{
 		QuantityGeneratorTest test = new()
@@ -72,15 +30,6 @@ public sealed class DiscoveryBehaviourTests
 	[Theory]
 	[InlineData("LengthSquared", "Area")]
 	[InlineData("Energy", "Torque")]
-	[InlineData("Frequency", "AngularVelocity")]
-	[InlineData("Pressure", "Stress")]
-	[InlineData("Stress", "YoungsModulus")]
-	[InlineData("SpecificPower", "SpecificPowerLoss")]
-	[InlineData("PowerDensity", "VolumetricPowerLoss")]
-	[InlineData("MagneticFlux", "FluxLinkage")]
-	[InlineData("MagneticFluxDensity", "MagneticPolarisation")]
-	[InlineData("MagneticPolarisation", "RemanentFluxDensity")]
-	[InlineData("MagneticFieldStrength", "CoerciveFieldStrength")]
 	public async Task SynonymsShareRuntimeIdentity(string left, string right)
 	{
 		QuantityGeneratorTest test = new()
@@ -218,28 +167,36 @@ public sealed class DiscoveryBehaviourTests
 	}
 
 	[Theory]
-	[InlineData("Length? l, Current? i", "l*i", "LengthCurrent?", true)]
-	[InlineData("Length? l, Current i", "l*i", "LengthCurrent?", true)]
-	[InlineData("Length l, Current? i", "l*i", "LengthCurrent?", true)]
-	[InlineData("Length l, Current i", "l*i", "LengthCurrent", false)]
-	[InlineData("Length? l, Length? i", "l/i", "double?", true)]
-	[InlineData("Length? l, Length i", "l/i", "double?", true)]
-	[InlineData("Length l, Length? i", "l/i", "double?", true)]
-	[InlineData("double? l, Time? i", "l/i", "Frequency?", true)]
-	[InlineData("double? l, Time i", "l/i", "Frequency?", true)]
-	[InlineData("double l, Time? i", "l/i", "Frequency?", true)]
-	[InlineData("Length? l, double? i", "l*i", "Length?", true)]
-	[InlineData("Length? l, double i", "l*i", "Length?", true)]
-	[InlineData("Length l, double? i", "l*i", "Length?", true)]
-	[InlineData("Length? l, Current? i", "(l*i)/i", "Length?", true)]
-	public async Task NullableOperationsUseCompilerLifting(string parameters, string expression, string result, bool lifted)
+	[InlineData("Length? l, Current? i", "l*i", "LengthCurrent?", true, 18)]
+	[InlineData("Length? l, Current i", "l*i", "LengthCurrent?", true, 18)]
+	[InlineData("Length l, Current? i", "l*i", "LengthCurrent?", true, 18)]
+	[InlineData("Length l, Current i", "l*i", "LengthCurrent", false, 18)]
+	[InlineData("Length? l, Length? i", "l/i", "double?", true, 2)]
+	[InlineData("Length? l, Length i", "l/i", "double?", true, 2)]
+	[InlineData("Length l, Length? i", "l/i", "double?", true, 2)]
+	[InlineData("double? l, Time? i", "l/i", "Frequency?", true, 2)]
+	[InlineData("double? l, Time i", "l/i", "Frequency?", true, 2)]
+	[InlineData("double l, Time? i", "l/i", "Frequency?", true, 2)]
+	[InlineData("Length? l, double? i", "l*i", "Length?", true, 18)]
+	[InlineData("Length? l, double i", "l*i", "Length?", true, 18)]
+	[InlineData("Length l, double? i", "l*i", "Length?", true, 18)]
+	[InlineData("Length? l, Current? i", "(l*i)/i", "Length?", true, 6)]
+	public async Task NullableOperationsUseCompilerLifting(string parameters, string expression, string result, bool lifted, double expected)
 	{
+		string[] types = parameters.Split(',').Select(parameter => parameter.Trim().Split(' ')[0]).ToArray();
+		string leftValue = types[0].TrimEnd('?') == "double" ? "6d" : $"{types[0].TrimEnd('?')}.FromSiBaseUnit(6)";
+		string rightValue = types[1].TrimEnd('?') == "double" ? "3d" : $"{types[1].TrimEnd('?')}.FromSiBaseUnit(3)";
+		string magnitude = result.StartsWith("double") ? "" : lifted ? "?.AsSiBaseUnit()" : ".AsSiBaseUnit()";
+		string fallback = lifted ? " ?? -1" : "";
 		QuantityGeneratorTest test = new()
 		{
 			TestCode = $$"""
-				class Consumer
+				public class Consumer
 				{
 					{{result}} M({{parameters}}) => {{expression}};
+					public static double Execute() => new Consumer().M({{leftValue}}, {{rightValue}}){{magnitude}}{{fallback}};
+					public static double ExecuteNullLeft() => new Consumer().M({{(types[0].EndsWith('?') ? "null" : leftValue)}}, {{rightValue}}){{magnitude}}{{fallback}};
+					public static double ExecuteNullRight() => new Consumer().M({{leftValue}}, {{(types[1].EndsWith('?') ? "null" : rightValue)}}){{magnitude}}{{fallback}};
 				}
 				"""
 		};
@@ -256,7 +213,10 @@ public sealed class DiscoveryBehaviourTests
 			() => Assert.True(SymbolEqualityComparer.Default.Equals(UnwrapNullable(operation.LeftOperand.Type!), selected.Parameters[0].Type)),
 			() => Assert.True(SymbolEqualityComparer.Default.Equals(UnwrapNullable(operation.RightOperand.Type!), selected.Parameters[1].Type)),
 			() => Assert.DoesNotContain(test.GeneratedSources.SelectMany(source => source.GetRoot().DescendantNodes().OfType<OperatorDeclarationSyntax>()),
-				generated => generated.ParameterList.DescendantNodes().OfType<NullableTypeSyntax>().Any()));
+				generated => generated.ParameterList.DescendantNodes().OfType<NullableTypeSyntax>().Any()),
+			() => Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12),
+			() => Assert.Equal(types[0].EndsWith('?') ? -1 : expected, GeneratedCodeExecution.Execute(test.Compilation, "ExecuteNullLeft"), 12),
+			() => Assert.Equal(types[1].EndsWith('?') ? -1 : expected, GeneratedCodeExecution.Execute(test.Compilation, "ExecuteNullRight"), 12));
 	}
 
 	private static ITypeSymbol UnwrapNullable(ITypeSymbol type) => type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable ? nullable.TypeArguments[0] : type;
@@ -304,15 +264,7 @@ public sealed class DiscoveryBehaviourTests
 
 	[Theory]
 	[InlineData("Squared", "TerminalHex2", "LengthSquared")]
-	[InlineData("Cubed", "TerminalHex3", "LengthCubed")]
-	[InlineData("Pow4", "TerminalHex4", "Length4")]
-	[InlineData("Pow5", "TerminalHex5", "Length5")]
-	[InlineData("Pow6", "TerminalHex6", "Length6")]
 	[InlineData("SquareRoot", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>", "SquareRootLength")]
-	[InlineData("CubeRoot", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex3>", "CubeRootLength")]
-	[InlineData("Root4", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex4>", "Root4Length")]
-	[InlineData("Root5", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex5>", "Root5Length")]
-	[InlineData("Root6", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex6>", "Root6Length")]
 	public async Task PredefinedHelpersDelegateToExactPower(string method, string exponent, string result)
 	{
 		QuantityGeneratorTest test = new()

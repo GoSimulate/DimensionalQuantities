@@ -8,11 +8,11 @@ namespace DimensionalQuantities.Roslyn.Tests.Generation;
 public sealed class ConditionalHelperDiscoveryTests
 {
 	[Theory]
-	[InlineData("value?.Squared()", "Squared", "TerminalHex2", "TerminalHex2")]
-	[InlineData("value?.SquareRoot()", "SquareRoot", "Fraction<TerminalHex1, TerminalHex2>", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
-	[InlineData("holder?.Value?.Squared()", "Squared", "TerminalHex2", "TerminalHex2")]
-	[InlineData("value?.Squared().Squared()", "Squared", "TerminalHex4", "TerminalHex2")]
-	public async Task ConditionalCallAloneRequestsDiscoveredHelper(string expression, string helper, string finalExponent, string delegatedExponent)
+	[InlineData("value?.Squared()", "Squared", "TerminalHex2", "TerminalHex2", 4, 144)]
+	[InlineData("value?.SquareRoot()", "SquareRoot", "Fraction<TerminalHex1, TerminalHex2>", "Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>", 48, 12)]
+	[InlineData("holder?.Value?.Squared()", "Squared", "TerminalHex2", "TerminalHex2", 2, 36)]
+	[InlineData("value?.Squared().Squared()", "Squared", "TerminalHex4", "TerminalHex2", 2, 1296)]
+	public async Task ConditionalCallAloneRequestsDiscoveredHelper(string expression, string helper, string finalExponent, string delegatedExponent, double lengthValue, double expected)
 	{
 		QuantityGeneratorTest test = new()
 		{
@@ -22,13 +22,23 @@ public sealed class ConditionalHelperDiscoveryTests
 					public LengthCurrent? Value { get; set; }
 				}
 
-				class Consumer
+				public class Consumer
 				{
-					void M(Length length, Current current, Holder holder)
+					double M(Length length, Current current, Holder holder, bool hasValue)
 					{
-						LengthCurrent? value = length * current;
+						LengthCurrent? value = hasValue ? length * current : null;
 						var result = {{expression}};
+						return result?.AsSiBaseUnit() ?? -1;
 					}
+					public static double Execute()
+					{
+						Length length = Length.FromSiBaseUnit({{lengthValue}});
+						Current current = Current.FromSiBaseUnit(3);
+						Holder holder = new() { Value = length * current };
+						return new Consumer().M(length, current, holder, true);
+					}
+
+					public static double ExecuteNull() => new Consumer().M(default, default, null, false);
 				}
 				"""
 		};
@@ -41,7 +51,7 @@ public sealed class ConditionalHelperDiscoveryTests
 		INamedTypeSymbol nullable = Assert.IsAssignableFrom<INamedTypeSymbol>(symbol.Type);
 		INamedTypeSymbol quantity = Assert.IsAssignableFrom<INamedTypeSymbol>(nullable.TypeArguments.Single());
 		INamedTypeSymbol dimension = Assert.IsAssignableFrom<INamedTypeSymbol>(quantity.TypeArguments.Single());
-		InvocationExpressionSyntax conditionalCall = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberBindingExpressionSyntax);
+		InvocationExpressionSyntax conditionalCall = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberBindingExpressionSyntax binding && binding.Name.Identifier.ValueText == helper);
 		IMethodSymbol selected = Assert.IsAssignableFrom<IMethodSymbol>(model.GetSymbolInfo(conditionalCall, TestContext.Current.CancellationToken).Symbol);
 		Assert.Multiple(
 			() => Assert.Equal(SpecialType.System_Nullable_T, nullable.OriginalDefinition.SpecialType),
@@ -50,6 +60,8 @@ public sealed class ConditionalHelperDiscoveryTests
 			() => Assert.Equal(helper, selected.Name),
 			() => Assert.True(SymbolEqualityComparer.Default.Equals(test.Compilation.Assembly, selected.ContainingAssembly)),
 			() => Assert.All(selected.DeclaringSyntaxReferences, reference => Assert.Contains(reference.SyntaxTree, test.GeneratedSources)),
-			() => Assert.Contains($"{helper}() => global::DimensionalQuantities.TypeSystem.Power<global::DimensionalQuantities.TypeSystem.{delegatedExponent}>.Of(value);", string.Join("\n", test.GeneratedSources)));
+			() => Assert.Contains($"{helper}() => global::DimensionalQuantities.TypeSystem.Power<global::DimensionalQuantities.TypeSystem.{delegatedExponent}>.Of(value);", string.Join("\n", test.GeneratedSources)),
+			() => Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12),
+			() => Assert.Equal(-1, GeneratedCodeExecution.Execute(test.Compilation, "ExecuteNull")));
 	}
 }

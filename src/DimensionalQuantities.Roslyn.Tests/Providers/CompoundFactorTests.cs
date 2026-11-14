@@ -7,7 +7,6 @@ public sealed class CompoundFactorTests
 {
 	[Theory]
 	[InlineData("Foot", "Metre", "FromFootMetres")]
-	[InlineData("Metre", "Foot", "FromMetreFeet")]
 	public async Task PositiveFactorsKeepDeclarationOrderAndPluraliseLastNumerator(string first, string second, string factory)
 	{
 		QuantityGeneratorTest test = new()

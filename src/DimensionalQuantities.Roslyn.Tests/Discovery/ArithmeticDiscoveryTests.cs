@@ -1,0 +1,219 @@
+using System.Collections.Immutable;
+using DimensionalQuantities.Dimensions;
+using DimensionalQuantities.Roslyn.Discovery;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Xunit;
+
+namespace DimensionalQuantities.Roslyn.Tests.Discovery;
+
+public sealed class ArithmeticDiscoveryTests
+{
+	[Theory]
+	[InlineData("length * time", true)]
+	[InlineData("length / time", false)]
+	public void ReadsBoundQuantityOperands(string expression, bool multiply)
+	{
+		ArithmeticOperation operation = Assert.Single(Discover(expression));
+		Dimension left = new(Length: 1);
+		Dimension right = new(Time: 1);
+		Assert.Equal(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
+			left, right, multiply ? left * right : left / right), operation);
+	}
+
+	[Theory]
+	[InlineData("length * time", true)]
+	[InlineData("length / time", false)]
+	public void ReadsNullableQuantityOperands(string expression, bool multiply)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value(Length? length, Time? time) => {{expression}};
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Dimension left = new(Length: 1);
+		Dimension right = new(Time: 1);
+		Assert.Equal(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
+			left, right, multiply ? left * right : left / right), operation);
+	}
+
+	[Fact]
+	public void NullableQuantityDivisorRequestsTheInverseDimension()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Length? length) => 2d / length;
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)), operation);
+	}
+
+	[Theory]
+	[InlineData("double?", "Time")]
+	[InlineData("double?", "Time?")]
+	[InlineData("float?", "Time")]
+	[InlineData("float?", "Time?")]
+	[InlineData("int?", "Time")]
+	[InlineData("int?", "Time?")]
+	public void NullableNumericScalarDivisionRequestsTheInverseDimension(string scalarType, string quantityType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{scalarType}} scalar, {{quantityType}} time) => scalar / time;
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Time: 1), new(Time: -1)), operation);
+	}
+
+	[Theory]
+	[InlineData("length * missing")]
+	[InlineData("length * 1m")]
+	[InlineData("""
+		length * "text"
+		""")]
+	[InlineData("length + time")]
+	[InlineData("length * scalar")]
+	public void RejectsUnsupportedOperands(string expression)
+	{
+		Assert.Empty(Discover(expression));
+	}
+
+	[Fact]
+	public void ExistingBoundOperatorControlsTheResult()
+	{
+		const string source = """
+			public static class Custom
+			{
+				extension(Length)
+				{
+					public static double operator *(Length length, Time time) => 7;
+				}
+			}
+			public static class Consumer
+			{
+				public static object Value(Length length, Time time) => length * time;
+			}
+			""";
+		Assert.Empty(DiscoverFromSource(source));
+	}
+
+	[Fact]
+	public void ScalarDivisionRequestsTheInverseDimension()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Length length) => 2d / length;
+			}
+			""";
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)), operation);
+	}
+
+	[Fact]
+	public void DecimalDoesNotBecomeAnImplicitDoubleScalar()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(Length length) => 2m / length;
+			}
+			""";
+		Assert.Empty(DiscoverFromSource(source));
+	}
+
+	[Fact]
+	public void NullableDecimalDoesNotBecomeAnImplicitDoubleScalar()
+	{
+		const string source = """
+			public static class Consumer
+			{
+				public static object Value(decimal? scalar, Time? time) => scalar / time;
+			}
+			""";
+		Assert.Empty(DiscoverFromSource(source));
+	}
+
+	[Theory]
+	[InlineData("Length")]
+	[InlineData("Length?")]
+	public void EqualDimensionDivisionDoesNotRequestAnOperation(string quantityType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{quantityType}} left, {{quantityType}} right) => left / right;
+			}
+			""";
+
+		Assert.Empty(DiscoverFromSource(source));
+	}
+
+	[Theory]
+	[InlineData("byte")]
+	[InlineData("sbyte")]
+	[InlineData("short")]
+	[InlineData("ushort")]
+	[InlineData("int")]
+	[InlineData("uint")]
+	[InlineData("long")]
+	[InlineData("ulong")]
+	[InlineData("char")]
+	[InlineData("float")]
+	[InlineData("double")]
+	public void NumericScalarDivisionRequestsTheInverseDimension(string scalarType)
+	{
+		string source = $$"""
+			public static class Consumer
+			{
+				public static object Value({{scalarType}} scalar, Time time) => scalar / time;
+			}
+			""";
+
+		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+
+		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Time: 1), new(Time: -1)), operation);
+	}
+
+	private static ImmutableArray<ArithmeticOperation> Discover(string expression)
+	{
+		string source = $$"""
+			using DimensionalQuantities.TypeSystem;
+			public static class Consumer
+			{
+				public static object Value(Length length, Time time,
+				Quantity<Dimension<TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0, TerminalHex0>> scalar)
+				=> {{expression}};
+			}
+			""";
+		return DiscoverFromSource(source);
+	}
+
+	private static ImmutableArray<ArithmeticOperation> DiscoverFromSource(string source)
+	{
+		CSharpCompilation compilation = ReaderCompilation.Create($$"""
+			{{ReaderCompilation.QuantityAliases}}
+			{{source}}
+			""", allowErrors: true);
+		SyntaxTree tree = compilation.SyntaxTrees.Single();
+		SemanticModel model = compilation.GetSemanticModel(tree);
+		QuantityTypeReader reader = new(compilation);
+		ImmutableArray<ArithmeticOperation>.Builder operations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
+		foreach (BinaryExpressionSyntax binary in tree.GetRoot().DescendantNodes().OfType<BinaryExpressionSyntax>())
+		{
+			if (ArithmeticDiscovery.TryRead(binary, model, reader, out ArithmeticOperation operation, TestContext.Current.CancellationToken))
+			{
+				operations.Add(operation);
+			}
+		}
+
+		return operations.ToImmutable();
+	}
+}

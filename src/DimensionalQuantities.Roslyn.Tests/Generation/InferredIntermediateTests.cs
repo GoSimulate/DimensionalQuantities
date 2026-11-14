@@ -17,35 +17,42 @@ public sealed class InferredIntermediateTests
 		"""
 			var value = length * current;
 			var result = value * time;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
 			var make = () => length * current;
 			var result = make() * time;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
 			var pair = (length * current, time);
 			var result = pair.Item1 * pair.Item2;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
 			var (value, duration) = (length * current, time);
 			var result = value * duration;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
 			var result = Identity(length * current) * time;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
 			var values = new[] { length }.Select(item => item * current);
 			var result = values.First() * time;
+			Capture(result.AsSiBaseUnit());
 			""", "item * current")]
 	[InlineData(
 		"""
 			var values = new[] { length * current };
 			var result = values[0] * time;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
@@ -53,12 +60,14 @@ public sealed class InferredIntermediateTests
 			foreach (var value in values)
 			{
 				var result = value * time;
+				Capture(result.AsSiBaseUnit());
 			}
 			""", "length * current")]
 	[InlineData(
 		"""
 			var value = choose ? length * current : current * length;
 			var result = value * time;
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	[InlineData(
 		"""
@@ -68,6 +77,30 @@ public sealed class InferredIntermediateTests
 				false => current * length
 			};
 			var result = value * time;
+			Capture(result.AsSiBaseUnit());
+			""", "length * current")]
+	[InlineData(
+		"""
+			LengthCurrent? value = null;
+			var fallback = length * current;
+			var result = (value ?? fallback) * time;
+			Capture(result.AsSiBaseUnit());
+			""", "length * current")]
+	[InlineData(
+		"""
+			object value = length * current;
+			var result = ((LengthCurrent)value) * time;
+			Capture(result.AsSiBaseUnit());
+			""", "length * current")]
+	[InlineData(
+		"""
+			var values = new[] { length * current };
+			LengthTimeCurrent result = default;
+			foreach (var value in values)
+			{
+				result += value * time;
+			}
+			Capture(result.AsSiBaseUnit());
 			""", "length * current")]
 	public async Task GeneratedIntermediateFlowsThroughInferredBinding(string statements, string productExpression)
 	{
@@ -75,12 +108,20 @@ public sealed class InferredIntermediateTests
 		{
 			TestCode = $$"""
 				using System.Linq;
-				class Consumer
+				public static class Consumer
 				{
+					private static double captured;
+					private static void Capture(double value) => captured = value;
 					private static T Identity<T>(T value) => value;
-					void Calculate(Length length, Current current, Time time, bool choose)
+					public static double Execute()
 					{
-					{{statements}}
+						Calculate(Length.FromSiBaseUnit(2), Current.FromSiBaseUnit(3), Time.FromSiBaseUnit(4), true);
+						return captured;
+					}
+
+					private static void Calculate(Length length, Current current, Time time, bool choose)
+					{
+						{{statements}}
 					}
 				}
 				"""
@@ -103,6 +144,7 @@ public sealed class InferredIntermediateTests
 					() => Assert.True(SymbolEqualityComparer.Default.Equals(operation.Type, selected.ReturnType)),
 					() => Assert.True(SymbolEqualityComparer.Default.Equals(operation.LeftOperand.Type, selected.Parameters[0].Type)),
 					() => Assert.True(SymbolEqualityComparer.Default.Equals(operation.RightOperand.Type, selected.Parameters[1].Type)));
-			}));
+			}),
+			() => Assert.Equal(24, GeneratedCodeExecution.Execute(test.Compilation), 12));
 	}
 }

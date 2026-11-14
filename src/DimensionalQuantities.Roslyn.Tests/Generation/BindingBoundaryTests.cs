@@ -10,191 +10,244 @@ public sealed class BindingBoundaryTests
 {
 	[Theory]
 	[InlineData("""
-		void M(LengthCurrent input)
+		double M(LengthCurrent input)
 		{
 			LengthCurrent explicitLocal = input;
-			var result = explicitLocal * Time.FromSiBaseUnit(1);
+			var result = explicitLocal * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
-		void M(LengthCurrent input)
+		double M(LengthCurrent input)
 		{
 			var inferred = input;
-			var result = inferred * Time.FromSiBaseUnit(1);
+			var result = inferred * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
-		void M(LengthCurrent a, LengthCurrent b, bool choose)
+		double M(LengthCurrent a, LengthCurrent b, bool choose)
 		{
 			var value = choose ? a : b;
-			var result = value * Time.FromSiBaseUnit(1);
+			var result = value * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6), LengthCurrent.FromSiBaseUnit(9), true)", 24)]
 	[InlineData("""
-		void M(LengthCurrent a, LengthCurrent b, int choose)
+		double M(LengthCurrent a, LengthCurrent b, int choose)
 		{
 			var value = choose switch
 			{
 				0 => a,
 				_ => b
 			};
-			var result = value * Time.FromSiBaseUnit(1);
+			var result = value * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6), LengthCurrent.FromSiBaseUnit(9), 0)", 24)]
 	[InlineData("""
-		LengthCurrent field;
-		void M()
+		LengthCurrent field = LengthCurrent.FromSiBaseUnit(6);
+		double M()
 		{
-			var result = field * Time.FromSiBaseUnit(1);
+			var result = field * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M()", 24)]
 	[InlineData("""
 		LengthCurrent Property
 		{
 			get;
 			set;
-		}
-		void M()
+		} = LengthCurrent.FromSiBaseUnit(6);
+		double M()
 		{
-			var result = Property * Time.FromSiBaseUnit(1);
+			var result = Property * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M()", 24)]
 	[InlineData("""
-		LengthCurrent Get() => default;
-		void M()
+		LengthCurrent Get() => LengthCurrent.FromSiBaseUnit(6);
+		double M()
 		{
-			var result = Get() * Time.FromSiBaseUnit(1);
+			var result = Get() * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M()", 24)]
 	[InlineData("""
-		void M(LengthCurrent parameter)
+		double M(LengthCurrent parameter)
 		{
-			var result = parameter * Time.FromSiBaseUnit(1);
+			var result = parameter * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
-		void M(LengthCurrent[] values)
+		double M(LengthCurrent[] values)
 		{
-			var result = values[0] * Time.FromSiBaseUnit(1);
+			var result = values[0] * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(new[] { LengthCurrent.FromSiBaseUnit(6) })", 24)]
 	[InlineData("""
-		void M(System.Collections.Generic.List<LengthCurrent> values)
+		double M(System.Collections.Generic.List<LengthCurrent> values)
 		{
-			var result = values[0] * Time.FromSiBaseUnit(1);
+			var result = values[0] * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(new System.Collections.Generic.List<LengthCurrent> { LengthCurrent.FromSiBaseUnit(6) })", 24)]
 	[InlineData("""
-		void M(System.Span<LengthCurrent> values)
+		double M(System.Span<LengthCurrent> values)
 		{
-			var result = values[0] * Time.FromSiBaseUnit(1);
+			var result = values[0] * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(new System.Span<LengthCurrent>(new[] { LengthCurrent.FromSiBaseUnit(6) }))", 24)]
 	[InlineData("""
-		LengthCurrent this[int index] => default;
-		void M()
+		LengthCurrent this[int index] => LengthCurrent.FromSiBaseUnit(6);
+		double M()
 		{
-			var result = this[0] * Time.FromSiBaseUnit(1);
+			var result = this[0] * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M()", 24)]
 	[InlineData("""
 		T Identity<T>(T value) => value;
-		void M(LengthCurrent input)
+		double M(LengthCurrent input)
 		{
-			var result = Identity(input) * Time.FromSiBaseUnit(1);
+			var result = Identity(input) * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
 		interface IValue<T>
 		{
 			T Get();
 		}
-		void M(IValue<LengthCurrent> value)
+		double M(IValue<LengthCurrent> value)
 		{
-			var result = value.Get() * Time.FromSiBaseUnit(1);
+			var result = value.Get() * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		sealed class Provider : IValue<LengthCurrent>
+		{
+			public LengthCurrent Get() => LengthCurrent.FromSiBaseUnit(6);
+		}
+		""", "new Consumer().M(new Provider())", 24)]
 	[InlineData("""
 		interface IValue
 		{
 			LengthCurrent Get();
 		}
-		void M<T>(T value) where T : IValue
+		double M<T>(T value) where T : IValue
 		{
-			var result = value.Get() * Time.FromSiBaseUnit(1);
+			var result = value.Get() * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		sealed class Provider : IValue
+		{
+			public LengthCurrent Get() => LengthCurrent.FromSiBaseUnit(6);
+		}
+		""", "new Consumer().M(new Provider())", 24)]
 	[InlineData("""
-		void Get(out LengthCurrent value)
+		bool TryGet(out LengthCurrent value)
 		{
-			value = default;
+			value = Length.FromSiBaseUnit(2) * Current.FromSiBaseUnit(3);
+			return true;
 		}
-		void M()
+		double M()
 		{
-			Get(out var value);
-			var result = value * Time.FromSiBaseUnit(1);
+			if (TryGet(out var value))
+			{
+				var result = value * Time.FromSiBaseUnit(4);
+				return result.AsSiBaseUnit();
+			}
+			throw new System.InvalidOperationException();
 		}
-		""")]
+		""", "new Consumer().M()", 24)]
 	[InlineData("""
 		ref LengthCurrent Get(ref LengthCurrent value) => ref value;
-		void M(LengthCurrent value)
+		double M(LengthCurrent value)
 		{
-			var result = Get(ref value) * Time.FromSiBaseUnit(1);
+			var result = Get(ref value) * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
-		void M(object input)
+		double M(object input)
 		{
 			if (input is LengthCurrent value)
 			{
-				var result = value * Time.FromSiBaseUnit(1);
+				var result = value * Time.FromSiBaseUnit(4);
+				return result.AsSiBaseUnit();
 			}
+			throw new System.InvalidOperationException();
 		}
-		""")]
+		""", "new Consumer().M((object)LengthCurrent.FromSiBaseUnit(6))", 24)]
 	[InlineData("""
-		void M((LengthCurrent, int) input)
+		double M((LengthCurrent, int) input)
 		{
 			var (value, other) = input;
-			var result = value * Time.FromSiBaseUnit(1);
+			var result = value * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M((LengthCurrent.FromSiBaseUnit(6), 0))", 24)]
 	[InlineData("""
-		async System.Threading.Tasks.Task M(System.Threading.Tasks.Task<LengthCurrent> task)
+		static async System.Threading.Tasks.Task<LengthCurrent> Make()
+		{
+			await System.Threading.Tasks.Task.Yield();
+			return Length.FromSiBaseUnit(2) * Current.FromSiBaseUnit(3);
+		}
+		async System.Threading.Tasks.Task<double> M(System.Threading.Tasks.Task<LengthCurrent> task)
 		{
 			var value = await task;
-			var result = value * Time.FromSiBaseUnit(1);
+			var result = value * Time.FromSiBaseUnit(4);
+			return result.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M(Make()).GetAwaiter().GetResult()", 24)]
 	[InlineData("""
 		System.Collections.Generic.IEnumerable<LengthCurrent> Values()
 		{
-			yield return default;
+			yield return LengthCurrent.FromSiBaseUnit(6);
+			yield return LengthCurrent.FromSiBaseUnit(9);
 		}
-		void M()
+		double M()
 		{
+			LengthTimeCurrent total = default;
 			foreach (var value in Values())
 			{
-				var result = value * Time.FromSiBaseUnit(1);
+				var result = value * Time.FromSiBaseUnit(4);
+				total += result;
 			}
+			return total.AsSiBaseUnit();
 		}
-		""")]
+		""", "new Consumer().M()", 60)]
 	[InlineData("""
-		async System.Threading.Tasks.Task M(System.Collections.Generic.IAsyncEnumerable<LengthCurrent> values)
+		async System.Threading.Tasks.Task<double> M(System.Collections.Generic.IAsyncEnumerable<LengthCurrent> values)
 		{
+			LengthTimeCurrent total = default;
 			await foreach (var value in values)
 			{
-				var result = value * Time.FromSiBaseUnit(1);
+				var result = value * Time.FromSiBaseUnit(4);
+				total += result;
 			}
+			return total.AsSiBaseUnit();
 		}
-		""")]
-	public async Task QuantitiesFlowThroughCSharpBindingBoundaries(string members)
+		static async System.Collections.Generic.IAsyncEnumerable<LengthCurrent> Values()
+		{
+			await System.Threading.Tasks.Task.Yield();
+			yield return LengthCurrent.FromSiBaseUnit(6);
+			yield return LengthCurrent.FromSiBaseUnit(9);
+		}
+		""", "new Consumer().M(Values()).GetAwaiter().GetResult()", 60)]
+	public async Task QuantitiesFlowThroughCSharpBindingBoundaries(string members, string execute, double expected)
 	{
 		QuantityGeneratorTest test = new()
 		{
 			TestCode = $$"""
-				class Consumer
+				public class Consumer
 				{
 					{{members}}
+
+					public static double Execute() => {{execute}};
 				}
 				"""
 		};
@@ -202,7 +255,9 @@ public sealed class BindingBoundaryTests
 		SyntaxTree tree = test.Compilation.SyntaxTrees.First();
 		VariableDeclaratorSyntax result = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<VariableDeclaratorSyntax>().Single(variable => variable.Identifier.ValueText == "result");
 		ILocalSymbol symbol = Assert.IsAssignableFrom<ILocalSymbol>(test.Compilation.GetSemanticModel(tree).GetDeclaredSymbol(result, TestContext.Current.CancellationToken));
-		Assert.Equal("DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0>>", symbol.Type.ToDisplayString());
+		Assert.Multiple(
+			() => Assert.Equal("DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0>>", symbol.Type.ToDisplayString()),
+			() => Assert.Equal(expected, GeneratedCodeExecution.Execute(test.Compilation), 12));
 	}
 
 	[Fact]

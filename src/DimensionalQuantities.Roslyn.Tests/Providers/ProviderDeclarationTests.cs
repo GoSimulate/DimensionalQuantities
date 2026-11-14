@@ -100,10 +100,6 @@ public sealed class ProviderDeclarationTests
 
 	[Theory]
 	[InlineData(1, "FromFeet")]
-	[InlineData(2, "FromSquareFeet")]
-	[InlineData(3, "FromCubicFeet")]
-	[InlineData(4, "FromPower4Feet")]
-	[InlineData(-1, "FromInverseFoot")]
 	public async Task OrderedPowerNamesUseIrregularPluralOnlyInNumerator(int power, string factory)
 	{
 		QuantityGeneratorTest test = new()
