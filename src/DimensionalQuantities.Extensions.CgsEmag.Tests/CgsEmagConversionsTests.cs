@@ -1,83 +1,92 @@
-using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Extensions.CgsEmag;
-using Xunit;
 
 namespace DimensionalQuantities.Extensions.CgsEmag.Tests;
 
 public sealed class CgsEmagConversionsTests
 {
-	[Fact]
-	public void MechanicalUnitsConvertToCoherentSi()
+	[Test]
+	public async Task MechanicalUnitsConvertToCoherentSi()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(1e-5, Force.FromDynes(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-7, Energy.FromErgs(1).AsSiBaseUnit()),
-			() => Assert.Equal(0.1, Pressure.FromBaryes(1).AsSiBaseUnit()),
-			() => Assert.Equal(0.01, Acceleration.FromGals(1).AsSiBaseUnit()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Force.FromDynes(1).AsSiBaseUnit()).IsEqualTo(1e-5);
+			await Assert.That(Energy.FromErgs(1).AsSiBaseUnit()).IsEqualTo(1e-7);
+			await Assert.That(Pressure.FromBaryes(1).AsSiBaseUnit()).IsEqualTo(0.1);
+			await Assert.That(Acceleration.FromGals(1).AsSiBaseUnit()).IsEqualTo(0.01);
+		}
 	}
 
-	[Fact]
-	public void ElectromagneticUnitsConvertToCoherentSi()
+	[Test]
+	public async Task ElectromagneticUnitsConvertToCoherentSi()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(10, Current.FromAbamperes(1).AsSiBaseUnit()),
-			() => Assert.Equal(10, Current.FromBiots(1).AsSiBaseUnit()),
-			() => Assert.Equal(10, ElectricCharge.FromAbcoulombs(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-8, Voltage.FromAbvolts(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-9, Resistance.FromAbohms(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-9, Inductance.FromAbhenries(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e9, Capacitance.FromAbfarads(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-8, MagneticFlux.FromMaxwells(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-4, MagneticFluxDensity.FromGauss(1).AsSiBaseUnit()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Current.FromAbamperes(1).AsSiBaseUnit()).IsEqualTo(10);
+			await Assert.That(Current.FromBiots(1).AsSiBaseUnit()).IsEqualTo(10);
+			await Assert.That(ElectricCharge.FromAbcoulombs(1).AsSiBaseUnit()).IsEqualTo(10);
+			await Assert.That(Voltage.FromAbvolts(1).AsSiBaseUnit()).IsEqualTo(1e-8);
+			await Assert.That(Resistance.FromAbohms(1).AsSiBaseUnit()).IsEqualTo(1e-9);
+			await Assert.That(Inductance.FromAbhenries(1).AsSiBaseUnit()).IsEqualTo(1e-9);
+			await Assert.That(Capacitance.FromAbfarads(1).AsSiBaseUnit()).IsEqualTo(1e9);
+			await Assert.That(MagneticFlux.FromMaxwells(1).AsSiBaseUnit()).IsEqualTo(1e-8);
+			await Assert.That(MagneticFluxDensity.FromGauss(1).AsSiBaseUnit()).IsEqualTo(1e-4);
+		}
 
 		double oersted = MagneticFieldStrength.FromOersteds(1).AsSiBaseUnit();
-		Assert.InRange(oersted, 1000 / (4 * Math.PI) - 1e-12, 1000 / (4 * Math.PI) + 1e-12);
+		await Assert.That(oersted >= 1000 / (4 * Math.PI) - 1e-12 && oersted <= 1000 / (4 * Math.PI) + 1e-12).IsTrue();
 	}
 
-	[Fact]
-	public void AccessorsReturnOriginalCgsMagnitude()
+	[Test]
+	public async Task AccessorsReturnOriginalCgsMagnitude()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(1, Force.FromSiBaseUnit(1e-5).AsDynes()),
-			() => Assert.Equal(1, Energy.FromSiBaseUnit(1e-7).AsErgs()),
-			() => Assert.Equal(1, Pressure.FromSiBaseUnit(0.1).AsBaryes()),
-			() => Assert.Equal(1, Acceleration.FromSiBaseUnit(0.01).AsGals()),
-			() => Assert.Equal(1, Current.FromSiBaseUnit(10).AsAbamperes()),
-			() => Assert.Equal(1, Current.FromSiBaseUnit(10).AsBiots()),
-			() => Assert.Equal(1, ElectricCharge.FromSiBaseUnit(10).AsAbcoulombs()),
-			() => Assert.Equal(1, Voltage.FromSiBaseUnit(1e-8).AsAbvolts()),
-			() => Assert.Equal(1, Resistance.FromSiBaseUnit(1e-9).AsAbohms()),
-			() => Assert.Equal(1, Inductance.FromSiBaseUnit(1e-9).AsAbhenries()),
-			() => Assert.Equal(1, Capacitance.FromSiBaseUnit(1e9).AsAbfarads()),
-			() => Assert.Equal(1, MagneticFlux.FromSiBaseUnit(1e-8).AsMaxwells()),
-			() => Assert.Equal(1, MagneticFluxDensity.FromSiBaseUnit(1e-4).AsGauss()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Force.FromSiBaseUnit(1e-5).AsDynes()).IsEqualTo(1);
+			await Assert.That(Energy.FromSiBaseUnit(1e-7).AsErgs()).IsEqualTo(1);
+			await Assert.That(Pressure.FromSiBaseUnit(0.1).AsBaryes()).IsEqualTo(1);
+			await Assert.That(Acceleration.FromSiBaseUnit(0.01).AsGals()).IsEqualTo(1);
+			await Assert.That(Current.FromSiBaseUnit(10).AsAbamperes()).IsEqualTo(1);
+			await Assert.That(Current.FromSiBaseUnit(10).AsBiots()).IsEqualTo(1);
+			await Assert.That(ElectricCharge.FromSiBaseUnit(10).AsAbcoulombs()).IsEqualTo(1);
+			await Assert.That(Voltage.FromSiBaseUnit(1e-8).AsAbvolts()).IsEqualTo(1);
+			await Assert.That(Resistance.FromSiBaseUnit(1e-9).AsAbohms()).IsEqualTo(1);
+			await Assert.That(Inductance.FromSiBaseUnit(1e-9).AsAbhenries()).IsEqualTo(1);
+			await Assert.That(Capacitance.FromSiBaseUnit(1e9).AsAbfarads()).IsEqualTo(1);
+			await Assert.That(MagneticFlux.FromSiBaseUnit(1e-8).AsMaxwells()).IsEqualTo(1);
+			await Assert.That(MagneticFluxDensity.FromSiBaseUnit(1e-4).AsGauss()).IsEqualTo(1);
+		}
 
 		double oersted = MagneticFieldStrength.FromSiBaseUnit(1000 / (4 * Math.PI)).AsOersteds();
-		Assert.InRange(oersted, 1 - 1e-14, 1 + 1e-14);
+		await Assert.That(oersted >= 1 - 1e-14 && oersted <= 1 + 1e-14).IsTrue();
 	}
 
-	[Fact]
-	public void SharedDimensionAliasesUseTheConversions()
+	[Test]
+	public async Task SharedDimensionAliasesUseTheConversions()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(1e-7, Torque.FromErgs(1).AsSiBaseUnit()),
-			() => Assert.Equal(0.1, Stress.FromBaryes(1).AsSiBaseUnit()),
-			() => Assert.Equal(0.1, YoungsModulus.FromBaryes(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-8, FluxLinkage.FromMaxwells(1).AsSiBaseUnit()),
-			() => Assert.Equal(1e-4, RemanentFluxDensity.FromGauss(1).AsSiBaseUnit()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Torque.FromErgs(1).AsSiBaseUnit()).IsEqualTo(1e-7);
+			await Assert.That(Stress.FromBaryes(1).AsSiBaseUnit()).IsEqualTo(0.1);
+			await Assert.That(YoungsModulus.FromBaryes(1).AsSiBaseUnit()).IsEqualTo(0.1);
+			await Assert.That(FluxLinkage.FromMaxwells(1).AsSiBaseUnit()).IsEqualTo(1e-8);
+			await Assert.That(RemanentFluxDensity.FromGauss(1).AsSiBaseUnit()).IsEqualTo(1e-4);
+		}
 	}
 
-	[Fact]
-	public void ProviderDoesNotGeneratePrefixConversions()
+	[Test]
+	public async Task ProviderDoesNotGeneratePrefixConversions()
 	{
 		string[] names = Assembly.Load("DimensionalQuantities.Extensions.CgsEmag").GetExportedTypes()
 			.Where(type => type.Namespace == "DimensionalQuantities.Extensions.CgsEmag")
 			.SelectMany(type => type.GetMethods()).Select(method => method.Name).ToArray();
 
-		Assert.Multiple(
-			() => Assert.DoesNotContain("FromPrefixedUnits", names),
-			() => Assert.DoesNotContain("AsPrefixedUnits", names),
-			() => Assert.DoesNotContain("FromKiloGauss", names),
-			() => Assert.DoesNotContain("AsKiloGauss", names));
+		using (Assert.Multiple())
+		{
+			await Assert.That(names.Contains("FromPrefixedUnits")).IsFalse();
+			await Assert.That(names.Contains("AsPrefixedUnits")).IsFalse();
+			await Assert.That(names.Contains("FromKiloGauss")).IsFalse();
+			await Assert.That(names.Contains("AsKiloGauss")).IsFalse();
+		}
 	}
 }

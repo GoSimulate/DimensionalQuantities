@@ -1,4 +1,5 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
@@ -6,16 +7,16 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(ArithmeticSourceEmitterTests))]
 public sealed class ArithmeticSourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Fact]
-	public void ExplicitPlanEmitsUsableArithmetic()
+	[Test]
+	public async Task ExplicitPlanEmitsUsableArithmetic()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension currentSquared = new(ElectricCurrent: 2);
@@ -40,22 +41,24 @@ public sealed class ArithmeticSourceEmitterTests
 				public static double Divided() => (Voltage.FromSiBaseUnit(12) / Current.FromAmps(3)).AsSiBaseUnit();
 			}
 			""";
-		Assembly assembly = CompileAndEmit(source, plan);
+		Assembly assembly = await CompileAndEmit(source, plan);
 		Type consumer = assembly.GetType("Consumer")!;
 		double left = (double)consumer.GetMethod("Left")!.Invoke(null, null)!;
 		double right = (double)consumer.GetMethod("Right")!.Invoke(null, null)!;
 		double divided = (double)consumer.GetMethod("Divided")!.Invoke(null, null)!;
 
-		Assert.Multiple(
-			() => Assert.Equal(24, left),
-			() => Assert.Equal(24, right),
-			() => Assert.Equal(4, divided));
+		using (Assert.Multiple())
+		{
+			await Assert.That(left).IsEqualTo(24);
+			await Assert.That(right).IsEqualTo(24);
+			await Assert.That(divided).IsEqualTo(4);
+		}
 	}
 
-	[Theory]
-	[InlineData("Current.FromAmps(3) * InverseCurrent.FromSiBaseUnit(2)", false)]
-	[InlineData("InverseCurrent.FromSiBaseUnit(2) * Current.FromAmps(3)", true)]
-	public void CancellingProductEmitsAnOperatorReturningDouble(string expression, bool inverseFirst)
+	[Test]
+	[Arguments("Current.FromAmps(3) * InverseCurrent.FromSiBaseUnit(2)", false)]
+	[Arguments("InverseCurrent.FromSiBaseUnit(2) * Current.FromAmps(3)", true)]
+	public async Task CancellingProductEmitsAnOperatorReturningDouble(string expression, bool inverseFirst)
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension inverse = new(ElectricCurrent: -1);
@@ -69,14 +72,14 @@ public sealed class ArithmeticSourceEmitterTests
 				public static double Value() => {{expression}};
 			}
 			""";
-		Assembly assembly = CompileAndEmit(source, plan);
+		Assembly assembly = await CompileAndEmit(source, plan);
 		double result = (double)assembly.GetType("Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
 		double expected = 6;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	private static Assembly CompileAndEmit(string source, QuantityGenerationPlan plan)
+	private static async Task<Assembly> CompileAndEmit(string source, QuantityGenerationPlan plan)
 	{
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
@@ -90,13 +93,13 @@ public sealed class ArithmeticSourceEmitterTests
 		SyntaxTree additionalQuantities = CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), _parseOptions, path: "AdditionalQuantities.g.cs");
 		SyntaxTree arithmetic = CSharpSyntaxTree.ParseText(ArithmeticSourceEmitter.Emit(plan), _parseOptions, path: "Arithmetic.g.cs");
 		CSharpCompilation compilation = input.AddSyntaxTrees(knownQuantities, additionalQuantities, arithmetic);
-		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-		Assert.Empty(errors);
+		await Assert.That(errors).IsEmpty();
 
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(emit.Success).IsTrue().Because(string.Join(Environment.NewLine, emit.Diagnostics));
 		return Assembly.Load(assemblyBytes.ToArray());
 	}
 }

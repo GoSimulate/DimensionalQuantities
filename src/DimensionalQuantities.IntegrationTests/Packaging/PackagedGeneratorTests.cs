@@ -1,11 +1,11 @@
 using System.Reflection;
 using Microsoft.Build.Utilities.ProjectCreation;
-using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
-[Collection("MSBuild")]
-public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixture>, IDisposable
+[NotInParallel]
+[ClassDataSource<PackageDeliveryFixture>(Shared = SharedType.PerClass)]
+public sealed class PackagedGeneratorTests : IDisposable
 {
 	private readonly PackageDeliveryFixture _fixture;
 	private readonly PackageConsumerWorkspace _workspace;
@@ -16,8 +16,8 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		_workspace = fixture.CreateWorkspace();
 	}
 
-	[Fact]
-	public void CorePackageProvidesBaseUnitsCatalogueAliasesAndArithmetic()
+	[Test]
+	public async Task CorePackageProvidesBaseUnitsCatalogueAliasesAndArithmetic()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		Package core = PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -35,15 +35,17 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using PackageAssemblyContext context = new(_workspace.OutputDirectory("CoreConsumer"));
 		Type type = context.LoadFromAssemblyPath(Path.Combine(_workspace.OutputDirectory("CoreConsumer"), "CoreConsumer.dll"))
 			.GetType("Consumer", throwOnError: true)!;
-		Assert.Multiple(
-			() => Assert.Equal(2.5, InvokeDouble(type, "ConvertLength")),
-			() => Assert.Equal(3, InvokeDouble(type, "ConvertCurrent")),
-			() => Assert.Equal(6, InvokeDouble(type, "CalculateArea")),
-			() => Assert.Equal(6, InvokeDouble(type, "NamedArea")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(InvokeDouble(type, "ConvertLength")).IsEqualTo(2.5);
+			await Assert.That(InvokeDouble(type, "ConvertCurrent")).IsEqualTo(3);
+			await Assert.That(InvokeDouble(type, "CalculateArea")).IsEqualTo(6);
+			await Assert.That(InvokeDouble(type, "NamedArea")).IsEqualTo(6);
+		}
 	}
 
-	[Fact]
-	public void MetricPackageProvidesNamedConversionsAndArithmeticThroughCoreDependency()
+	[Test]
+	public async Task MetricPackageProvidesNamedConversionsAndArithmeticThroughCoreDependency()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -66,13 +68,15 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using PackageAssemblyContext context = new(_workspace.OutputDirectory("MetricConsumer"));
 		Type type = context.LoadFromAssemblyPath(Path.Combine(_workspace.OutputDirectory("MetricConsumer"), "MetricConsumer.dll"))
 			.GetType("Consumer", throwOnError: true)!;
-		Assert.Multiple(
-			() => Assert.Equal(12.5, InvokeDouble(type, "ConvertVoltage", 12.5)),
-			() => Assert.Equal(25, InvokeDouble(type, "MultiplyVoltageCurrent", 12.5, 2.0)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(InvokeDouble(type, "ConvertVoltage", 12.5)).IsEqualTo(12.5);
+			await Assert.That(InvokeDouble(type, "MultiplyVoltageCurrent", 12.5, 2.0)).IsEqualTo(25);
+		}
 	}
 
-	[Fact]
-	public void ImperialPackageProvidesConversionsThroughCoreDependency()
+	[Test]
+	public async Task ImperialPackageProvidesConversionsThroughCoreDependency()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -91,13 +95,15 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using PackageAssemblyContext context = new(_workspace.OutputDirectory("ImperialConsumer"));
 		Type type = context.LoadFromAssemblyPath(Path.Combine(_workspace.OutputDirectory("ImperialConsumer"), "ImperialConsumer.dll"))
 			.GetType("Consumer", throwOnError: true)!;
-		Assert.Multiple(
-			() => Assert.Equal(1.8288, InvokeDouble(type, "ConvertLength"), 12),
-			() => Assert.Equal(273.15, InvokeDouble(type, "ConvertTemperature"), 12));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(InvokeDouble(type, "ConvertLength"), 12)).IsEqualTo(Math.Round(1.8288, 12));
+			await Assert.That(Math.Round(InvokeDouble(type, "ConvertTemperature"), 12)).IsEqualTo(Math.Round(273.15, 12));
+		}
 	}
 
-	[Fact]
-	public void NauticalPackageProvidesConversionsThroughCoreDependency()
+	[Test]
+	public async Task NauticalPackageProvidesConversionsThroughCoreDependency()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -116,13 +122,15 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using PackageAssemblyContext context = new(_workspace.OutputDirectory("NauticalConsumer"));
 		Type type = context.LoadFromAssemblyPath(Path.Combine(_workspace.OutputDirectory("NauticalConsumer"), "NauticalConsumer.dll"))
 			.GetType("Consumer", throwOnError: true)!;
-		Assert.Multiple(
-			() => Assert.Equal(1852, InvokeDouble(type, "ConvertLength")),
-			() => Assert.Equal(1852d / 3600d, InvokeDouble(type, "ConvertSpeed")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(InvokeDouble(type, "ConvertLength")).IsEqualTo(1852);
+			await Assert.That(InvokeDouble(type, "ConvertSpeed")).IsEqualTo(1852d / 3600d);
+		}
 	}
 
-	[Fact]
-	public void CgsEmagPackageProvidesConversionsThroughCoreDependency()
+	[Test]
+	public async Task CgsEmagPackageProvidesConversionsThroughCoreDependency()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -142,14 +150,16 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using PackageAssemblyContext context = new(_workspace.OutputDirectory("CgsEmagConsumer"));
 		Type type = context.LoadFromAssemblyPath(Path.Combine(_workspace.OutputDirectory("CgsEmagConsumer"), "CgsEmagConsumer.dll"))
 			.GetType("Consumer", throwOnError: true)!;
-		Assert.Multiple(
-			() => Assert.Equal(1, InvokeDouble(type, "ConvertFluxDensity")),
-			() => Assert.Equal(10, InvokeDouble(type, "ConvertCurrent")),
-			() => Assert.Equal(10, InvokeDouble(type, "ConvertCharge")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(InvokeDouble(type, "ConvertFluxDensity")).IsEqualTo(1);
+			await Assert.That(InvokeDouble(type, "ConvertCurrent")).IsEqualTo(10);
+			await Assert.That(InvokeDouble(type, "ConvertCharge")).IsEqualTo(10);
+		}
 	}
 
-	[Fact]
-	public void MetricNamedConversionsRequireNamespaceImport()
+	[Test]
+	public async Task MetricNamedConversionsRequireNamespaceImport()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -164,11 +174,13 @@ public sealed class PackagedGeneratorTests : IClassFixture<PackageDeliveryFixtur
 		using (output)
 		{
 			string log = output.GetConsoleLog();
-			Assert.Multiple(
-				() => Assert.False(built, log),
-				() => Assert.Contains(output.ErrorEvents, error => error.Code == "CS0117" && error.Message!.Contains("FromVolts", StringComparison.Ordinal)),
-				() => Assert.DoesNotContain(output.ErrorEvents, error => error.Code is "CS8032" or "CS8785" or "AD0001"),
-				() => Assert.DoesNotContain(output.WarningEvents, warning => warning.Code is "CS8032" or "CS8785" or "AD0001"));
+			using (Assert.Multiple())
+			{
+				await Assert.That(built).IsFalse().Because(log);
+				await Assert.That(output.ErrorEvents.Any(error => error.Code == "CS0117" && error.Message!.Contains("FromVolts", StringComparison.Ordinal))).IsTrue();
+				await Assert.That(output.ErrorEvents.Any(error => error.Code is "CS8032" or "CS8785" or "AD0001")).IsFalse();
+				await Assert.That(output.WarningEvents.Any(warning => warning.Code is "CS8032" or "CS8785" or "AD0001")).IsFalse();
+			}
 		}
 	}
 

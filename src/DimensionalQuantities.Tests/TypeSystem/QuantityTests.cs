@@ -1,5 +1,4 @@
 using DimensionalQuantities.TypeSystem;
-using Xunit;
 using AllAxes = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
 	DimensionalQuantities.TypeSystem.TerminalHex1,
 	DimensionalQuantities.TypeSystem.TerminalHex2,
@@ -45,58 +44,62 @@ namespace DimensionalQuantities.Tests.TypeSystem;
 
 public sealed class QuantityTests
 {
-	[Theory]
-	[InlineData(2, 3, true, false, true, false)]
-	[InlineData(3, 2, false, true, false, true)]
-	[InlineData(-2, -2, false, false, true, true)]
-	[InlineData(double.PositiveInfinity, 3, false, true, false, true)]
-	public void RelationalOperatorsCompareMatchingDimensions(double leftValue, double rightValue, bool less, bool greater, bool lessOrEqual, bool greaterOrEqual)
+	[Test]
+	[Arguments(2, 3, true, false, true, false)]
+	[Arguments(3, 2, false, true, false, true)]
+	[Arguments(-2, -2, false, false, true, true)]
+	[Arguments(double.PositiveInfinity, 3, false, true, false, true)]
+	public async Task RelationalOperatorsCompareMatchingDimensions(double leftValue, double rightValue, bool less, bool greater, bool lessOrEqual, bool greaterOrEqual)
 	{
 		Current left = Current.FromSiBaseUnit(leftValue);
 		Current right = Current.FromSiBaseUnit(rightValue);
 
-		Assert.Multiple(
-			() => Assert.Equal(less, left < right),
-			() => Assert.Equal(greater, left > right),
-			() => Assert.Equal(lessOrEqual, left <= right),
-			() => Assert.Equal(greaterOrEqual, left >= right));
+		using (Assert.Multiple())
+		{
+			await Assert.That(left < right).IsEqualTo(less);
+			await Assert.That(left > right).IsEqualTo(greater);
+			await Assert.That(left <= right).IsEqualTo(lessOrEqual);
+			await Assert.That(left >= right).IsEqualTo(greaterOrEqual);
+		}
 	}
 
-	[Fact]
-	public void RelationalOperatorsReturnFalseForNanOnEitherSide()
+	[Test]
+	public async Task RelationalOperatorsReturnFalseForNanOnEitherSide()
 	{
 		Current nan = Current.FromSiBaseUnit(double.NaN);
 		Current finite = Current.FromSiBaseUnit(1);
 
-		Assert.Multiple(
-			() => Assert.False(nan < finite),
-			() => Assert.False(nan > finite),
-			() => Assert.False(nan <= finite),
-			() => Assert.False(nan >= finite),
-			() => Assert.False(finite < nan),
-			() => Assert.False(finite > nan),
-			() => Assert.False(finite <= nan),
-			() => Assert.False(finite >= nan));
+		using (Assert.Multiple())
+		{
+			await Assert.That(nan < finite).IsFalse();
+			await Assert.That(nan > finite).IsFalse();
+			await Assert.That(nan <= finite).IsFalse();
+			await Assert.That(nan >= finite).IsFalse();
+			await Assert.That(finite < nan).IsFalse();
+			await Assert.That(finite > nan).IsFalse();
+			await Assert.That(finite <= nan).IsFalse();
+			await Assert.That(finite >= nan).IsFalse();
+		}
 	}
 
-	[Theory]
-	[InlineData(-3, 3)]
-	[InlineData(3, 3)]
-	[InlineData(double.NegativeInfinity, double.PositiveInfinity)]
-	public void AbsReturnsQuantityWithAbsoluteSiMagnitude(double value, double expectedValue)
+	[Test]
+	[Arguments(-3, 3)]
+	[Arguments(3, 3)]
+	[Arguments(double.NegativeInfinity, double.PositiveInfinity)]
+	public async Task AbsReturnsQuantityWithAbsoluteSiMagnitude(double value, double expectedValue)
 	{
 		Current original = Current.FromSiBaseUnit(value);
 		Current result = Current.Abs(original);
 		Current expected = Current.FromSiBaseUnit(expectedValue);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(2, 3, 2, 3)]
-	[InlineData(3, 2, 2, 3)]
-	[InlineData(-2, -2, -2, -2)]
-	public void MinAndMaxReturnMatchingDimension(double leftValue, double rightValue, double expectedMinValue, double expectedMaxValue)
+	[Test]
+	[Arguments(2, 3, 2, 3)]
+	[Arguments(3, 2, 2, 3)]
+	[Arguments(-2, -2, -2, -2)]
+	public async Task MinAndMaxReturnMatchingDimension(double leftValue, double rightValue, double expectedMinValue, double expectedMaxValue)
 	{
 		Current left = Current.FromSiBaseUnit(leftValue);
 		Current right = Current.FromSiBaseUnit(rightValue);
@@ -105,16 +108,18 @@ public sealed class QuantityTests
 		Current expectedMin = Current.FromSiBaseUnit(expectedMinValue);
 		Current expectedMax = Current.FromSiBaseUnit(expectedMaxValue);
 
-		Assert.Multiple(
-			() => Assert.Equal(expectedMin, minResult),
-			() => Assert.Equal(expectedMax, maxResult));
+		using (Assert.Multiple())
+		{
+			await Assert.That(minResult).IsEqualTo(expectedMin);
+			await Assert.That(maxResult).IsEqualTo(expectedMax);
+		}
 	}
 
-	[Theory]
-	[InlineData(-2, 0, 10, 0)]
-	[InlineData(5, 0, 10, 5)]
-	[InlineData(12, 0, 10, 10)]
-	public void ClampReturnsQuantityWithinBounds(double value, double minValue, double maxValue, double expectedValue)
+	[Test]
+	[Arguments(-2, 0, 10, 0)]
+	[Arguments(5, 0, 10, 5)]
+	[Arguments(12, 0, 10, 10)]
+	public async Task ClampReturnsQuantityWithinBounds(double value, double minValue, double maxValue, double expectedValue)
 	{
 		Current original = Current.FromSiBaseUnit(value);
 		Current min = Current.FromSiBaseUnit(minValue);
@@ -122,21 +127,21 @@ public sealed class QuantityTests
 		Current result = Current.Clamp(original, min, max);
 		Current expected = Current.FromSiBaseUnit(expectedValue);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ClampRejectsReversedBounds()
+	[Test]
+	public async Task ClampRejectsReversedBounds()
 	{
 		Current original = Current.FromSiBaseUnit(5);
 		Current min = Current.FromSiBaseUnit(10);
 		Current max = Current.FromSiBaseUnit(0);
 
-		Assert.Throws<ArgumentException>(() => Current.Clamp(original, min, max));
+		await Assert.That(() => Current.Clamp(original, min, max)).ThrowsExactly<ArgumentException>();
 	}
 
-	[Fact]
-	public void HelpersFollowDoubleNanAndSignedZeroBehavior()
+	[Test]
+	public async Task HelpersFollowDoubleNanAndSignedZeroBehavior()
 	{
 		Current nan = Current.FromSiBaseUnit(double.NaN);
 		Current finite = Current.FromSiBaseUnit(1);
@@ -147,73 +152,75 @@ public sealed class QuantityTests
 		Current nanMinimumResult = Current.Clamp(Current.FromSiBaseUnit(2), nan, finite);
 		Current nanMaximumResult = Current.Clamp(Current.FromSiBaseUnit(-1), positiveZero, nan);
 
-		Assert.Multiple(
-			() => Assert.True(double.IsNaN(Current.Abs(nan).AsSiBaseUnit())),
-			() => Assert.True(double.IsNaN(Current.Min(nan, finite).AsSiBaseUnit())),
-			() => Assert.True(double.IsNaN(Current.Max(finite, nan).AsSiBaseUnit())),
-			() => Assert.True(double.IsNaN(Current.Clamp(nan, negativeZero, finite).AsSiBaseUnit())),
-			() => Assert.Equal(finite, nanMinimumResult),
-			() => Assert.Equal(positiveZero, nanMaximumResult),
-			() => Assert.Equal(0L, BitConverter.DoubleToInt64Bits(absResult.AsSiBaseUnit())),
-			() => Assert.Equal(long.MinValue, BitConverter.DoubleToInt64Bits(clampResult.AsSiBaseUnit())));
+		using (Assert.Multiple())
+		{
+			await Assert.That(double.IsNaN(Current.Abs(nan).AsSiBaseUnit())).IsTrue();
+			await Assert.That(double.IsNaN(Current.Min(nan, finite).AsSiBaseUnit())).IsTrue();
+			await Assert.That(double.IsNaN(Current.Max(finite, nan).AsSiBaseUnit())).IsTrue();
+			await Assert.That(double.IsNaN(Current.Clamp(nan, negativeZero, finite).AsSiBaseUnit())).IsTrue();
+			await Assert.That(nanMinimumResult).IsEqualTo(finite);
+			await Assert.That(nanMaximumResult).IsEqualTo(positiveZero);
+			await Assert.That(BitConverter.DoubleToInt64Bits(absResult.AsSiBaseUnit())).IsEqualTo(0L);
+			await Assert.That(BitConverter.DoubleToInt64Bits(clampResult.AsSiBaseUnit())).IsEqualTo(long.MinValue);
+		}
 	}
 
-	[Theory]
-	[InlineData(6, 2, 3)]
-	[InlineData(-6, 2, -3)]
-	[InlineData(0, 2, 0)]
-	public void DividingMatchingDimensionsReturnsDouble(double numerator, double denominator, double expected)
+	[Test]
+	[Arguments(6, 2, 3)]
+	[Arguments(-6, 2, -3)]
+	[Arguments(0, 2, 0)]
+	public async Task DividingMatchingDimensionsReturnsDouble(double numerator, double denominator, double expected)
 	{
 		SquareRootLength original = SquareRootLength.FromSiBaseUnit(numerator);
 		SquareRootLength divisor = SquareRootLength.FromSiBaseUnit(denominator);
 		double result = original / divisor;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(3, 2, 5)]
-	[InlineData(-3, 2, -1)]
-	[InlineData(3, -3, 0)]
-	public void AdditionPreservesDimensionAndAddsSiMagnitudes(double first, double second, double expectedValue)
+	[Test]
+	[Arguments(3, 2, 5)]
+	[Arguments(-3, 2, -1)]
+	[Arguments(3, -3, 0)]
+	public async Task AdditionPreservesDimensionAndAddsSiMagnitudes(double first, double second, double expectedValue)
 	{
 		Current original = Current.FromSiBaseUnit(first);
 		Current other = Current.FromSiBaseUnit(second);
 		Current result = original + other;
 		Current expected = Current.FromSiBaseUnit(expectedValue);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(3, 2, 1)]
-	[InlineData(2, 3, -1)]
-	[InlineData(-3, -3, 0)]
-	public void SubtractionPreservesDimensionAndSubtractsSiMagnitudes(double first, double second, double expectedValue)
+	[Test]
+	[Arguments(3, 2, 1)]
+	[Arguments(2, 3, -1)]
+	[Arguments(-3, -3, 0)]
+	public async Task SubtractionPreservesDimensionAndSubtractsSiMagnitudes(double first, double second, double expectedValue)
 	{
 		Current original = Current.FromSiBaseUnit(first);
 		Current other = Current.FromSiBaseUnit(second);
 		Current result = original - other;
 		Current expected = Current.FromSiBaseUnit(expectedValue);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(3, -3)]
-	[InlineData(-3, 3)]
-	[InlineData(0, 0)]
-	public void NegationPreservesDimensionAndReversesSign(double value, double expectedValue)
+	[Test]
+	[Arguments(3, -3)]
+	[Arguments(-3, 3)]
+	[Arguments(0, 0)]
+	public async Task NegationPreservesDimensionAndReversesSign(double value, double expectedValue)
 	{
 		SquareRootLength original = SquareRootLength.FromSiBaseUnit(value);
 		SquareRootLength result = -original;
 		SquareRootLength expected = SquareRootLength.FromSiBaseUnit(expectedValue);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void MultiplyingAndDividingByScalarsPreservesQuantityTypeAndSiMagnitude()
+	[Test]
+	public async Task MultiplyingAndDividingByScalarsPreservesQuantityTypeAndSiMagnitude()
 	{
 		Current original = Current.FromSiBaseUnit(6);
 		Current rightProduct = original * 2;
@@ -222,84 +229,88 @@ public sealed class QuantityTests
 		Current expectedProduct = Current.FromSiBaseUnit(12);
 		Current expectedQuotient = Current.FromSiBaseUnit(3);
 
-		Assert.Multiple(
-			() => Assert.Equal(expectedProduct, rightProduct),
-			() => Assert.Equal(expectedProduct, leftProduct),
-			() => Assert.Equal(expectedQuotient, quotient));
+		using (Assert.Multiple())
+		{
+			await Assert.That(rightProduct).IsEqualTo(expectedProduct);
+			await Assert.That(leftProduct).IsEqualTo(expectedProduct);
+			await Assert.That(quotient).IsEqualTo(expectedQuotient);
+		}
 	}
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-0.125)]
-	[InlineData(1234.5)]
-	public void ConstructionPreservesSiMagnitude(double expected)
+	[Test]
+	[Arguments(0)]
+	[Arguments(-0.125)]
+	[Arguments(1234.5)]
+	public async Task ConstructionPreservesSiMagnitude(double expected)
 	{
 		Current original = Current.FromSiBaseUnit(expected);
 		double result = original.AsSiBaseUnit();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-4.5)]
-	[InlineData(12.25)]
-	public void AsDeltaPreservesSiMagnitudeForAnyQuantity(double expected)
+	[Test]
+	[Arguments(0)]
+	[Arguments(-4.5)]
+	[Arguments(12.25)]
+	public async Task AsDeltaPreservesSiMagnitudeForAnyQuantity(double expected)
 	{
 		Current original = Current.FromSiBaseUnit(expected);
 		Delta<Current> result = original.AsDelta();
 
-		Assert.Equal(expected, result.AsSiBaseUnit());
+		await Assert.That(result.AsSiBaseUnit()).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(20, 10, 10)]
-	[InlineData(10, 10, 0)]
-	[InlineData(10, 20, -10)]
-	public void AsDeltaUsesTheMagnitudeAfterSubtraction(double firstValue, double secondValue, double expected)
+	[Test]
+	[Arguments(20, 10, 10)]
+	[Arguments(10, 10, 0)]
+	[Arguments(10, 20, -10)]
+	public async Task AsDeltaUsesTheMagnitudeAfterSubtraction(double firstValue, double secondValue, double expected)
 	{
 		Length first = Length.FromSiBaseUnit(firstValue);
 		Length second = Length.FromSiBaseUnit(secondValue);
 		Delta<Length> result = (first - second).AsDelta();
 
-		Assert.Equal(expected, result.AsSiBaseUnit());
+		await Assert.That(result.AsSiBaseUnit()).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ArbitraryComponentsUseKilogramsByDefaultAndAllowGrams()
+	[Test]
+	public async Task ArbitraryComponentsUseKilogramsByDefaultAndAllowGrams()
 	{
 		Mass original = Mass.FromArbitrarySiComponents(2, massPrefixExponent: 0);
 		double siResult = original.AsSiBaseUnit();
 		double gramResult = original.AsArbitrarySiComponents(massPrefixExponent: 0);
 
-		Assert.Multiple(
-			() => Assert.Equal(0.002, siResult),
-			() => Assert.Equal(2, gramResult),
-			() => Assert.Equal(2, Mass.FromArbitrarySiComponents(2).AsSiBaseUnit()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(siResult).IsEqualTo(0.002);
+			await Assert.That(gramResult).IsEqualTo(2);
+			await Assert.That(Mass.FromArbitrarySiComponents(2).AsSiBaseUnit()).IsEqualTo(2);
+		}
 	}
 
-	[Fact]
-	public void ArbitraryComponentsApplyAllSevenAxisPrefixesAndOverallScale()
+	[Test]
+	public async Task ArbitraryComponentsApplyAllSevenAxisPrefixesAndOverallScale()
 	{
 		AllAxes original = AllAxes.FromArbitrarySiComponents(2, 1, 0, 2, 3, 4, 5, 6, 2);
 		double result = original.AsSiBaseUnit();
 		double expected = 2e25;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ArbitraryComponentsApplyFractionalDimensionPower()
+	[Test]
+	public async Task ArbitraryComponentsApplyFractionalDimensionPower()
 	{
 		SquareRootLength original = SquareRootLength.FromArbitrarySiComponents(4, lengthPrefixExponent: -3);
 		double result = original.AsSiBaseUnit();
 		double expected = 4 * Math.Sqrt(0.001);
 
-		Assert.Equal(expected, result, 12);
+		await Assert.That(Math.Round(result, 12)).IsEqualTo(Math.Round(expected, 12));
 	}
 
-	[Fact]
-	public void ArbitraryComponentsUseEachClosedQuantityDimensionAcrossInterleavedConversions()
+	[Test]
+	public async Task ArbitraryComponentsUseEachClosedQuantityDimensionAcrossInterleavedConversions()
 	{
 		Length firstLength = Length.FromArbitrarySiComponents(2, lengthPrefixExponent: -2);
 		SquareRootLength squareRootLength = SquareRootLength.FromArbitrarySiComponents(2, lengthPrefixExponent: -2);
@@ -309,31 +320,35 @@ public sealed class QuantityTests
 		double secondLengthResult = secondLength.AsSiBaseUnit();
 		double squareRootLengthComponentsResult = squareRootLength.AsArbitrarySiComponents(lengthPrefixExponent: -2);
 
-		Assert.Multiple(
-			() => Assert.Equal(0.02, firstLengthResult, 12),
-			() => Assert.Equal(0.2, squareRootLengthResult, 12),
-			() => Assert.Equal(0.03, secondLengthResult, 12),
-			() => Assert.Equal(2, squareRootLengthComponentsResult, 12));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(firstLengthResult, 12)).IsEqualTo(Math.Round(0.02, 12));
+			await Assert.That(Math.Round(squareRootLengthResult, 12)).IsEqualTo(Math.Round(0.2, 12));
+			await Assert.That(Math.Round(secondLengthResult, 12)).IsEqualTo(Math.Round(0.03, 12));
+			await Assert.That(Math.Round(squareRootLengthComponentsResult, 12)).IsEqualTo(Math.Round(2.0, 12));
+		}
 	}
 
-	[Fact]
-	public void ArbitraryComponentsAccessorAppliesPrefixAndOverallScale()
+	[Test]
+	public async Task ArbitraryComponentsAccessorAppliesPrefixAndOverallScale()
 	{
 		Current original = Current.FromSiBaseUnit(0.3);
 		double result = original.AsArbitrarySiComponents(electricCurrentPrefixExponent: -3, overallScaleExponent: 2);
 		double expected = 3;
 
-		Assert.Equal(expected, result, 12);
+		await Assert.That(Math.Round(result, 12)).IsEqualTo(Math.Round(expected, 12));
 	}
 
-	[Fact]
-	public void RawSiMagnitudeIsNotPartOfPublicApi()
+	[Test]
+	public async Task RawSiMagnitudeIsNotPartOfPublicApi()
 	{
 		Type quantityType = typeof(Current);
 
-		Assert.Multiple(
-			() => Assert.Empty(quantityType.GetProperties()),
-			() => Assert.Empty(quantityType.GetFields()),
-			() => Assert.Null(quantityType.GetConstructor([typeof(double)])));
+		using (Assert.Multiple())
+		{
+			await Assert.That(quantityType.GetProperties()).IsEmpty();
+			await Assert.That(quantityType.GetFields()).IsEmpty();
+			await Assert.That(quantityType.GetConstructor([typeof(double)])).IsNull();
+		}
 	}
 }

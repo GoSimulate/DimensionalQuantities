@@ -4,7 +4,6 @@ using DimensionalQuantities.Roslyn.CodeFixes;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Framework;
 
@@ -20,7 +19,7 @@ internal sealed class QuantityCodeFixTest : CSharpCodeFixTest<QuantityEncodingAn
 	protected override ImmutableArray<CodeAction> FilterCodeActions(ImmutableArray<CodeAction> actions)
 	{
 		// Framework selection accepts the first matching action, so reject additional alternatives.
-		Assert.InRange(actions.Length, 0, 1);
+		new DefaultVerifier().True(actions.Length <= 1, "Expected at most one code action.");
 		return base.FilterCodeActions(actions);
 	}
 }

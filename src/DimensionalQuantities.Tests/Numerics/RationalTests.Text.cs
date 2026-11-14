@@ -1,143 +1,154 @@
 using System.Globalization;
 using DimensionalQuantities.Numerics;
-using Xunit;
 
 namespace DimensionalQuantities.Tests.Numerics;
 
 public sealed partial class RationalTests
 {
-	[Theory]
-	[InlineData("6/8", 3, 4)]
-	[InlineData(" 6 / -8 ", -3, 4)]
-	[InlineData("7", 7, 1)]
-	[InlineData("0/15", 0, 1)]
-	public void ParsingNormalisesFractions(string text, int numerator, int denominator)
+	[Test]
+	[Arguments("6/8", 3, 4)]
+	[Arguments(" 6 / -8 ", -3, 4)]
+	[Arguments("7", 7, 1)]
+	[Arguments("0/15", 0, 1)]
+	public async Task ParsingNormalisesFractions(string text, int numerator, int denominator)
 	{
 		Rational result = Rational.Parse(text, CultureInfo.InvariantCulture);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData((string?)null)]
-	[InlineData("")]
-	[InlineData("1/0")]
-	[InlineData("1/2/3")]
-	[InlineData("x/2")]
-	[InlineData("1/")]
-	public void TryParseRejectsInvalidFractions(string? text)
+	[Test]
+	[Arguments((string?)null)]
+	[Arguments("")]
+	[Arguments("1/0")]
+	[Arguments("1/2/3")]
+	[Arguments("x/2")]
+	[Arguments("1/")]
+	public async Task TryParseRejectsInvalidFractions(string? text)
 	{
 		bool success = Rational.TryParse(text, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = default;
 
-		Assert.Multiple(
-			() => Assert.False(success),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsFalse();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Theory]
-	[InlineData("Seventeen", 17, 1)]
-	[InlineData("TwoThirds", 2, 3)]
-	[InlineData("MinusThreeOverTwo", -3, 2)]
-	[InlineData("TwoOverFour", 1, 2)]
-	public void TryParseAcceptsEnglishNames(string text, int numerator, int denominator)
+	[Test]
+	[Arguments("Seventeen", 17, 1)]
+	[Arguments("TwoThirds", 2, 3)]
+	[Arguments("MinusThreeOverTwo", -3, 2)]
+	[Arguments("TwoOverFour", 1, 2)]
+	public async Task TryParseAcceptsEnglishNames(string text, int numerator, int denominator)
 	{
 		bool success = Rational.TryParse(text, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void TryParseWithNumberStylesAcceptsEnglishNames()
+	[Test]
+	public async Task TryParseWithNumberStylesAcceptsEnglishNames()
 	{
 		bool success = Rational.TryParse("OneHundredAndTwentyThreeOverFortyFive", NumberStyles.Integer, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = new(41, 15);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Theory]
-	[InlineData("OneOverZero")]
-	[InlineData("OneTwo")]
-	[InlineData("One/Two")]
-	public void TryParseRejectsInvalidEnglishNames(string text)
+	[Test]
+	[Arguments("OneOverZero")]
+	[Arguments("OneTwo")]
+	[Arguments("One/Two")]
+	public async Task TryParseRejectsInvalidEnglishNames(string text)
 	{
 		bool success = Rational.TryParse(text, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = default;
 
-		Assert.Multiple(
-			() => Assert.False(success),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsFalse();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void TryParseHonoursComponentNumberStyles()
+	[Test]
+	public async Task TryParseHonoursComponentNumberStyles()
 	{
 		bool success = Rational.TryParse("1,000/2,000", NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = new(1, 2);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void ParseRejectsZeroDenominator()
+	[Test]
+	public async Task ParseRejectsZeroDenominator()
 	{
-		Assert.Throws<DivideByZeroException>(() => Rational.Parse("1/0", CultureInfo.InvariantCulture));
+		await Assert.That(() => Rational.Parse("1/0", CultureInfo.InvariantCulture)).ThrowsExactly<DivideByZeroException>();
 	}
 
-	[Fact]
-	public void ParseHonoursComponentNumberStyles()
+	[Test]
+	public async Task ParseHonoursComponentNumberStyles()
 	{
 		Rational result = Rational.Parse("1,000/2,000", NumberStyles.AllowThousands, CultureInfo.InvariantCulture);
 		Rational expected = new(1, 2);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void FormattingProducesReducedFraction()
+	[Test]
+	public async Task FormattingProducesReducedFraction()
 	{
 		Rational original = new(-6, 8);
 		string result = original.ToString(null, CultureInfo.InvariantCulture);
 		string expected = "-3/4";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void FormattingWholeNumbersOmitsDenominator()
+	[Test]
+	public async Task FormattingWholeNumbersOmitsDenominator()
 	{
 		Rational original = new(6, 2);
 		string result = original.ToString(null, CultureInfo.InvariantCulture);
 		string expected = "3";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void StringFormattingAndParsingRoundTrip()
+	[Test]
+	public async Task StringFormattingAndParsingRoundTrip()
 	{
 		Rational original = new(-3, 4);
 		string formattedText = original.ToString(null, CultureInfo.InvariantCulture);
 		bool parsed = Rational.TryParse(formattedText, CultureInfo.InvariantCulture, out Rational result);
 		Rational expected = new(-3, 4);
 
-		Assert.Multiple(
-			() => Assert.True(parsed),
-			() => Assert.Equal("-3/4", formattedText),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(parsed).IsTrue();
+			await Assert.That(formattedText).IsEqualTo("-3/4");
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void FormattingAndParsingHonourCulture()
+	[Test]
+	public async Task FormattingAndParsingHonourCulture()
 	{
 		Rational original = new(-3, 4);
 		NumberFormatInfo provider = new() { NegativeSign = "−" };
@@ -145,9 +156,11 @@ public sealed partial class RationalTests
 		bool parsed = Rational.TryParse(formattedText, provider, out Rational result);
 		Rational expected = new(-3, 4);
 
-		Assert.Multiple(
-			() => Assert.True(parsed),
-			() => Assert.Equal("−3/4", formattedText),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(parsed).IsTrue();
+			await Assert.That(formattedText).IsEqualTo("−3/4");
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 }

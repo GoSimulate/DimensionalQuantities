@@ -1,12 +1,13 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Roslyn.Tests.Framework;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Testing;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(UnitProviderGenerationTests))]
 public sealed class UnitProviderGenerationTests
 {
 	private const string FootProvider = """
@@ -25,7 +26,7 @@ public sealed class UnitProviderGenerationTests
 		}
 		""";
 
-	[Fact]
+	[Test]
 	public async Task IndependentProviderGeneratesScaledFactoriesAndAccessors()
 	{
 		const string consumer = """
@@ -42,14 +43,16 @@ public sealed class UnitProviderGenerationTests
 		test.TestState.Sources.Add(FootProvider);
 		test.TestState.Sources.Add(consumer);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Multiple(
-			() => Assert.Equal(3.048, result[0], 12),
-			() => Assert.Equal(2, result[1], 12));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(result[0], 12)).IsEqualTo(Math.Round(3.048, 12));
+			await Assert.That(Math.Round(result[1], 12)).IsEqualTo(Math.Round(2d, 12));
+		}
 	}
 
-	[Fact]
+	[Test]
 	public async Task AffineConversionsApplyOffsetOnlyToAbsoluteQuantities()
 	{
 		const string source = """
@@ -80,11 +83,11 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal([16d, 3d, 1d], Evaluate(test.Compilation, "Consumer"));
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(Evaluate(test.Compilation, "Consumer")).IsEquivalentTo([16d, 3d, 1d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ProviderConversionsArePublicAndNotRegeneratedByConsumers()
 	{
 		QuantityGeneratorTest provider = new()
@@ -93,7 +96,7 @@ public sealed class UnitProviderGenerationTests
 			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
 		};
 		provider.SolutionTransforms.Add((solution, project) => solution.WithProjectAssemblyName(project, "Independent.Provider"));
-		await provider.RunAsync(TestContext.Current.CancellationToken);
+		await provider.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		MetadataReference reference = MetadataReference.CreateFromImage(Emit(provider.Compilation));
 		const string consumer = """
 			using Independent.Units;
@@ -109,14 +112,14 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.AdditionalReferences.Add(reference);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		INamespaceSymbol? localNamespace = test.Compilation.Assembly.GlobalNamespace.GetNamespaceMembers()
 			.SingleOrDefault(symbol => symbol.Name == "Independent");
 
-		Assert.Null(localNamespace);
+		await Assert.That(localNamespace).IsNull();
 	}
 
-	[Fact]
+	[Test]
 	public async Task ProviderCanOptIntoNamedAndParameterisedSiPrefixes()
 	{
 		const string source = """
@@ -143,12 +146,12 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Equal([0.5, 2, 3000, 4], result);
+		await Assert.That(result).IsEquivalentTo([0.5, 2, 3000, 4], TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
+	[Test]
 	public async Task CompoundFactorsPreserveOrderPowersAndAdditionalConversions()
 	{
 		const string source = """
@@ -183,12 +186,12 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Equal([1000000d, 2000000d, 1d], result);
+		await Assert.That(result).IsEquivalentTo([1000000d, 2000000d, 1d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ProviderUsesCoreSiSymbolsAcrossAssemblyBoundary()
 	{
 		const string source = """
@@ -222,11 +225,11 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal([2d, 2000000d, 0.002d, 0.002d], Evaluate(test.Compilation, "Independent.Units.Consumer"));
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(Evaluate(test.Compilation, "Independent.Units.Consumer")).IsEquivalentTo([2d, 2000000d, 0.002d, 0.002d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
+	[Test]
 	public async Task OneUnitDeclarationCanServeDistinctQuantityTypes()
 	{
 		const string source = """
@@ -254,11 +257,11 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
-		Assert.Equal([2d, 3d], Evaluate(test.Compilation, "Independent.Units.Consumer"));
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(Evaluate(test.Compilation, "Independent.Units.Consumer")).IsEquivalentTo([2d, 3d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ProviderFactoriesCanBeUsedInArithmeticInTheirOwnAssembly()
 	{
 		const string consumer = """
@@ -275,12 +278,12 @@ public sealed class UnitProviderGenerationTests
 		test.TestState.Sources.Add(FootProvider);
 		test.TestState.Sources.Add(consumer);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Equal(0.55741824, Assert.Single(result), 12);
+		await Assert.That(Math.Round((await Assert.That(result).HasSingleItem()), 12)).IsEqualTo(Math.Round(0.55741824, 12));
 	}
 
-	[Fact]
+	[Test]
 	public async Task RecordClassProvidersGenerateConversions()
 	{
 		const string provider = """
@@ -310,14 +313,14 @@ public sealed class UnitProviderGenerationTests
 		test.TestState.Sources.Add(provider);
 		test.TestState.Sources.Add(consumer);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Equal(0.3048, Assert.Single(result), 12);
+		await Assert.That(Math.Round((await Assert.That(result).HasSingleItem()), 12)).IsEqualTo(Math.Round(0.3048, 12));
 	}
 
-	[Theory]
-	[InlineData("Bad name", "Feet")]
-	[InlineData("Foot", "Bad names")]
+	[Test]
+	[Arguments("Bad name", "Feet")]
+	[Arguments("Foot", "Bad names")]
 	public async Task InvalidUnitNamesReportDeclarationDiagnostics(string singular, string plural)
 	{
 		string source = $$"""
@@ -340,10 +343,10 @@ public sealed class UnitProviderGenerationTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0008", DiagnosticSeverity.Error)
 			.WithLocation(0).WithMessage("Unit provider for Length produces an invalid C# identifier."));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ProvidersInSameNamespaceCanConvertSameQuantity()
 	{
 		const string source = """
@@ -378,11 +381,13 @@ public sealed class UnitProviderGenerationTests
 		};
 		test.TestState.Sources.Add(source);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		double[] result = Evaluate(test.Compilation, "Independent.Units.Consumer");
-		Assert.Multiple(
-			() => Assert.Equal(1, result[0], 12),
-			() => Assert.Equal(6, result[1], 12));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(result[0], 12)).IsEqualTo(Math.Round(1d, 12));
+			await Assert.That(Math.Round(result[1], 12)).IsEqualTo(Math.Round(6d, 12));
+		}
 	}
 
 	private static double[] Evaluate(Compilation compilation, string consumerType)
@@ -394,7 +399,7 @@ public sealed class UnitProviderGenerationTests
 	private static byte[] Emit(Compilation compilation)
 	{
 		using MemoryStream stream = new();
-		EmitResult result = compilation.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
+		EmitResult result = compilation.Emit(stream, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!result.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, result.Diagnostics));

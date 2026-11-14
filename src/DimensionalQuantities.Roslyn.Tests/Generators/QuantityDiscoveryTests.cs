@@ -4,14 +4,14 @@ using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.Units;
 using DimensionalQuantities.TypeSystem;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(QuantityDiscoveryTests))]
 public sealed class QuantityDiscoveryTests
 {
-	[Fact]
-	public void TypeRequestsAddOnlyMissingQuantitiesWithoutInventingOperations()
+	[Test]
+	public async Task TypeRequestsAddOnlyMissingQuantitiesWithoutInventingOperations()
 	{
 		QuantityGenerationPlan predefined = DefaultQuantityDiscovery.Discover();
 		Dimension requested = new(Length: 1, ElectricCurrent: 1);
@@ -19,16 +19,18 @@ public sealed class QuantityDiscoveryTests
 		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefined, [], [], [],
 			[requested, requested, new(ElectricCurrent: 1), new(ElectricCurrent: 2), default]);
 
-		Assert.Multiple(
-			() => Assert.Equal(requested, Assert.Single(result.AdditionalQuantities).Dimension),
-			() => Assert.Equal("LengthCurrent", result.GetQuantityName(requested)),
-			() => Assert.Empty(result.Operations),
-			() => Assert.Empty(result.PowerOperations),
-			() => Assert.Empty(result.PowerMethodOperations));
+		using (Assert.Multiple())
+		{
+			await Assert.That((await Assert.That(result.AdditionalQuantities).HasSingleItem()).Dimension).IsEqualTo(requested);
+			await Assert.That(result.GetQuantityName(requested)).IsEqualTo("LengthCurrent");
+			await Assert.That(result.Operations).IsEmpty();
+			await Assert.That(result.PowerOperations).IsEmpty();
+			await Assert.That(result.PowerMethodOperations).IsEmpty();
+		}
 	}
 
-	[Fact]
-	public void ReusesPredefinedQuantitiesAndOnlyAddsNewResults()
+	[Test]
+	public async Task ReusesPredefinedQuantitiesAndOnlyAddsNewResults()
 	{
 		Dimension currentSquared = new(ElectricCurrent: 2);
 		Dimension length = new(Length: 1);
@@ -40,15 +42,17 @@ public sealed class QuantityDiscoveryTests
 
 		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefinedPlan, [operation], [], []);
 
-		Assert.Multiple(
-			() => Assert.Equal(predefined, Assert.Single(result.KnownQuantities.Where(quantity => quantity.Dimension == currentSquared))),
-			() => Assert.Equal(product, Assert.Single(result.AdditionalQuantities).Dimension),
-			() => Assert.Equal("CurrentSquared", result.GetQuantityName(currentSquared)),
-			() => Assert.Equal(operation, Assert.Single(result.Operations)));
+		using (Assert.Multiple())
+		{
+			await Assert.That((await Assert.That(result.KnownQuantities.Where(quantity => quantity.Dimension == currentSquared)).HasSingleItem())).IsEqualTo(predefined);
+			await Assert.That((await Assert.That(result.AdditionalQuantities).HasSingleItem()).Dimension).IsEqualTo(product);
+			await Assert.That(result.GetQuantityName(currentSquared)).IsEqualTo("CurrentSquared");
+			await Assert.That((await Assert.That(result.Operations).HasSingleItem())).IsEqualTo(operation);
+		}
 	}
 
-	[Fact]
-	public void ReusesPredefinedMethodsWhilePlanningNewConvenienceMethods()
+	[Test]
+	public async Task ReusesPredefinedMethodsWhilePlanningNewConvenienceMethods()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension squared = new(ElectricCurrent: 2);
@@ -61,15 +65,17 @@ public sealed class QuantityDiscoveryTests
 
 		QuantityGenerationPlan result = QuantityDiscovery.DiscoverWithPredefinedQuantities(predefinedPlan, [], [], [square, cube]);
 
-		Assert.Multiple(
-			() => Assert.Equal(cube, Assert.Single(result.PowerMethodOperations)),
-			() => Assert.Equal(cubed, Assert.Single(result.AdditionalQuantities).Dimension));
+		using (Assert.Multiple())
+		{
+			await Assert.That((await Assert.That(result.PowerMethodOperations).HasSingleItem())).IsEqualTo(cube);
+			await Assert.That((await Assert.That(result.AdditionalQuantities).HasSingleItem()).Dimension).IsEqualTo(cubed);
+		}
 	}
 
-	[Theory]
-	[InlineData("Squared", 2, 1)]
-	[InlineData("SquareRoot", 1, 2)]
-	public void ConvenienceMethodsReuseExplicitCanonicalPowerOperations(string method, int numerator, int denominator)
+	[Test]
+	[Arguments("Squared", 2, 1)]
+	[Arguments("SquareRoot", 1, 2)]
+	public async Task ConvenienceMethodsReuseExplicitCanonicalPowerOperations(string method, int numerator, int denominator)
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Rational exponent = new(numerator, denominator);
@@ -80,13 +86,15 @@ public sealed class QuantityDiscoveryTests
 
 		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [expected], [convenience]);
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, Assert.Single(result.PowerOperations)),
-			() => Assert.Equal(convenience, Assert.Single(result.PowerMethodOperations)));
+		using (Assert.Multiple())
+		{
+			await Assert.That((await Assert.That(result.PowerOperations).HasSingleItem())).IsEqualTo(expected);
+			await Assert.That((await Assert.That(result.PowerMethodOperations).HasSingleItem())).IsEqualTo(convenience);
+		}
 	}
 
-	[Fact]
-	public void ConvenienceMethodAddsCanonicalPowerAlongsideAnExplicitAlternativeEncoding()
+	[Test]
+	public async Task ConvenienceMethodAddsCanonicalPowerAlongsideAnExplicitAlternativeEncoding()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension squared = new(ElectricCurrent: 2);
@@ -98,14 +106,16 @@ public sealed class QuantityDiscoveryTests
 
 		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [alternative], [convenience]);
 
-		Assert.Multiple(
-			() => Assert.Equal(2, result.PowerOperations.Length),
-			() => Assert.Contains(alternative, result.PowerOperations),
-			() => Assert.Contains(canonical, result.PowerOperations));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.PowerOperations.Length).IsEqualTo(2);
+			await Assert.That(result.PowerOperations).Contains(alternative);
+			await Assert.That(result.PowerOperations).Contains(canonical);
+		}
 	}
 
-	[Fact]
-	public void ConvenienceMethodsDeduplicateByOperandAndNameAndPlanTheirDimensions()
+	[Test]
+	public async Task ConvenienceMethodsDeduplicateByOperandAndNameAndPlanTheirDimensions()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension squared = new(ElectricCurrent: 2);
@@ -117,15 +127,17 @@ public sealed class QuantityDiscoveryTests
 
 		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [], [square, square, cube, squareAgain]);
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result.PowerMethodOperations),
-			() => Assert.Equal("CurrentSquared", result.GetQuantityName(squared)),
-			() => Assert.Equal("CurrentCubed", result.GetQuantityName(cubed)),
-			() => Assert.Equal(3, result.AdditionalQuantities.Length));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.PowerMethodOperations).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(result.GetQuantityName(squared)).IsEqualTo("CurrentSquared");
+			await Assert.That(result.GetQuantityName(cubed)).IsEqualTo("CurrentCubed");
+			await Assert.That(result.AdditionalQuantities.Length).IsEqualTo(3);
+		}
 	}
 
-	[Fact]
-	public void PlanKeepsCatalogueNameAndDeduplicatesOrderedOperations()
+	[Test]
+	public async Task PlanKeepsCatalogueNameAndDeduplicatesOrderedOperations()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension currentSquared = new(ElectricCurrent: 2);
@@ -138,30 +150,34 @@ public sealed class QuantityDiscoveryTests
 		QuantityGenerationPlan plan = QuantityDiscovery.Discover(operations);
 		ArithmeticOperation[] expected = [square, heat];
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, plan.Operations),
-			() => Assert.Equal("Power", plan.GetQuantityName(power)),
-			() => Assert.Equal("Energy", plan.GetQuantityName(energy)),
-			() => Assert.Equal("CurrentSquared", plan.GetQuantityName(currentSquared)),
-			() => Assert.Single(plan.AdditionalQuantities));
+		using (Assert.Multiple())
+		{
+			await Assert.That(plan.Operations).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(plan.GetQuantityName(power)).IsEqualTo("Power");
+			await Assert.That(plan.GetQuantityName(energy)).IsEqualTo("Energy");
+			await Assert.That(plan.GetQuantityName(currentSquared)).IsEqualTo("CurrentSquared");
+			await Assert.That(plan.AdditionalQuantities).HasSingleItem();
+		}
 	}
 
-	[Fact]
-	public void CancellingProductPlansOperandsWithoutADimensionlessQuantity()
+	[Test]
+	public async Task CancellingProductPlansOperandsWithoutADimensionlessQuantity()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension inverse = new(ElectricCurrent: -1);
 		ArithmeticOperation operation = new(ArithmeticOperationKind.Multiply, current, inverse, default);
 		QuantityGenerationPlan result = QuantityDiscovery.Discover([operation, operation]);
 
-		Assert.Multiple(
-			() => Assert.Equal(operation, Assert.Single(result.Operations)),
-			() => Assert.Equal(inverse, Assert.Single(result.AdditionalQuantities).Dimension),
-			() => Assert.DoesNotContain(result.KnownQuantities, quantity => quantity.Dimension == default));
+		using (Assert.Multiple())
+		{
+			await Assert.That((await Assert.That(result.Operations).HasSingleItem())).IsEqualTo(operation);
+			await Assert.That((await Assert.That(result.AdditionalQuantities).HasSingleItem()).Dimension).IsEqualTo(inverse);
+			await Assert.That(result.KnownQuantities.Any(quantity => quantity.Dimension == default)).IsFalse();
+		}
 	}
 
-	[Fact]
-	public void EquivalentExponentsKeepTheirOverloadsAndShareOneResultType()
+	[Test]
+	public async Task EquivalentExponentsKeepTheirOverloadsAndShareOneResultType()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension rootCurrent = new(ElectricCurrent: new Rational(1, 2));
@@ -175,28 +191,32 @@ public sealed class QuantityDiscoveryTests
 		QuantityGenerationPlan result = QuantityDiscovery.Discover([], [half, half, twoQuarters, zero]);
 		PowerOperation[] expected = [half, twoQuarters, zero];
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result.PowerOperations),
-			() => Assert.Equal(rootCurrent, Assert.Single(result.AdditionalQuantities).Dimension),
-			() => Assert.Empty(result.Operations));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.PowerOperations).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That((await Assert.That(result.AdditionalQuantities).HasSingleItem()).Dimension).IsEqualTo(rootCurrent);
+			await Assert.That(result.Operations).IsEmpty();
+		}
 	}
 
-	[Fact]
-	public void UnknownQuantityUsesSiComponentPowersAndBasePrefixes()
+	[Test]
+	public async Task UnknownQuantityUsesSiComponentPowersAndBasePrefixes()
 	{
 		Dimension mass = new(Mass: 1);
 		Dimension massSquared = new(Mass: 2);
 		ArithmeticOperation operation = new(ArithmeticOperationKind.Multiply, mass, mass, massSquared);
 		QuantityGenerationPlan plan = QuantityDiscovery.Discover([operation]);
-		PlannedQuantity quantity = Assert.Single(plan.AdditionalQuantities);
-		UnitDefinition unit = Assert.Single(quantity.Units);
-		UnitTerm term = Assert.Single(unit.Expression.Terms);
+		PlannedQuantity quantity = await Assert.That(plan.AdditionalQuantities).HasSingleItem();
+		UnitDefinition unit = (await Assert.That(quantity.Units).HasSingleItem());
+		UnitTerm term = (await Assert.That(unit.Expression.Terms).HasSingleItem());
 
-		Assert.Multiple(
-			() => Assert.Equal(massSquared, quantity.Dimension),
-			() => Assert.False(quantity.IncludeNamedConversions),
-			() => Assert.Equal("MassSquared", unit.Name),
-			() => Assert.Equal(2, term.Power),
-			() => Assert.Equal(SiBasePrefixExponents.Mass, term.PrefixExponent));
+		using (Assert.Multiple())
+		{
+			await Assert.That(quantity.Dimension).IsEqualTo(massSquared);
+			await Assert.That(quantity.IncludeNamedConversions).IsFalse();
+			await Assert.That(unit.Name).IsEqualTo("MassSquared");
+			await Assert.That(term.Power).IsEqualTo(2);
+			await Assert.That(term.PrefixExponent).IsEqualTo(SiBasePrefixExponents.Mass);
+		}
 	}
 }

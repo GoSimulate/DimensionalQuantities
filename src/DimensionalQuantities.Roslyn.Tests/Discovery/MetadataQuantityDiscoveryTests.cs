@@ -6,46 +6,46 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(MetadataQuantityDiscoveryTests))]
 public sealed class MetadataQuantityDiscoveryTests
 {
-	[Theory]
-	[InlineData("Library.Create()")]
-	[InlineData("Library.Field")]
-	[InlineData("Library.Property")]
-	[InlineData("Library.Values()")]
-	[InlineData("Library.Values()[0]")]
-	[InlineData("Library.Pair()")]
-	public void DiscoversQuantityTypesInReferencedResultsAndCollections(string expression)
+	[Test]
+	[Arguments("Library.Create()")]
+	[Arguments("Library.Field")]
+	[Arguments("Library.Property")]
+	[Arguments("Library.Values()")]
+	[Arguments("Library.Values()[0]")]
+	[Arguments("Library.Pair()")]
+	public async Task DiscoversQuantityTypesInReferencedResultsAndCollections(string expression)
 	{
 		CSharpCompilation compilation = CompileConsumer(expression);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		ExpressionSyntax value = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<ArrowExpressionClauseSyntax>().Single().Expression;
+		ExpressionSyntax value = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<ArrowExpressionClauseSyntax>().Single().Expression;
 		MetadataQuantityDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		ImmutableArray<Dimension> result = discovery.Discover(value, TestContext.Current.CancellationToken);
+		ImmutableArray<Dimension> result = discovery.Discover(value, TestContext.Current!.Execution.CancellationToken);
 		Dimension expected = new(Length: 1, ElectricCurrent: 1);
 
-		Assert.Equal(expected, Assert.Single(result));
+		await Assert.That((await Assert.That(result).HasSingleItem())).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("Library.Other()")]
-	[InlineData("Library.Missing()")]
-	[InlineData("Library.Zero()")]
-	public void IgnoresUnrelatedUnresolvedAndDimensionlessTypes(string expression)
+	[Test]
+	[Arguments("Library.Other()")]
+	[Arguments("Library.Missing()")]
+	[Arguments("Library.Zero()")]
+	public async Task IgnoresUnrelatedUnresolvedAndDimensionlessTypes(string expression)
 	{
 		CSharpCompilation compilation = CompileConsumer(expression);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		ExpressionSyntax value = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<ArrowExpressionClauseSyntax>().Single().Expression;
+		ExpressionSyntax value = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<ArrowExpressionClauseSyntax>().Single().Expression;
 		MetadataQuantityDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		ImmutableArray<Dimension> result = discovery.Discover(value, TestContext.Current.CancellationToken);
+		ImmutableArray<Dimension> result = discovery.Discover(value, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.Empty(result);
+		await Assert.That(result).IsEmpty();
 	}
 
 	private static CSharpCompilation CompileConsumer(string expression)
@@ -75,7 +75,7 @@ public sealed class MetadataQuantityDiscoveryTests
 		CSharpCompilation library = CSharpCompilation.Create("MetadataLibrary", [CSharpSyntaxTree.ParseText(librarySource, options)], references,
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream stream = new();
-		EmitResult emitted = library.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
+		EmitResult emitted = library.Emit(stream, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!emitted.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, emitted.Diagnostics));

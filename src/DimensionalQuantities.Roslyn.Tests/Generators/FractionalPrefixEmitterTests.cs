@@ -1,23 +1,23 @@
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.Units;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(FractionalPrefixEmitterTests))]
 public sealed class FractionalPrefixEmitterTests
 {
-	[Theory]
-	[InlineData("""
+	[Test]
+	[Arguments("""
 		public static Length FromPrefixedUnits(double value, int widgetPrefixExponent = 0) => Length.FromSiBaseUnit(value * 2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)));
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public double AsPrefixedUnits(int widgetPrefixExponent = 0) => length.AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)));
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public double AsPrefixedUnits(int widgetPrefixExponent = 0) => delta.AsSiBaseUnit() / (2d * global::System.Math.Pow(10, ((double)widgetPrefixExponent) * (1d / 2d)));
 		""")]
-	public void FractionalPrefixConversionsUseFloatingPointDivision(string expectedDeclaration)
+	public async Task FractionalPrefixConversionsUseFloatingPointDivision(string expectedDeclaration)
 	{
 		AtomicUnit widget = new("Widget", "Widgets", "w", Scale: 4);
 		UnitConversionSpec[] units =
@@ -28,6 +28,6 @@ public sealed class FractionalPrefixEmitterTests
 
 		string source = UnitConversionSourceEmitter.Emit(units, "Custom", "public");
 
-		Assert.Contains(expectedDeclaration, source);
+		await Assert.That(source).Contains(expectedDeclaration);
 	}
 }

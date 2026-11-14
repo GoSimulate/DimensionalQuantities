@@ -6,12 +6,12 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
-using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
-[Collection("MSBuild")]
-public sealed class SymbolPackageTests : IClassFixture<SymbolPackageFixture>
+[NotInParallel]
+[ClassDataSource<SymbolPackageFixture>(Shared = SharedType.PerClass)]
+public sealed class SymbolPackageTests
 {
 	private static readonly Guid _sourceLinkKind = new("CC110556-A091-4D38-9FEC-25AB9A351A6A");
 	private static readonly Guid _embeddedSourceKind = new("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
@@ -22,8 +22,8 @@ public sealed class SymbolPackageTests : IClassFixture<SymbolPackageFixture>
 		_fixture = fixture;
 	}
 
-	[Fact]
-	public void CoreSymbolPackageMatchesRuntimeAndAnalyzerAssemblies()
+	[Test]
+	public async Task CoreSymbolPackageMatchesRuntimeAndAnalyzerAssemblies()
 	{
 		(FileInfo package, FileInfo symbols) = GetArchives("DimensionalQuantities");
 		using ZipArchive binaries = ZipFile.OpenRead(package.FullName);
@@ -38,19 +38,21 @@ public sealed class SymbolPackageTests : IClassFixture<SymbolPackageFixture>
 		})
 		{
 			SymbolDetails details = ReadSymbolDetails(binaries, symbolArchive, stem);
-			Assert.Multiple(
-				() => Assert.Equal(details.AssemblyGuid, details.PdbGuid),
-				() => Assert.Equal(details.AssemblyStamp, details.PdbStamp),
-				() => Assert.Contains($"https://raw.githubusercontent.com/GoSimulate/DimensionalQuantities/{commit}/*", details.SourceUrls));
+			using (Assert.Multiple())
+			{
+				await Assert.That(details.PdbGuid).IsEqualTo(details.AssemblyGuid);
+				await Assert.That(details.PdbStamp).IsEqualTo(details.AssemblyStamp);
+				await Assert.That(details.SourceUrls).Contains($"https://raw.githubusercontent.com/GoSimulate/DimensionalQuantities/{commit}/*");
+			}
 		}
 	}
 
-	[Theory]
-	[InlineData("Metric")]
-	[InlineData("Imperial")]
-	[InlineData("Nautical")]
-	[InlineData("CgsEmag")]
-	public void ExtensionSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource(string extension)
+	[Test]
+	[Arguments("Metric")]
+	[Arguments("Imperial")]
+	[Arguments("Nautical")]
+	[Arguments("CgsEmag")]
+	public async Task ExtensionSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource(string extension)
 	{
 		string projectName = "DimensionalQuantities.Extensions." + extension;
 		(FileInfo package, FileInfo symbols) = GetArchives(projectName);
@@ -63,11 +65,13 @@ public sealed class SymbolPackageTests : IClassFixture<SymbolPackageFixture>
 		string configuration = typeof(SymbolPackageTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
 		byte[] generatedSource = File.ReadAllBytes(Path.Combine(sourceDirectory, projectName, "obj", configuration, "netstandard2.0",
 			"generated", "DimensionalQuantities.Roslyn", "DimensionalQuantities.Roslyn.Generators.QuantityGenerator", projectName + "." + extension + "Units.g.cs"));
-		Assert.Multiple(
-			() => Assert.Equal(details.AssemblyGuid, details.PdbGuid),
-			() => Assert.Equal(details.AssemblyStamp, details.PdbStamp),
-			() => Assert.Contains($"https://raw.githubusercontent.com/GoSimulate/DimensionalQuantities/{commit}/*", details.SourceUrls),
-			() => Assert.Equal(generatedSource, details.EmbeddedGeneratedSource));
+		using (Assert.Multiple())
+		{
+			await Assert.That(details.PdbGuid).IsEqualTo(details.AssemblyGuid);
+			await Assert.That(details.PdbStamp).IsEqualTo(details.AssemblyStamp);
+			await Assert.That(details.SourceUrls).Contains($"https://raw.githubusercontent.com/GoSimulate/DimensionalQuantities/{commit}/*");
+			await Assert.That(details.EmbeddedGeneratedSource).IsEquivalentTo(generatedSource, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		}
 	}
 
 	private (FileInfo Package, FileInfo Symbols) GetArchives(string projectName)

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
@@ -7,16 +8,16 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(PowerMethodSourceEmitterTests))]
 public sealed class PowerMethodSourceEmitterTests
 {
-	[Theory]
-	[InlineData("Squared", 2, 1)]
-	[InlineData("SquareRoot", 1, 2)]
-	public void ConvenienceMethodDelegatesToTheEncodedPowerOverload(string method, int numerator, int denominator)
+	[Test]
+	[Arguments("Squared", 2, 1)]
+	[Arguments("SquareRoot", 1, 2)]
+	public async Task ConvenienceMethodDelegatesToTheEncodedPowerOverload(string method, int numerator, int denominator)
 	{
 		Dimension operand = new(Length: 1);
 		Rational exponent = new(numerator, denominator);
@@ -44,29 +45,29 @@ public sealed class PowerMethodSourceEmitterTests
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
 		SyntaxTree[] trees =
 		[
-			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken)
+			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current!.Execution.CancellationToken)
 		];
 		CSharpCompilation compilation = CSharpCompilation.Create("DelegatingPowerConsumer", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(emit.Success).IsTrue().Because(string.Join(Environment.NewLine, emit.Diagnostics));
 		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
 
 		double result = (double)assembly.GetType("DimensionalQuantities.Generated.Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
 
-		Assert.Equal(109, result);
+		await Assert.That(result).IsEqualTo(109);
 	}
 
-	[Theory]
-	[InlineData("Squared", 2, 1, -3, 9)]
-	[InlineData("CubeRoot", 1, 3, -8, -2)]
-	[InlineData("Root5", 1, 5, -32, -2)]
-	[InlineData("SquareRoot", 1, 2, -9, double.NaN)]
-	[InlineData("Root4", 1, 4, -16, double.NaN)]
-	public void EmittedMethodsUseTheRealOddRootAndPreserveEvenRootBehaviour(string method, int numerator, int denominator, double value, double expected)
+	[Test]
+	[Arguments("Squared", 2, 1, -3, 9)]
+	[Arguments("CubeRoot", 1, 3, -8, -2)]
+	[Arguments("Root5", 1, 5, -32, -2)]
+	[Arguments("SquareRoot", 1, 2, -9, double.NaN)]
+	[Arguments("Root4", 1, 4, -16, double.NaN)]
+	public async Task EmittedMethodsUseTheRealOddRootAndPreserveEvenRootBehaviour(string method, int numerator, int denominator, double value, double expected)
 	{
 		Dimension operand = new(Length: 1);
 		Rational exponent = new(numerator, denominator);
@@ -85,20 +86,20 @@ public sealed class PowerMethodSourceEmitterTests
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
 		SyntaxTree[] trees =
 		[
-			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken),
-			CSharpSyntaxTree.ParseText(PowerSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current.CancellationToken)
+			CSharpSyntaxTree.ParseText(source, options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.KnownQuantities), options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current!.Execution.CancellationToken),
+			CSharpSyntaxTree.ParseText(PowerSourceEmitter.Emit(plan), options, cancellationToken: TestContext.Current!.Execution.CancellationToken)
 		];
 		CSharpCompilation compilation = CSharpCompilation.Create("PowerMethodConsumer", trees, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(emit.Success).IsTrue().Because(string.Join(Environment.NewLine, emit.Diagnostics));
 		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
 
 		double result = (double)assembly.GetType("Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
 
-		Assert.Equal(expected, result, 12);
+		await Assert.That(Math.Round(result, 12)).IsEqualTo(Math.Round(expected, 12));
 	}
 }

@@ -1,13 +1,12 @@
-using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Extensions.Nautical;
-using Xunit;
 
 namespace DimensionalQuantities.Extensions.Nautical.Tests;
 
 public sealed class NauticalConversionsTests
 {
-	[Fact]
-	public void NauticalUnitsConvertToExpectedSiValues()
+	[Test]
+	public async Task NauticalUnitsConvertToExpectedSiValues()
 	{
 		double[] result =
 		[
@@ -18,11 +17,11 @@ public sealed class NauticalConversionsTests
 		];
 
 		double[] expected = [1852d, 1.8288d, 3_429_904d, 1852d / 3600d];
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
-	public void NauticalUnitsConvertBackFromSiValues()
+	[Test]
+	public async Task NauticalUnitsConvertBackFromSiValues()
 	{
 		double[] result =
 		[
@@ -32,20 +31,22 @@ public sealed class NauticalConversionsTests
 			Speed.FromSiBaseUnit(1852d / 3600d).AsKnots(),
 		];
 
-		Assert.Equal([1d, 1d, 1d, 1d], result);
+		await Assert.That(result).IsEquivalentTo(new double[] { 1d, 1d, 1d, 1d }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
-	public void NauticalUnitsDoNotGenerateSiPrefixedConversions()
+	[Test]
+	public async Task NauticalUnitsDoNotGenerateSiPrefixedConversions()
 	{
 		string[] names = Assembly.Load("DimensionalQuantities.Extensions.Nautical").GetExportedTypes()
 			.Where(type => type.Namespace == "DimensionalQuantities.Extensions.Nautical")
 			.SelectMany(type => type.GetMethods()).Select(method => method.Name).ToArray();
 
-		Assert.Multiple(
-			() => Assert.DoesNotContain("FromKiloNauticalMiles", names),
-			() => Assert.DoesNotContain("FromMilliKnots", names),
-			() => Assert.DoesNotContain("FromPrefixedUnits", names),
-			() => Assert.DoesNotContain("AsPrefixedUnits", names));
+		using (Assert.Multiple())
+		{
+			await Assert.That(names.Contains("FromKiloNauticalMiles")).IsFalse();
+			await Assert.That(names.Contains("FromMilliKnots")).IsFalse();
+			await Assert.That(names.Contains("FromPrefixedUnits")).IsFalse();
+			await Assert.That(names.Contains("AsPrefixedUnits")).IsFalse();
+		}
 	}
 }

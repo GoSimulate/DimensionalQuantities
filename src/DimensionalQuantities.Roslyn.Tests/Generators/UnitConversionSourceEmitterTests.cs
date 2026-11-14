@@ -1,4 +1,5 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.TypeSystem;
@@ -6,10 +7,10 @@ using DimensionalQuantities.Units;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(UnitConversionSourceEmitterTests))]
 public sealed class UnitConversionSourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
@@ -24,8 +25,8 @@ public sealed class UnitConversionSourceEmitterTests
 		"Deci", "Centi", "Milli", "Micro", "Nano", "Pico", "Femto", "Atto", "Zepto", "Yocto", "Ronto", "Quecto"
 	];
 
-	[Fact]
-	public void EverySiPrefixHasUsableFactoryAndAccessor()
+	[Test]
+	public async Task EverySiPrefixHasUsableFactoryAndAccessor()
 	{
 		string calls = string.Join("\n", _prefixes.Select(prefix =>
 			$"Length value{prefix} = Length.From{prefix}Metres(1); double output{prefix} = value{prefix}.As{prefix}Metres();"));
@@ -40,17 +41,17 @@ public sealed class UnitConversionSourceEmitterTests
 			""";
 
 		CSharpCompilation compilation = Compile(source);
-		Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken)
-			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+		await Assert.That(compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
+			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).IsEmpty();
 	}
 
-	[Theory]
-	[InlineData("Length.FromMilliMetres(2500).AsSiBaseUnit()", 2.5)]
-	[InlineData("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
-	[InlineData("Mass.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
-	[InlineData("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)", 1000)]
-	[InlineData("Length.FromMilliMetres(2500).AsDelta().AsMilliMetres()", 2500)]
-	public void BaseUnitPrefixesKeepTheirSiScales(string expression, double expected)
+	[Test]
+	[Arguments("Length.FromMilliMetres(2500).AsSiBaseUnit()", 2.5)]
+	[Arguments("Mass.FromKiloGrams(2.5).AsSiBaseUnit()", 2.5)]
+	[Arguments("Mass.FromPrefixedUnits(2).AsSiBaseUnit()", 2)]
+	[Arguments("Mass.FromSiBaseUnit(1).AsPrefixedUnits(gramPrefixExponent: 0)", 1000)]
+	[Arguments("Length.FromMilliMetres(2500).AsDelta().AsMilliMetres()", 2500)]
+	public async Task BaseUnitPrefixesKeepTheirSiScales(string expression, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -60,7 +61,7 @@ public sealed class UnitConversionSourceEmitterTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!emit.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics.Select(diagnostic => diagnostic.ToString())));
@@ -69,11 +70,11 @@ public sealed class UnitConversionSourceEmitterTests
 		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
 		MethodInfo method = assembly.GetType("Consumer")!.GetMethod("Value")!;
 		double result = (double)method.Invoke(null, null)!;
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void AffineReadingsAndScaleOnlyDeltasUseTheirOwnConversionRules()
+	[Test]
+	public async Task AffineReadingsAndScaleOnlyDeltasUseTheirOwnConversionRules()
 	{
 		AtomicUnit celsius = new("Celsius", "Celsius", "°C");
 		AtomicUnit rankine = new("Rankine", "Rankine", "°R", Scale: 5d / 9d);
@@ -100,18 +101,20 @@ public sealed class UnitConversionSourceEmitterTests
 			}
 			""", units);
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(emit.Success).IsTrue().Because(string.Join(Environment.NewLine, emit.Diagnostics));
 		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
 		Type consumer = assembly.GetType("Consumer")!;
-		Assert.Multiple(
-			() => Assert.Equal(20, Invoke(consumer, "AbsoluteCelsius"), 10),
-			() => Assert.Equal(20, Invoke(consumer, "AbsoluteFahrenheit"), 10),
-			() => Assert.Equal(10, Invoke(consumer, "DifferenceCelsius"), 10),
-			() => Assert.Equal(18, Invoke(consumer, "DifferenceFahrenheit"), 10),
-			() => Assert.Equal(18, Invoke(consumer, "DifferenceRankine"), 10),
-			() => Assert.Equal(0, Invoke(consumer, "ZeroDifference"), 10),
-			() => Assert.Equal(-18, Invoke(consumer, "NegativeDifference"), 10));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(Invoke(consumer, "AbsoluteCelsius"), 10)).IsEqualTo(Math.Round(20d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "AbsoluteFahrenheit"), 10)).IsEqualTo(Math.Round(20d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "DifferenceCelsius"), 10)).IsEqualTo(Math.Round(10d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "DifferenceFahrenheit"), 10)).IsEqualTo(Math.Round(18d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "DifferenceRankine"), 10)).IsEqualTo(Math.Round(18d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "ZeroDifference"), 10)).IsEqualTo(Math.Round(0d, 10));
+			await Assert.That(Math.Round(Invoke(consumer, "NegativeDifference"), 10)).IsEqualTo(Math.Round(-18d, 10));
+		}
 	}
 
 	private static double Invoke(Type consumer, string method) => (double)consumer.GetMethod(method)!.Invoke(null, null)!;

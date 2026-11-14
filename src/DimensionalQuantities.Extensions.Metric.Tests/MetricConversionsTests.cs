@@ -1,13 +1,12 @@
-using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Extensions.Metric;
-using Xunit;
 
 namespace DimensionalQuantities.Extensions.Metric.Tests;
 
 public sealed class MetricConversionsTests
 {
-	[Fact]
-	public void CatalogueFactoriesConvertToExpectedSiValues()
+	[Test]
+	public async Task CatalogueFactoriesConvertToExpectedSiValues()
 	{
 		double[] result =
 		[
@@ -38,31 +37,35 @@ public sealed class MetricConversionsTests
 		];
 
 		double[] expected = [1d, 1d, 1d, 1d, 0.001d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d];
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
-	public void CelsiusConvertsToAndFromAbsoluteKelvin()
+	[Test]
+	public async Task CelsiusConvertsToAndFromAbsoluteKelvin()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(273.15, Temperature.FromCelsius(0).AsKelvin(), 10),
-			() => Assert.Equal(0, Temperature.FromKelvin(273.15).AsCelsius(), 10));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(Temperature.FromCelsius(0).AsKelvin(), 10)).IsEqualTo(Math.Round(273.15, 10));
+			await Assert.That(Math.Round(Temperature.FromKelvin(273.15).AsCelsius(), 10)).IsEqualTo(Math.Round(0d, 10));
+		}
 	}
 
-	[Theory]
-	[InlineData(0d, 0d)]
-	[InlineData(60d, 2d)]
-	[InlineData(-120d, -4d)]
-	public void RpmConvertsToAndFromRadiansPerSecond(double rpm, double multiplesOfPi)
+	[Test]
+	[Arguments(0d, 0d)]
+	[Arguments(60d, 2d)]
+	[Arguments(-120d, -4d)]
+	public async Task RpmConvertsToAndFromRadiansPerSecond(double rpm, double multiplesOfPi)
 	{
 		double radiansPerSecond = multiplesOfPi * Math.PI;
-		Assert.Multiple(
-			() => Assert.Equal(radiansPerSecond, AngularVelocity.FromRpm(rpm).AsRadiansPerSecond(), 10),
-			() => Assert.Equal(rpm, AngularVelocity.FromRadiansPerSecond(radiansPerSecond).ToRpm(), 10));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Math.Round(AngularVelocity.FromRpm(rpm).AsRadiansPerSecond(), 10)).IsEqualTo(Math.Round(radiansPerSecond, 10));
+			await Assert.That(Math.Round(AngularVelocity.FromRadiansPerSecond(radiansPerSecond).ToRpm(), 10)).IsEqualTo(Math.Round(rpm, 10));
+		}
 	}
 
-	[Fact]
-	public void CatalogueAccessorsConvertFromKnownSiValues()
+	[Test]
+	public async Task CatalogueAccessorsConvertFromKnownSiValues()
 	{
 		double[] result =
 		[
@@ -93,11 +96,11 @@ public sealed class MetricConversionsTests
 		];
 
 		double[] expected = [1d, 1d, 1d, 1d, 1000d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d, 1d];
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
-	public void AliasesShareNamedConversionsWithoutDuplicateHelpers()
+	[Test]
+	public async Task AliasesShareNamedConversionsWithoutDuplicateHelpers()
 	{
 		Pressure pressure = Pressure.FromPascals(1);
 		Stress stress = Stress.FromPascals(1);
@@ -115,41 +118,47 @@ public sealed class MetricConversionsTests
 			MagneticFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre(),
 			CoerciveFieldStrength.FromAmpsPerMetre(1).AsAmpsPerMetre()
 		];
-		Assert.Equal(Enumerable.Repeat(1d, result.Length), result);
+		await Assert.That(result).IsEquivalentTo(Enumerable.Repeat(1d, result.Length), TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
-	[Fact]
-	public void NamedConversionsApplyMetricScale()
+	[Test]
+	public async Task NamedConversionsApplyMetricScale()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(0.0025, Voltage.FromSiBaseUnit(2.5).AsKiloVolts()),
-			() => Assert.Equal(1000, Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Voltage.FromSiBaseUnit(2.5).AsKiloVolts()).IsEqualTo(0.0025);
+			await Assert.That(Density.FromGramsPerCubicCentiMetre(1).AsSiBaseUnit()).IsEqualTo(1000);
+		}
 	}
 
-	[Fact]
-	public void GenericPrefixConversionsApplyMetricScale()
+	[Test]
+	public async Task GenericPrefixConversionsApplyMetricScale()
 	{
-		Assert.Multiple(
-			() => Assert.Equal(0.002, Voltage.FromPrefixedUnits(2, -3).AsSiBaseUnit()),
-			() => Assert.Equal(1000000, CurrentDensity.FromPrefixedUnits(1, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit()),
-			() => Assert.Equal(1000, SpecificPower.FromPrefixedUnits(1, wattPrefixExponent: 3, gramPrefixExponent: 3).AsSiBaseUnit()),
-			() => Assert.Equal(1000, TemperatureCoefficient.FromPrefixedUnits(1, kelvinPrefixExponent: -3).AsSiBaseUnit()),
-			() => Assert.Equal(2, Torque.FromPrefixedUnits(2).AsSiBaseUnit()),
-			() => Assert.Equal(2, Voltage.FromSiBaseUnit(0.002).AsPrefixedUnits(-3)),
-			() => Assert.Equal(1, CurrentDensity.FromSiBaseUnit(1000000).AsPrefixedUnits(ampPrefixExponent: 0, metrePrefixExponent: -3)),
-			() => Assert.Equal(2, Torque.FromSiBaseUnit(2).AsPrefixedUnits()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Voltage.FromPrefixedUnits(2, -3).AsSiBaseUnit()).IsEqualTo(0.002);
+			await Assert.That(CurrentDensity.FromPrefixedUnits(1, ampPrefixExponent: 0, metrePrefixExponent: -3).AsSiBaseUnit()).IsEqualTo(1000000);
+			await Assert.That(SpecificPower.FromPrefixedUnits(1, wattPrefixExponent: 3, gramPrefixExponent: 3).AsSiBaseUnit()).IsEqualTo(1000);
+			await Assert.That(TemperatureCoefficient.FromPrefixedUnits(1, kelvinPrefixExponent: -3).AsSiBaseUnit()).IsEqualTo(1000);
+			await Assert.That(Torque.FromPrefixedUnits(2).AsSiBaseUnit()).IsEqualTo(2);
+			await Assert.That(Voltage.FromSiBaseUnit(0.002).AsPrefixedUnits(-3)).IsEqualTo(2);
+			await Assert.That(CurrentDensity.FromSiBaseUnit(1000000).AsPrefixedUnits(ampPrefixExponent: 0, metrePrefixExponent: -3)).IsEqualTo(1);
+			await Assert.That(Torque.FromSiBaseUnit(2).AsPrefixedUnits()).IsEqualTo(2);
+		}
 	}
 
-	[Fact]
-	public void PrefixesOnlyApplyToSupportedFactorPlacements()
+	[Test]
+	public async Task PrefixesOnlyApplyToSupportedFactorPlacements()
 	{
 		string[] names = Assembly.Load("DimensionalQuantities.Extensions.Metric").GetExportedTypes()
 			.Where(type => type.Namespace == "DimensionalQuantities.Extensions.Metric")
 			.SelectMany(type => type.GetMethods()).Select(method => method.Name).ToArray();
-		Assert.Multiple(
-			() => Assert.DoesNotContain("FromInverseMilliKelvin", names),
-			() => Assert.DoesNotContain("AsInverseMilliKelvin", names),
-			() => Assert.DoesNotContain("FromMilliAmpsPerSquareMilliMetre", names),
-			() => Assert.DoesNotContain("FromKiloGramsPerCubicCentiMetre", names));
+		using (Assert.Multiple())
+		{
+			await Assert.That(names.Contains("FromInverseMilliKelvin")).IsFalse();
+			await Assert.That(names.Contains("AsInverseMilliKelvin")).IsFalse();
+			await Assert.That(names.Contains("FromMilliAmpsPerSquareMilliMetre")).IsFalse();
+			await Assert.That(names.Contains("FromKiloGramsPerCubicCentiMetre")).IsFalse();
+		}
 	}
 }

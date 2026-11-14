@@ -1,4 +1,5 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
@@ -6,23 +7,23 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(QuantitySourceEmitterTests))]
 public sealed class QuantitySourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Fact]
-	public void StandaloneTemperatureUsesTheDimensionAlias()
+	[Test]
+	public async Task StandaloneTemperatureUsesTheDimensionAlias()
 	{
 		string source = QuantitySourceEmitter.Emit(QuantityDiscovery.Discover([]).KnownQuantities);
-		Assert.Contains("global using Temperature =", source);
+		await Assert.That(source).Contains("global using Temperature =");
 	}
 
-	[Fact]
-	public void DiscoveredMechanicalQuantityUsesItsGenericPrefixConversion()
+	[Test]
+	public async Task DiscoveredMechanicalQuantityUsesItsGenericPrefixConversion()
 	{
 		Dimension mass = new(Mass: 1);
 		Dimension massSquared = new(Mass: 2);
@@ -33,11 +34,11 @@ public sealed class QuantitySourceEmitterTests
 		Type consumer = assembly.GetType("Consumer")!;
 		double result = (double)consumer.GetMethod("Value")!.Invoke(null, null)!;
 
-		Assert.Equal(0.000002, result, 12);
+		await Assert.That(Math.Round(result, 12)).IsEqualTo(Math.Round(0.000002, 12));
 	}
 
-	[Fact]
-	public void DiscoveredQuantityOnlyHasGenericPrefixConversions()
+	[Test]
+	public async Task DiscoveredQuantityOnlyHasGenericPrefixConversions()
 	{
 		Dimension current = new(ElectricCurrent: 1);
 		Dimension currentSquared = new(ElectricCurrent: 2);
@@ -47,31 +48,33 @@ public sealed class QuantitySourceEmitterTests
 		INamedTypeSymbol extensions = compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.CurrentSquaredExtensions")!;
 		string[] methods = extensions.GetMembers().OfType<IMethodSymbol>().Select(method => method.Name).ToArray();
 
-		Assert.Multiple(
-			() => Assert.Contains("FromPrefixedUnits", methods),
-			() => Assert.Contains("AsPrefixedUnits", methods),
-			() => Assert.DoesNotContain(methods, method => method.StartsWith("FromSquare", StringComparison.Ordinal)),
-			() => Assert.DoesNotContain(methods, method => method.StartsWith("AsSquare", StringComparison.Ordinal)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(methods).Contains("FromPrefixedUnits");
+			await Assert.That(methods).Contains("AsPrefixedUnits");
+			await Assert.That(methods.Any(method => method.StartsWith("FromSquare", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(methods.Any(method => method.StartsWith("AsSquare", StringComparison.Ordinal))).IsFalse();
+		}
 	}
 
-	[Fact]
-	public void VoltageAndMechanicalAliasAreTheSameType()
+	[Test]
+	public async Task VoltageAndMechanicalAliasAreTheSameType()
 	{
 		const string expression = "typeof(Voltage) == typeof(LengthSquaredMassPerTimeCubedCurrent)";
 		bool result = Evaluate<bool>(expression);
-		Assert.True(result);
+		await Assert.That(result).IsTrue();
 	}
 
-	[Theory]
-	[InlineData("Area", "LengthSquared")]
-	[InlineData("CurrentDensity", "CurrentPerLengthSquared")]
-	[InlineData("Pressure", "Stress")]
-	[InlineData("Pressure", "YoungsModulus")]
-	[InlineData("Energy", "Torque")]
-	public void CatalogueAliasesShareTheCanonicalDimensionType(string alias, string equivalent)
+	[Test]
+	[Arguments("Area", "LengthSquared")]
+	[Arguments("CurrentDensity", "CurrentPerLengthSquared")]
+	[Arguments("Pressure", "Stress")]
+	[Arguments("Pressure", "YoungsModulus")]
+	[Arguments("Energy", "Torque")]
+	public async Task CatalogueAliasesShareTheCanonicalDimensionType(string alias, string equivalent)
 	{
 		bool result = Evaluate<bool>($"typeof({alias}) == typeof({equivalent})");
-		Assert.True(result);
+		await Assert.That(result).IsTrue();
 	}
 
 	private static T Evaluate<T>(string expression)
@@ -94,7 +97,7 @@ public sealed class QuantitySourceEmitterTests
 			_parseOptions,
 			path: "KnownQuantities.g.cs");
 		CSharpCompilation compilation = CreateInputCompilation(source).AddSyntaxTrees(generated);
-		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 		if (errors.Length != 0)
 		{
@@ -108,7 +111,7 @@ public sealed class QuantitySourceEmitterTests
 		SyntaxTree knownQuantities = CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(known), _parseOptions, path: "KnownQuantities.g.cs");
 		SyntaxTree additionalQuantities = CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(additional), _parseOptions, path: "AdditionalQuantities.g.cs");
 		CSharpCompilation compilation = CreateInputCompilation(source).AddSyntaxTrees(knownQuantities, additionalQuantities);
-		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 		if (errors.Length != 0)
 		{
@@ -116,7 +119,7 @@ public sealed class QuantitySourceEmitterTests
 		}
 
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!emit.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, emit.Diagnostics.Select(diagnostic => diagnostic.ToString())));

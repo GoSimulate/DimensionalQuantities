@@ -1,23 +1,22 @@
 using Microsoft.Build.Locator;
+using TUnit.Core.Interfaces;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
-public sealed class SymbolPackageFixture : IDisposable
+public sealed class SymbolPackageFixture : IAsyncInitializer, IDisposable
 {
-	private readonly string _scratch = Directory.CreateTempSubdirectory("dimensional-quantities-symbols-").FullName;
+	private string _scratch = null!;
 	private readonly Dictionary<string, FileInfo> _packages = new();
 
-	static SymbolPackageFixture()
+	public Task InitializeAsync()
 	{
 		// MSBuild must be located before any Microsoft.Build type is loaded.
 		if (!MSBuildLocator.IsRegistered)
 		{
 			MSBuildLocator.RegisterDefaults();
 		}
-	}
 
-	public SymbolPackageFixture()
-	{
+		_scratch = Directory.CreateTempSubdirectory("dimensional-quantities-symbols-").FullName;
 		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 		foreach (string projectName in new[]
 		{
@@ -30,6 +29,8 @@ public sealed class SymbolPackageFixture : IDisposable
 		{
 			_packages.Add(projectName, PackageTestSupport.PackLibrary(Path.Combine(sourceDirectory, projectName, projectName + ".csproj"), _scratch));
 		}
+
+		return Task.CompletedTask;
 	}
 
 	internal FileInfo GetPackage(string projectName) => _packages[projectName];

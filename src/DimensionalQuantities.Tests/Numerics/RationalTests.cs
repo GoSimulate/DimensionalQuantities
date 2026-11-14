@@ -1,277 +1,294 @@
 using System.Numerics;
 using DimensionalQuantities.Numerics;
-using Xunit;
 
 namespace DimensionalQuantities.Tests.Numerics;
 
 public sealed partial class RationalTests
 {
-	[Fact]
-	public void ConstructionReducesFractionToLowestTerms()
+	[Test]
+	public async Task ConstructionReducesFractionToLowestTerms()
 	{
 		Rational result = new(6, 8);
 
-		Assert.Multiple(
-			() => Assert.Equal(3, result.Numerator),
-			() => Assert.Equal(4, result.Denominator));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.Numerator).IsEqualTo(3);
+			await Assert.That(result.Denominator).IsEqualTo(4);
+		}
 	}
 
-	[Fact]
-	public void NegativeDenominatorMovesSignToNumerator()
+	[Test]
+	public async Task NegativeDenominatorMovesSignToNumerator()
 	{
 		Rational result = new(2, -4);
 		Rational expected = new(-1, 2);
 
-		Assert.Multiple(
-			() => Assert.Equal(-1, result.Numerator),
-			() => Assert.Equal(2, result.Denominator),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.Numerator).IsEqualTo(-1);
+			await Assert.That(result.Denominator).IsEqualTo(2);
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void TwoNegativeSignsCancel()
+	[Test]
+	public async Task TwoNegativeSignsCancel()
 	{
 		Rational result = new(-2, -4);
 		Rational expected = new(1, 2);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ZeroHasCanonicalDenominator()
+	[Test]
+	public async Task ZeroHasCanonicalDenominator()
 	{
 		Rational result = new(0, 7);
 		Rational expected = default;
 
-		Assert.Multiple(
-			() => Assert.Equal(0, result.Numerator),
-			() => Assert.Equal(1, result.Denominator),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.Numerator).IsEqualTo(0);
+			await Assert.That(result.Denominator).IsEqualTo(1);
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void DefaultRepresentsZeroOverOne()
+	[Test]
+	public async Task DefaultRepresentsZeroOverOne()
 	{
 		Rational result = default;
 
-		Assert.Multiple(
-			() => Assert.Equal(0, result.Numerator),
-			() => Assert.Equal(1, result.Denominator));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.Numerator).IsEqualTo(0);
+			await Assert.That(result.Denominator).IsEqualTo(1);
+		}
 	}
 
-	[Fact]
-	public void EquivalentFractionsHaveEqualValuesAndHashes()
+	[Test]
+	public async Task EquivalentFractionsHaveEqualValuesAndHashes()
 	{
 		Rational result = new(2, 4);
 		Rational expected = new(1, 2);
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(expected.GetHashCode(), result.GetHashCode()));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(result.GetHashCode()).IsEqualTo(expected.GetHashCode());
+		}
 	}
 
-	[Fact]
-	public void IntegerConversionProducesWholeFraction()
+	[Test]
+	public async Task IntegerConversionProducesWholeFraction()
 	{
 		Rational result = 3;
 		Rational expected = new(3, 1);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void AdditionCombinesDifferentDenominators()
+	[Test]
+	public async Task AdditionCombinesDifferentDenominators()
 	{
 		Rational original = new(1, 2);
 		Rational operand = new(1, 3);
 		Rational result = original + operand;
 		Rational expected = new(5, 6);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void SubtractionCombinesDifferentDenominators()
+	[Test]
+	public async Task SubtractionCombinesDifferentDenominators()
 	{
 		Rational original = new(1, 3);
 		Rational operand = new(1, 2);
 		Rational result = original - operand;
 		Rational expected = new(-1, 6);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void MultiplicationReducesResult()
+	[Test]
+	public async Task MultiplicationReducesResult()
 	{
 		Rational original = new(2, 3);
 		Rational operand = new(3, 4);
 		Rational result = original * operand;
 		Rational expected = new(1, 2);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void DivisionUsesReciprocal()
+	[Test]
+	public async Task DivisionUsesReciprocal()
 	{
 		Rational original = new(2, 3);
 		Rational operand = new(4, 5);
 		Rational result = original / operand;
 		Rational expected = new(5, 6);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void DefaultZeroIsAdditiveIdentity()
+	[Test]
+	public async Task DefaultZeroIsAdditiveIdentity()
 	{
 		Rational original = new(2, 3);
 		Rational zero = default;
 		Rational result = original + zero;
 		Rational expected = new(2, 3);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ZeroDenominatorIsRejected()
+	[Test]
+	public async Task ZeroDenominatorIsRejected()
 	{
-		Assert.Throws<DivideByZeroException>(() => new Rational(1, 0));
+		await Assert.That(() => new Rational(1, 0)).ThrowsExactly<DivideByZeroException>();
 	}
 
-	[Fact]
-	public void DivisionByZeroIsRejected()
+	[Test]
+	public async Task DivisionByZeroIsRejected()
 	{
 		Rational original = new(1, 2);
 		Rational zero = default;
 
-		Assert.Throws<DivideByZeroException>(() => original / zero);
+		await Assert.That(() => original / zero).ThrowsExactly<DivideByZeroException>();
 	}
 
-	[Fact]
-	public void ComparisonUsesFractionValues()
+	[Test]
+	public async Task ComparisonUsesFractionValues()
 	{
 		Rational original = new(-1, 2);
 		Rational other = new(-1, 3);
 
-		Assert.Multiple(
-			() => Assert.True(original < other),
-			() => Assert.True(original <= other),
-			() => Assert.True(other > original),
-			() => Assert.True(other >= original),
-			() => Assert.Equal(-1, original.CompareTo(other)),
-			() => Assert.Equal(-1, original.CompareTo((object)other)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(original < other).IsTrue();
+			await Assert.That(original <= other).IsTrue();
+			await Assert.That(other > original).IsTrue();
+			await Assert.That(other >= original).IsTrue();
+			await Assert.That(original.CompareTo(other)).IsEqualTo(-1);
+			await Assert.That(original.CompareTo((object)other)).IsEqualTo(-1);
+		}
 	}
 
-	[Fact]
-	public void RemainderUsesQuotientTruncatedTowardsZero()
+	[Test]
+	public async Task RemainderUsesQuotientTruncatedTowardsZero()
 	{
 		Rational original = new(-7, 3);
 		Rational divisor = new(1, 2);
 		Rational result = original % divisor;
 		Rational expected = new(-1, 3);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void UnaryPlusPreservesValue()
+	[Test]
+	public async Task UnaryPlusPreservesValue()
 	{
 		Rational original = new(1, 3);
 		Rational result = +original;
 		Rational expected = original;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void UnaryMinusNegatesValue()
+	[Test]
+	public async Task UnaryMinusNegatesValue()
 	{
 		Rational original = new(1, 3);
 		Rational result = -original;
 		Rational expected = new(-1, 3);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void IncrementAddsOneAndPreservesOriginalValue()
+	[Test]
+	public async Task IncrementAddsOneAndPreservesOriginalValue()
 	{
 		Rational original = new(1, 3);
 		Rational result = original;
 		result++;
 		Rational expected = new(4, 3);
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(new Rational(1, 3), original));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(original).IsEqualTo(new Rational(1, 3));
+		}
 	}
 
-	[Fact]
-	public void DecrementSubtractsOneAndPreservesOriginalValue()
+	[Test]
+	public async Task DecrementSubtractsOneAndPreservesOriginalValue()
 	{
 		Rational original = new(4, 3);
 		Rational result = original;
 		result--;
 		Rational expected = new(1, 3);
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(new Rational(4, 3), original));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(original).IsEqualTo(new Rational(4, 3));
+		}
 	}
 
-	[Fact]
-	public void ClassificationDistinguishesFractionsAndIntegers()
+	[Test]
+	public async Task ClassificationDistinguishesFractionsAndIntegers()
 	{
 		Rational fraction = new(-3, 2);
 		Rational even = new(8, 2);
 		Rational odd = new(-6, 2);
 
-		Assert.Multiple(
-			() => Assert.True(Rational.IsFinite(fraction)),
-			() => Assert.True(Rational.IsRealNumber(fraction)),
-			() => Assert.True(Rational.IsNormal(fraction)),
-			() => Assert.True(Rational.IsNegative(fraction)),
-			() => Assert.False(Rational.IsInteger(fraction)),
-			() => Assert.False(Rational.IsEvenInteger(fraction)),
-			() => Assert.False(Rational.IsOddInteger(fraction)),
-			() => Assert.True(Rational.IsEvenInteger(even)),
-			() => Assert.True(Rational.IsOddInteger(odd)),
-			() => Assert.True(Rational.IsZero(default)),
-			() => Assert.False(Rational.IsNormal(default)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(Rational.IsFinite(fraction)).IsTrue();
+			await Assert.That(Rational.IsRealNumber(fraction)).IsTrue();
+			await Assert.That(Rational.IsNormal(fraction)).IsTrue();
+			await Assert.That(Rational.IsNegative(fraction)).IsTrue();
+			await Assert.That(Rational.IsInteger(fraction)).IsFalse();
+			await Assert.That(Rational.IsEvenInteger(fraction)).IsFalse();
+			await Assert.That(Rational.IsOddInteger(fraction)).IsFalse();
+			await Assert.That(Rational.IsEvenInteger(even)).IsTrue();
+			await Assert.That(Rational.IsOddInteger(odd)).IsTrue();
+			await Assert.That(Rational.IsZero(default)).IsTrue();
+			await Assert.That(Rational.IsNormal(default)).IsFalse();
+		}
 	}
 
-	[Fact]
-	public void EqualMagnitudesPreferPositiveForMaximum()
+	[Test]
+	public async Task EqualMagnitudesPreferPositiveForMaximum()
 	{
 		Rational original = new(-2, 3);
 		Rational positive = new(2, 3);
 		Rational result = Rational.MaxMagnitude(original, positive);
 		Rational expected = positive;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void EqualMagnitudesPreferNegativeForMinimum()
+	[Test]
+	public async Task EqualMagnitudesPreferNegativeForMinimum()
 	{
 		Rational original = new(-2, 3);
 		Rational positive = new(2, 3);
 		Rational result = Rational.MinMagnitude(positive, original);
 		Rational expected = original;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void AbsoluteValueMakesNegativeFractionPositive()
+	[Test]
+	public async Task AbsoluteValueMakesNegativeFractionPositive()
 	{
 		Rational original = new(-2, 3);
 		Rational result = Rational.Abs(original);
 		Rational expected = new(2, 3);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
 }

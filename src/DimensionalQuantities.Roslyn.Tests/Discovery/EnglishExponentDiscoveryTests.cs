@@ -4,19 +4,19 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(EnglishExponentDiscoveryTests))]
 public sealed class EnglishExponentDiscoveryTests
 {
-	[Theory]
-	[InlineData("NumberTwo", 2, 1)]
-	[InlineData("NumberHalf", 1, 2)]
-	[InlineData("NumberTwoQuarters", 1, 2)]
-	[InlineData("NumberMinusThreeOverTwo", -3, 2)]
-	[InlineData("NumberMillionth", 1, 1000000)]
-	public void DiscoversOnlyTheRequestedEnglishName(string name, int numerator, int denominator)
+	[Test]
+	[Arguments("NumberTwo", 2, 1)]
+	[Arguments("NumberHalf", 1, 2)]
+	[Arguments("NumberTwoQuarters", 1, 2)]
+	[Arguments("NumberMinusThreeOverTwo", -3, 2)]
+	[Arguments("NumberMillionth", 1, 1000000)]
+	public async Task DiscoversOnlyTheRequestedEnglishName(string name, int numerator, int denominator)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -24,33 +24,35 @@ public sealed class EnglishExponentDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		EnglishExponentDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool success = discovery.TryRead(invocation, out EnglishExponentAlias result, TestContext.Current.CancellationToken);
+		bool success = discovery.TryRead(invocation, out EnglishExponentAlias result, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(name, result.Name),
-			() => Assert.Equal(expected, result.Value));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result.Name).IsEqualTo(name);
+			await Assert.That(result.Value).IsEqualTo(expected);
+		}
 	}
 
-	[Theory]
-	[InlineData("Power<Two>.Of(quantity)", "")]
-	[InlineData("Power<Number>.Of(quantity)", "")]
-	[InlineData("Power<NumbersTwo>.Of(quantity)", "")]
-	[InlineData("Power<NumberNotANumber>.Of(quantity)", "")]
-	[InlineData("Power<NumberOneOverZero>.Of(quantity)", "")]
-	[InlineData("Power<Other.NumberTwo>.Of(quantity)", "")]
-	[InlineData("Power<NumberTwo<int>>.Of(quantity)", "")]
-	[InlineData("Power<NumberTwo>.Of(quantity)", "struct NumberTwo { }")]
-	[InlineData("Power<NumberTwo>.Of(quantity)", "using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;")]
-	[InlineData("Power<TerminalHex2>.Of(quantity)", "")]
-	[InlineData("Other.Power<NumberTwo>.Of(quantity)", "namespace Other { struct Power<T> { } }")]
-	[InlineData("Power<NumberTwo>.Other(quantity)", "")]
-	[InlineData("Power<NumberTwo>.Of(quantity, quantity)", "")]
-	public void IgnoresNamesThatShouldNotBecomeGeneratedAliases(string expression, string declarations)
+	[Test]
+	[Arguments("Power<Two>.Of(quantity)", "")]
+	[Arguments("Power<Number>.Of(quantity)", "")]
+	[Arguments("Power<NumbersTwo>.Of(quantity)", "")]
+	[Arguments("Power<NumberNotANumber>.Of(quantity)", "")]
+	[Arguments("Power<NumberOneOverZero>.Of(quantity)", "")]
+	[Arguments("Power<Other.NumberTwo>.Of(quantity)", "")]
+	[Arguments("Power<NumberTwo<int>>.Of(quantity)", "")]
+	[Arguments("Power<NumberTwo>.Of(quantity)", "struct NumberTwo { }")]
+	[Arguments("Power<NumberTwo>.Of(quantity)", "using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;")]
+	[Arguments("Power<TerminalHex2>.Of(quantity)", "")]
+	[Arguments("Other.Power<NumberTwo>.Of(quantity)", "namespace Other { struct Power<T> { } }")]
+	[Arguments("Power<NumberTwo>.Other(quantity)", "")]
+	[Arguments("Power<NumberTwo>.Of(quantity, quantity)", "")]
+	public async Task IgnoresNamesThatShouldNotBecomeGeneratedAliases(string expression, string declarations)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -59,16 +61,16 @@ public sealed class EnglishExponentDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		EnglishExponentDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool result = discovery.TryRead(invocation, out _, TestContext.Current.CancellationToken);
+		bool result = discovery.TryRead(invocation, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
-	[Fact]
-	public void DoesNotReplaceAnAmbiguousExistingType()
+	[Test]
+	public async Task DoesNotReplaceAnAmbiguousExistingType()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -80,12 +82,12 @@ public sealed class EnglishExponentDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		EnglishExponentDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool result = discovery.TryRead(invocation, out _, TestContext.Current.CancellationToken);
+		bool result = discovery.TryRead(invocation, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
 	private static CSharpCompilation Compile(string source)
