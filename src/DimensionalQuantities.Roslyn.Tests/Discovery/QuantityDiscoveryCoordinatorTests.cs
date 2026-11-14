@@ -1,28 +1,29 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
 using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(QuantityDiscoveryCoordinatorTests))]
 public sealed class QuantityDiscoveryCoordinatorTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Theory]
-	[InlineData("var make = () => length * current; return make() * time;")]
-	[InlineData("var pair = (length * current, time); return pair.Item1 * pair.Item2;")]
-	[InlineData("var (value, duration) = (length * current, time); return value * duration;")]
-	[InlineData("return Identity(length * current) * time;")]
-	[InlineData("LengthCurrent? value = null; var fallback = length * current; return (value ?? fallback) * time;")]
-	[InlineData("object value = length * current; return ((LengthCurrent)value) * time;")]
-	[InlineData("var values = new[] { length }.Select(item => item * current); return values.First() * time;")]
-	[InlineData("var values = new[] { length * current }; LengthTimeCurrent result = default; foreach (var value in values) { result += value * time; } return result;")]
-	public void IntermediateResultsComposeThroughOrdinaryCSharp(string body)
+	[Test]
+	[Arguments("var make = () => length * current; return make() * time;")]
+	[Arguments("var pair = (length * current, time); return pair.Item1 * pair.Item2;")]
+	[Arguments("var (value, duration) = (length * current, time); return value * duration;")]
+	[Arguments("return Identity(length * current) * time;")]
+	[Arguments("LengthCurrent? value = null; var fallback = length * current; return (value ?? fallback) * time;")]
+	[Arguments("object value = length * current; return ((LengthCurrent)value) * time;")]
+	[Arguments("var values = new[] { length }.Select(item => item * current); return values.First() * time;")]
+	[Arguments("var values = new[] { length * current }; LengthTimeCurrent result = default; foreach (var value in values) { result += value * time; } return result;")]
+	public async Task IntermediateResultsComposeThroughOrdinaryCSharp(string body)
 	{
 		string source = $$"""
 			using System.Linq;
@@ -43,11 +44,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ForeachArithmeticOverTypedInputRetainsItsResultDimension()
+	[Test]
+	public async Task ForeachArithmeticOverTypedInputRetainsItsResultDimension()
 	{
 		const string source = """
 			using System.Collections.Generic;
@@ -68,11 +69,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(20, result);
+		await Assert.That(result).IsEqualTo(20);
 	}
 
-	[Fact]
-	public void ConstrainedProviderResultsComposeWithArithmetic()
+	[Test]
+	public async Task ConstrainedProviderResultsComposeWithArithmetic()
 	{
 		const string source = """
 			public interface IProvider<T> { T Get(); }
@@ -94,11 +95,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void OutVariablesComposeWithArithmetic()
+	[Test]
+	public async Task OutVariablesComposeWithArithmetic()
 	{
 		const string source = """
 			public static class Consumer
@@ -120,14 +121,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("ref", "return Get() * Time.FromSeconds(4);")]
-	[InlineData("ref", "ref var value = ref Get(); return value * Time.FromSeconds(4);")]
-	[InlineData("ref readonly", "ref readonly var value = ref Get(); return value * Time.FromSeconds(4);")]
-	public void RefReturnsComposeWithArithmetic(string returnModifier, string body)
+	[Test]
+	[Arguments("ref", "return Get() * Time.FromSeconds(4);")]
+	[Arguments("ref", "ref var value = ref Get(); return value * Time.FromSeconds(4);")]
+	[Arguments("ref readonly", "ref readonly var value = ref Get(); return value * Time.FromSeconds(4);")]
+	public async Task RefReturnsComposeWithArithmetic(string returnModifier, string body)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -145,13 +146,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("Span")]
-	[InlineData("ReadOnlySpan")]
-	public void SpanElementsComposeWithArithmetic(string spanType)
+	[Test]
+	[Arguments("Span")]
+	[Arguments("ReadOnlySpan")]
+	public async Task SpanElementsComposeWithArithmetic(string spanType)
 	{
 		string source = $$"""
 			using System;
@@ -165,11 +166,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void PropertyPatternVariablesComposeWithArithmetic()
+	[Test]
+	public async Task PropertyPatternVariablesComposeWithArithmetic()
 	{
 		const string source = """
 			public sealed class Measurement
@@ -190,11 +191,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ListPatternVariablesComposeWithArithmetic()
+	[Test]
+	public async Task ListPatternVariablesComposeWithArithmetic()
 	{
 		const string source = """
 			public static class Consumer
@@ -211,11 +212,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void CustomDeconstructionResultsComposeWithArithmetic()
+	[Test]
+	public async Task CustomDeconstructionResultsComposeWithArithmetic()
 	{
 		const string source = """
 			public sealed class Measurement
@@ -240,13 +241,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("public LengthCurrent Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
-	[InlineData("LengthCurrent IProvider<LengthCurrent>.Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
-	public void GenericInterfaceResultsComposeWithArithmetic(string implementation)
+	[Test]
+	[Arguments("public LengthCurrent Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[Arguments("LengthCurrent IProvider<LengthCurrent>.Get() => Length.FromMetres(2) * Current.FromAmps(3);")]
+	public async Task GenericInterfaceResultsComposeWithArithmetic(string implementation)
 	{
 		string source = $$"""
 			public interface IProvider<T> { T Get(); }
@@ -268,14 +269,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
-	[InlineData("switch (input) { case LengthCurrent value: return value * Time.FromSeconds(4); default: throw new System.Exception(); }")]
-	[InlineData("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
-	public void PatternVariablesComposeWithArithmetic(string body)
+	[Test]
+	[Arguments("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
+	[Arguments("switch (input) { case LengthCurrent value: return value * Time.FromSeconds(4); default: throw new System.Exception(); }")]
+	[Arguments("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
+	public async Task PatternVariablesComposeWithArithmetic(string body)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -291,11 +292,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void IteratorResultsComposeWithArithmetic()
+	[Test]
+	public async Task IteratorResultsComposeWithArithmetic()
 	{
 		const string source = """
 			using System.Collections.Generic;
@@ -322,13 +323,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 60;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
-	[InlineData("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
-	public void UnionCaseVariablesComposeWithArithmetic(string body)
+	[Test]
+	[Arguments("if (input is LengthCurrent value) return value * Time.FromSeconds(4); throw new System.Exception();")]
+	[Arguments("return input switch { LengthCurrent value => value * Time.FromSeconds(4), _ => throw new System.Exception() };")]
+	public async Task UnionCaseVariablesComposeWithArithmetic(string body)
 	{
 		string source = $$"""
 			public union Measurement(LengthCurrent, Time);
@@ -345,11 +346,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 24;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void IncompatibleUnionCasesDoNotSupplyDimensionsToArithmetic()
+	[Test]
+	public async Task IncompatibleUnionCasesDoNotSupplyDimensionsToArithmetic()
 	{
 		const string source = """
 			public union Measurement(LengthCurrent, Time);
@@ -368,16 +369,18 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			""";
 		QuantityDiscoveryResult result = Discover(source);
-		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Multiple(
-			() => Assert.Contains(errors, diagnostic => diagnostic.Id == "CS8506"),
-			() => Assert.DoesNotContain(result.Sources, source => source.HintName == "Arithmetic.g.cs"));
+		using (Assert.Multiple())
+		{
+			await Assert.That(errors.Any(diagnostic => diagnostic.Id == "CS8506")).IsTrue();
+			await Assert.That(result.Sources.Any(source => source.HintName == "Arithmetic.g.cs")).IsFalse();
+		}
 	}
 
-	[Fact]
-	public void AsyncIteratorResultsComposeWithArithmetic()
+	[Test]
+	public async Task AsyncIteratorResultsComposeWithArithmetic()
 	{
 		const string source = """
 			using System.Collections.Generic;
@@ -407,11 +410,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(discovery.Compilation);
 		double expected = 60;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void AwaitedIntermediateResultsComposeWithArithmetic()
+	[Test]
+	public async Task AwaitedIntermediateResultsComposeWithArithmetic()
 	{
 		const string source = """
 			using System.Threading.Tasks;
@@ -429,11 +432,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Fact]
-	public void BlockGetterResultsComposeAcrossSourceFiles()
+	[Test]
+	public async Task BlockGetterResultsComposeAcrossSourceFiles()
 	{
 		const string member = """
 			public static class Measurements
@@ -454,14 +457,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(consumer, member);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Theory]
-	[InlineData("new LengthCurrent()")]
-	[InlineData("default(LengthCurrent)")]
-	[InlineData("Make()")]
-	public void ExplicitIntermediateTypesSupplyDimensionsWithoutInitialisers(string expression)
+	[Test]
+	[Arguments("new LengthCurrent()")]
+	[Arguments("default(LengthCurrent)")]
+	[Arguments("Make()")]
+	public async Task ExplicitIntermediateTypesSupplyDimensionsWithoutInitialisers(string expression)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -474,13 +477,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(0, result);
+		await Assert.That(result).IsEqualTo(0);
 	}
 
-	[Theory]
-	[InlineData("FromSiBaseUnit(6000)")]
-	[InlineData("FromPrefixedUnits(6, 3, 0)")]
-	public void StandaloneCanonicalFactoryRequestsAQuantityAndItsConversions(string factory)
+	[Test]
+	[Arguments("FromSiBaseUnit(6000)")]
+	[Arguments("FromPrefixedUnits(6, 3, 0)")]
+	public async Task StandaloneCanonicalFactoryRequestsAQuantityAndItsConversions(string factory)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -491,14 +494,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(6, result);
+		await Assert.That(result).IsEqualTo(6);
 	}
 
-	[Theory]
-	[InlineData("(Length.FromMetres(2) * Current.FromAmps(3)).Squared()", "LengthSquaredTimeCurrentSquared", 144)]
-	[InlineData("Power<NumberTwo>.Of(Length.FromMetres(2) * Current.FromAmps(3))", "LengthSquaredTimeCurrentSquared", 144)]
-	[InlineData("Power<NumberHalf>.Of(Length.FromMetres(3) * Current.FromAmps(3))", "SquareRootLengthTimeSquareRootCurrent", 12)]
-	public void PowerResultsComposeThroughInferredDelegates(string expression, string resultType, double expected)
+	[Test]
+	[Arguments("(Length.FromMetres(2) * Current.FromAmps(3)).Squared()", "LengthSquaredTimeCurrentSquared", 144)]
+	[Arguments("Power<NumberTwo>.Of(Length.FromMetres(2) * Current.FromAmps(3))", "LengthSquaredTimeCurrentSquared", 144)]
+	[Arguments("Power<NumberHalf>.Of(Length.FromMetres(3) * Current.FromAmps(3))", "SquareRootLengthTimeSquareRootCurrent", 12)]
+	public async Task PowerResultsComposeThroughInferredDelegates(string expression, string resultType, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -515,11 +518,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void ExistingMultiplicationOperatorKeepsItsBehaviour()
+	[Test]
+	public async Task ExistingMultiplicationOperatorKeepsItsBehaviour()
 	{
 		const string source = """
 			public static class CustomOperators
@@ -538,11 +541,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(168, result);
+		await Assert.That(result).IsEqualTo(168);
 	}
 
-	[Fact]
-	public void ExistingConvenienceMethodKeepsItsBehaviourAfterItsReceiverResolves()
+	[Test]
+	public async Task ExistingConvenienceMethodKeepsItsBehaviourAfterItsReceiverResolves()
 	{
 		const string source = """
 			public static class CustomMethods
@@ -558,14 +561,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(21, result);
+		await Assert.That(result).IsEqualTo(21);
 	}
 
-	[Theory]
-	[InlineData("wrapper + wrapper")]
-	[InlineData("wrapper - wrapper")]
-	[InlineData("-wrapper")]
-	public void BoundOperatorResultsComposeWithDimensionalArithmetic(string expression)
+	[Test]
+	[Arguments("wrapper + wrapper")]
+	[Arguments("wrapper - wrapper")]
+	[Arguments("-wrapper")]
+	public async Task BoundOperatorResultsComposeWithDimensionalArithmetic(string expression)
 	{
 		string source = $$"""
 			public sealed class Wrapper
@@ -587,13 +590,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(12, result);
+		await Assert.That(result).IsEqualTo(12);
 	}
 
-	[Theory]
-	[InlineData("choose ? length * current : length * time", "CS0173")]
-	[InlineData("choose switch { true => length * current, false => length * time }", "CS8506")]
-	public void ConflictingBranchesDoNotSupplyDimensionsToFurtherArithmetic(string expression, string expectedDiagnostic)
+	[Test]
+	[Arguments("choose ? length * current : length * time", "CS0173")]
+	[Arguments("choose switch { true => length * current, false => length * time }", "CS8506")]
+	public async Task ConflictingBranchesDoNotSupplyDimensionsToFurtherArithmetic(string expression, string expectedDiagnostic)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -606,17 +609,19 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			""";
 		QuantityDiscoveryResult result = Discover(source);
-		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Multiple(
-			() => Assert.Contains(errors, diagnostic => diagnostic.Id == expectedDiagnostic),
-			() => Assert.Null(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentSquaredExtensions")),
-			() => Assert.Null(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(errors.Any(diagnostic => diagnostic.Id == expectedDiagnostic)).IsTrue();
+			await Assert.That(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentSquaredExtensions")).IsNull();
+			await Assert.That(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")).IsNull();
+		}
 	}
 
-	[Fact]
-	public void AmbiguousMethodCallsRemainCompilerErrors()
+	[Test]
+	public async Task AmbiguousMethodCallsRemainCompilerErrors()
 	{
 		const string source = """
 			public static class Consumer
@@ -627,20 +632,22 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			""";
 		QuantityDiscoveryResult result = Discover(source);
-		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Multiple(
-			() => Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0121"),
-			() => Assert.Null(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentSquaredExtensions")),
-			() => Assert.Null(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(errors.Any(diagnostic => diagnostic.Id == "CS0121")).IsTrue();
+			await Assert.That(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentSquaredExtensions")).IsNull();
+			await Assert.That(result.Compilation.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeCurrentExtensions")).IsNull();
+		}
 	}
 
-	[Theory]
-	[InlineData("var value = value * current; return value;", "CS0841")]
-	[InlineData("return (length + current) * time;", "CS0019")]
-	[InlineData("return LengthCurrent.FromBananas(6);", "CS0103")]
-	public void InvalidConsumerCodeRemainsACompilerError(string body, string expectedDiagnostic)
+	[Test]
+	[Arguments("var value = value * current; return value;", "CS0841")]
+	[Arguments("return (length + current) * time;", "CS0019")]
+	[Arguments("return LengthCurrent.FromBananas(6);", "CS0103")]
+	public async Task InvalidConsumerCodeRemainsACompilerError(string body, string expectedDiagnostic)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -649,14 +656,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			""";
 		QuantityDiscoveryResult result = Discover(source);
-		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Contains(errors, diagnostic => diagnostic.Id == expectedDiagnostic);
+		await Assert.That(errors.Any(diagnostic => diagnostic.Id == expectedDiagnostic)).IsTrue();
 	}
 
-	[Fact]
-	public void LongDependentExpressionsCompleteWithoutAnArbitrarySmallPassLimit()
+	[Test]
+	public async Task LongDependentExpressionsCompleteWithoutAnArbitrarySmallPassLimit()
 	{
 		string expression = string.Join(" * ", Enumerable.Repeat("Current.FromAmps(1)", 20));
 		string source = $$"""
@@ -669,15 +676,15 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(2, result);
+		await Assert.That(result).IsEqualTo(2);
 	}
 
-	[Theory]
-	[InlineData("var squared = current * current; var heating = squared * resistance;", "Power", "heating", 36)]
-	[InlineData("var squared = current * current; var copy = squared; var heating = copy * resistance; var energy = heating * time;", "Energy", "energy", 72)]
-	[InlineData("var squared = (2 * current) * current / 2; var heating = squared * resistance;", "Power", "heating", 36)]
-	[InlineData("var squared = current * current; var fourth = squared * squared;", "Current4", "fourth", 81)]
-	public void ArithmeticThroughLocalInitialisersCompilesAndExecutes(string declarations, string resultType, string resultName, double expected)
+	[Test]
+	[Arguments("var squared = current * current; var heating = squared * resistance;", "Power", "heating", 36)]
+	[Arguments("var squared = current * current; var copy = squared; var heating = copy * resistance; var energy = heating * time;", "Energy", "energy", 72)]
+	[Arguments("var squared = (2 * current) * current / 2; var heating = squared * resistance;", "Power", "heating", 36)]
+	[Arguments("var squared = current * current; var fourth = squared * squared;", "Current4", "fourth", 81)]
+	public async Task ArithmeticThroughLocalInitialisersCompilesAndExecutes(string declarations, string resultType, string resultName, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -695,11 +702,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void IdenticallyNamedLocalsInSeparateScopesRetainTheirOwnDimensions()
+	[Test]
+	public async Task IdenticallyNamedLocalsInSeparateScopesRetainTheirOwnDimensions()
 	{
 		const string source = """
 			public static class Consumer
@@ -730,11 +737,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		double result = Evaluate(Discover(source).Compilation);
 		double expected = 48;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void CyclicLocalInitialisersDoNotCrashDiscovery()
+	[Test]
+	public async Task CyclicLocalInitialisersDoNotCrashDiscovery()
 	{
 		const string source = """
 			public static class Consumer
@@ -749,16 +756,18 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		QuantityDiscoveryResult result = Discover(source);
 
-		Assert.Multiple(
-			() => Assert.Null(result.Compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")),
-			() => Assert.DoesNotContain(result.Sources, generated => generated.HintName == "ArithmeticExtensions.g.cs"));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result.Compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")).IsNull();
+			await Assert.That(result.Sources.Any(generated => generated.HintName == "ArithmeticExtensions.g.cs")).IsFalse();
+		}
 	}
 
-	[Theory]
-	[InlineData("LengthCurrent value = length * current;")]
-	[InlineData("LengthCurrent first = length * current; LengthCurrent value = first;")]
-	[InlineData("LengthCurrent first = length * current; var value = first;")]
-	public void ExplicitIntermediateLocalsComposeWithFurtherArithmetic(string declarations)
+	[Test]
+	[Arguments("LengthCurrent value = length * current;")]
+	[Arguments("LengthCurrent first = length * current; LengthCurrent value = first;")]
+	[Arguments("LengthCurrent first = length * current; var value = first;")]
+	public async Task ExplicitIntermediateLocalsComposeWithFurtherArithmetic(string declarations)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -776,11 +785,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Fact]
-	public void IncorrectExplicitIntermediateTypeRemainsACompilerError()
+	[Test]
+	public async Task IncorrectExplicitIntermediateTypeRemainsACompilerError()
 	{
 		const string source = """
 			class Consumer
@@ -793,19 +802,19 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			}
 			""";
 		QuantityDiscoveryResult result = Discover(source);
-		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = result.Compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Contains(errors, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+		await Assert.That(errors.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).IsTrue();
 	}
 
-	[Theory]
-	[InlineData("choose ? length * current : length * current")]
-	[InlineData("choose ? length * current : throw new System.Exception()")]
-	[InlineData("choose switch { true => length * current, false => length * current }")]
-	[InlineData("choose switch { true => length * current, _ => throw new System.Exception() }")]
-	[InlineData("choose ? (choose switch { true => length * current, _ => length * current }) : length * current")]
-	public void ConditionalIntermediateResultsComposeWithArithmetic(string expression)
+	[Test]
+	[Arguments("choose ? length * current : length * current")]
+	[Arguments("choose ? length * current : throw new System.Exception()")]
+	[Arguments("choose switch { true => length * current, false => length * current }")]
+	[Arguments("choose switch { true => length * current, _ => throw new System.Exception() }")]
+	[Arguments("choose ? (choose switch { true => length * current, _ => length * current }) : length * current")]
+	public async Task ConditionalIntermediateResultsComposeWithArithmetic(string expression)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -824,16 +833,16 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Theory]
-	[InlineData("public LengthCurrent Stored = Length.FromMetres(2) * Current.FromAmps(3);")]
-	[InlineData("public LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
-	[InlineData("public LengthCurrent Stored { get => Length.FromMetres(2) * Current.FromAmps(3); }")]
-	[InlineData("public LengthCurrent Stored { get; } = Length.FromMetres(2) * Current.FromAmps(3);")]
-	[InlineData("private LengthCurrent Seed = Length.FromMetres(2) * Current.FromAmps(3); public LengthCurrent Stored => Seed;")]
-	public void IntermediateFieldsAndPropertiesComposeWithArithmetic(string declaration)
+	[Test]
+	[Arguments("public LengthCurrent Stored = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[Arguments("public LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);")]
+	[Arguments("public LengthCurrent Stored { get => Length.FromMetres(2) * Current.FromAmps(3); }")]
+	[Arguments("public LengthCurrent Stored { get; } = Length.FromMetres(2) * Current.FromAmps(3);")]
+	[Arguments("private LengthCurrent Seed = Length.FromMetres(2) * Current.FromAmps(3); public LengthCurrent Stored => Seed;")]
+	public async Task IntermediateFieldsAndPropertiesComposeWithArithmetic(string declaration)
 	{
 		string source = $$"""
 			public class Inputs { {{declaration}} }
@@ -845,17 +854,17 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Theory]
-	[InlineData("public LengthCurrent Make(Length length, Current current) => length * current;")]
-	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent product = length * current; return product; }")]
-	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * current * 2; }")]
-	[InlineData("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() < 0) throw new System.Exception(); return length * current; }")]
-	[InlineData("public LengthCurrent Make(Length length, Current current) { LengthCurrent Local(Length l, Current c) => l * c; return Local(length, current); }")]
-	[InlineData("public LengthTime Make(Length length, Time time) => length * time; public LengthCurrent Make(Length length, Current current) => length * current;")]
-	public void IntermediateMethodResultsComposeWithArithmetic(string declaration)
+	[Test]
+	[Arguments("public LengthCurrent Make(Length length, Current current) => length * current;")]
+	[Arguments("public LengthCurrent Make(Length length, Current current) { LengthCurrent product = length * current; return product; }")]
+	[Arguments("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() > 0) return length * current; return length * current * 2; }")]
+	[Arguments("public LengthCurrent Make(Length length, Current current) { if (length.AsSiBaseUnit() < 0) throw new System.Exception(); return length * current; }")]
+	[Arguments("public LengthCurrent Make(Length length, Current current) { LengthCurrent Local(Length l, Current c) => l * c; return Local(length, current); }")]
+	[Arguments("public LengthTime Make(Length length, Time time) => length * time; public LengthCurrent Make(Length length, Current current) => length * current;")]
+	public async Task IntermediateMethodResultsComposeWithArithmetic(string declaration)
 	{
 		string source = $$"""
 			public class Inputs { {{declaration}} }
@@ -867,11 +876,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Fact]
-	public void ExtensionMethodIntermediateReturnComposesWithArithmetic()
+	[Test]
+	public async Task ExtensionMethodIntermediateReturnComposesWithArithmetic()
 	{
 		const string source = """
 			public static class Helpers
@@ -886,17 +895,17 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Theory]
-	[InlineData("public static LengthCurrent Field;", "Field")]
-	[InlineData("public static LengthCurrent Field = default;", "Field")]
-	[InlineData("public static LengthCurrent Property { get; } = new();", "Property")]
-	[InlineData("public static LengthCurrent Property { get; set; }", "Property")]
-	[InlineData("public static LengthCurrent[] Values = new LengthCurrent[1];", "Values[0]")]
-	[InlineData("public static System.Collections.Generic.List<LengthCurrent> Values = new() { default };", "Values[0]")]
-	public void TypeOnlyMemberAndCollectionValuesParticipateInArithmetic(string declaration, string operand)
+	[Test]
+	[Arguments("public static LengthCurrent Field;", "Field")]
+	[Arguments("public static LengthCurrent Field = default;", "Field")]
+	[Arguments("public static LengthCurrent Property { get; } = new();", "Property")]
+	[Arguments("public static LengthCurrent Property { get; set; }", "Property")]
+	[Arguments("public static LengthCurrent[] Values = new LengthCurrent[1];", "Values[0]")]
+	[Arguments("public static System.Collections.Generic.List<LengthCurrent> Values = new() { default };", "Values[0]")]
+	public async Task TypeOnlyMemberAndCollectionValuesParticipateInArithmetic(string declaration, string operand)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -908,13 +917,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(0, result);
+		await Assert.That(result).IsEqualTo(0);
 	}
 
-	[Theory]
-	[InlineData("new LengthCurrent[1]")]
-	[InlineData("new System.Collections.Generic.List<LengthCurrent> { default }")]
-	public void InferredCollectionsRetainTheirExplicitElementDimensions(string initializer)
+	[Test]
+	[Arguments("new LengthCurrent[1]")]
+	[Arguments("new System.Collections.Generic.List<LengthCurrent> { default }")]
+	public async Task InferredCollectionsRetainTheirExplicitElementDimensions(string initializer)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -929,11 +938,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(0, result);
+		await Assert.That(result).IsEqualTo(0);
 	}
 
-	[Fact]
-	public void SourceIndexerCanDeclareAnIntermediateQuantityResult()
+	[Test]
+	public async Task SourceIndexerCanDeclareAnIntermediateQuantityResult()
 	{
 		const string source = """
 			public sealed class Measurements
@@ -952,11 +961,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Fact]
-	public void ExplicitLocalCanBeAssignedAfterItsDeclaration()
+	[Test]
+	public async Task ExplicitLocalCanBeAssignedAfterItsDeclaration()
 	{
 		const string source = """
 			public static class Consumer
@@ -972,13 +981,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(24, result);
+		await Assert.That(result).IsEqualTo(24);
 	}
 
-	[Theory]
-	[InlineData("default")]
-	[InlineData("new()")]
-	public void ExplicitDefaultQuantityLocalParticipatesInArithmetic(string initializer)
+	[Test]
+	[Arguments("default")]
+	[Arguments("new()")]
+	public async Task ExplicitDefaultQuantityLocalParticipatesInArithmetic(string initializer)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -993,36 +1002,36 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(0, result);
+		await Assert.That(result).IsEqualTo(0);
 	}
 
-	[Fact]
-	public void EmptyInputNeedsNoDynamicSource()
+	[Test]
+	public async Task EmptyInputNeedsNoDynamicSource()
 	{
 		QuantityDiscoveryResult result = Discover();
 
-		Assert.Empty(result.Sources);
+		await Assert.That(result.Sources).IsEmpty();
 	}
 
-	[Fact]
-	public void CancellationStopsDiscovery()
+	[Test]
+	public async Task CancellationStopsDiscovery()
 	{
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 		QuantityGenerationPlan defaults = DefaultQuantityDiscovery.Discover();
 		CSharpCompilation compilation = CreateCompilation([]);
 
-		Assert.Throws<OperationCanceledException>(() => QuantityDiscoveryCoordinator.Discover(compilation, [], defaults, cancellation.Token));
+		await Assert.That(() => QuantityDiscoveryCoordinator.Discover(compilation, [], defaults, cancellation.Token)).ThrowsExactly<OperationCanceledException>();
 	}
 
-	[Theory]
-	[InlineData("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
-	[InlineData("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
-	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
-	[InlineData("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
-	[InlineData("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
-	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
-	public void NullableMultiplicationDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
+	[Test]
+	[Arguments("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[Arguments("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[Arguments("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 18)]
+	[Arguments("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
+	[Arguments("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
+	[Arguments("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
+	public async Task NullableMultiplicationDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1039,17 +1048,17 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
-	[InlineData("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
-	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
-	[InlineData("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
-	[InlineData("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
-	[InlineData("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
-	public void NullableDivisionDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
+	[Test]
+	[Arguments("Length?", "Current", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[Arguments("Length", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[Arguments("Length?", "Current?", "Length.FromMetres(6)", "Current.FromAmps(3)", 2)]
+	[Arguments("Length?", "Current", "null", "Current.FromAmps(3)", -1)]
+	[Arguments("Length", "Current?", "Length.FromMetres(6)", "null", -1)]
+	[Arguments("Length?", "Current?", "Length.FromMetres(6)", "null", -1)]
+	public async Task NullableDivisionDiscoveryPreservesNullableResults(string leftType, string rightType, string leftValue, string rightValue, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1066,13 +1075,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("Length.FromMetres(6)", 18)]
-	[InlineData("null", -1)]
-	public void NullableArithmeticUsesOperatorDiscoveredFromNonNullableOperands(string leftValue, double expectedValue)
+	[Test]
+	[Arguments("Length.FromMetres(6)", 18)]
+	[Arguments("null", -1)]
+	public async Task NullableArithmeticUsesOperatorDiscoveredFromNonNullableOperands(string leftValue, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1089,13 +1098,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("Current.FromAmps(3)", 2)]
-	[InlineData("null", -1)]
-	public void NullableScalarReciprocalDiscoveryPreservesNullableResults(string value, double expectedValue)
+	[Test]
+	[Arguments("Current.FromAmps(3)", 2)]
+	[Arguments("null", -1)]
+	public async Task NullableScalarReciprocalDiscoveryPreservesNullableResults(string value, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1110,17 +1119,17 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("Time?", "6d", "Time.FromSeconds(3)", 2)]
-	[InlineData("Time?", "null", "Time.FromSeconds(3)", -1)]
-	[InlineData("Time?", "6d", "null", -1)]
-	[InlineData("Time?", "null", "null", -1)]
-	[InlineData("Time", "6d", "Time.FromSeconds(3)", 2)]
-	[InlineData("Time", "null", "Time.FromSeconds(3)", -1)]
-	public void NullableScalarNumeratorDiscoveryPreservesNullableResults(string timeType, string scalarValue, string timeValue, double expectedValue)
+	[Test]
+	[Arguments("Time?", "6d", "Time.FromSeconds(3)", 2)]
+	[Arguments("Time?", "null", "Time.FromSeconds(3)", -1)]
+	[Arguments("Time?", "6d", "null", -1)]
+	[Arguments("Time?", "null", "null", -1)]
+	[Arguments("Time", "6d", "Time.FromSeconds(3)", 2)]
+	[Arguments("Time", "null", "Time.FromSeconds(3)", -1)]
+	public async Task NullableScalarNumeratorDiscoveryPreservesNullableResults(string timeType, string scalarValue, string timeValue, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1137,13 +1146,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 		QuantityDiscoveryResult discovery = Discover(source);
 		double result = Evaluate(discovery.Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("LengthCurrent.FromSiBaseUnit(12)", 144)]
-	[InlineData("null", -1)]
-	public void NullablePowerDiscoveryAddsNullConditionalSquaredMethod(string value, double expectedValue)
+	[Test]
+	[Arguments("LengthCurrent.FromSiBaseUnit(12)", 144)]
+	[Arguments("null", -1)]
+	public async Task NullablePowerDiscoveryAddsNullConditionalSquaredMethod(string value, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1158,13 +1167,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("LengthCurrent.FromSiBaseUnit(144)", 12)]
-	[InlineData("null", -1)]
-	public void NullablePowerDiscoveryAddsNullConditionalSquareRootMethod(string value, double expectedValue)
+	[Test]
+	[Arguments("LengthCurrent.FromSiBaseUnit(144)", 12)]
+	[Arguments("null", -1)]
+	public async Task NullablePowerDiscoveryAddsNullConditionalSquareRootMethod(string value, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1179,13 +1188,13 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("Length.FromMetres(3)", 9)]
-	[InlineData("null", -1)]
-	public void BaseNullablePowerKeepsPregeneratedSquaredMethod(string value, double expectedValue)
+	[Test]
+	[Arguments("Length.FromMetres(3)", 9)]
+	[Arguments("null", -1)]
+	public async Task BaseNullablePowerKeepsPregeneratedSquaredMethod(string value, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1200,14 +1209,14 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Theory]
-	[InlineData("value?.Squared().AsSiBaseUnit()", 36)]
-	[InlineData("value?.Squared().Squared().AsSiBaseUnit()", 1296)]
-	[InlineData("(value?.Squared())?.SquareRoot().AsSiBaseUnit()", 6)]
-	public void NullablePowerDiscoveryHandlesConditionalAccessChains(string expression, double expectedValue)
+	[Test]
+	[Arguments("value?.Squared().AsSiBaseUnit()", 36)]
+	[Arguments("value?.Squared().Squared().AsSiBaseUnit()", 1296)]
+	[Arguments("(value?.Squared())?.SquareRoot().AsSiBaseUnit()", 6)]
+	public async Task NullablePowerDiscoveryHandlesConditionalAccessChains(string expression, double expectedValue)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1221,11 +1230,11 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(expectedValue, result);
+		await Assert.That(result).IsEqualTo(expectedValue);
 	}
 
-	[Fact]
-	public void NullablePowerDiscoveryUsesTheNearestConditionalReceiver()
+	[Test]
+	public async Task NullablePowerDiscoveryUsesTheNearestConditionalReceiver()
 	{
 		const string source = """
 			public sealed class Holder
@@ -1244,7 +1253,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			""";
 		double result = Evaluate(Discover(source).Compilation);
 
-		Assert.Equal(36, result);
+		await Assert.That(result).IsEqualTo(36);
 	}
 
 	private static QuantityDiscoveryResult Discover(params string[] sources)
@@ -1257,7 +1266,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 			CSharpSyntaxTree.ParseText(PowerSourceEmitter.Emit(defaults, "DefaultPowerExtensions"), _parseOptions, path: "DefaultPowers.g.cs"),
 			CSharpSyntaxTree.ParseText(PowerMethodSourceEmitter.Emit(defaults, "DefaultPowerMethodExtensions"), _parseOptions, path: "DefaultPowerMethods.g.cs")
 		];
-		return QuantityDiscoveryCoordinator.Discover(original.AddSyntaxTrees(defaultTrees), [.. original.SyntaxTrees], defaults, TestContext.Current.CancellationToken);
+		return QuantityDiscoveryCoordinator.Discover(original.AddSyntaxTrees(defaultTrees), [.. original.SyntaxTrees], defaults, TestContext.Current!.Execution.CancellationToken);
 	}
 
 	private static CSharpCompilation CreateCompilation(string[] sources)
@@ -1272,7 +1281,7 @@ public sealed class QuantityDiscoveryCoordinatorTests
 	private static double Evaluate(CSharpCompilation compilation)
 	{
 		using MemoryStream bytes = new();
-		EmitResult emitted = compilation.Emit(bytes, cancellationToken: TestContext.Current.CancellationToken);
+		EmitResult emitted = compilation.Emit(bytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!emitted.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, emitted.Diagnostics));

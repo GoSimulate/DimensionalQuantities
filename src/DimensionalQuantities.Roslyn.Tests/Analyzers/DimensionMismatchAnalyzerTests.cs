@@ -3,21 +3,21 @@ using DimensionalQuantities.Roslyn.Tests.Framework;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Analyzers;
 
+[NotInParallel(nameof(DimensionMismatchAnalyzerTests))]
 public sealed class DimensionMismatchAnalyzerTests
 {
-	[Theory]
-	[InlineData("+")]
-	[InlineData("-")]
-	[InlineData("<")]
-	[InlineData(">")]
-	[InlineData("<=")]
-	[InlineData(">=")]
-	[InlineData("==")]
-	[InlineData("!=")]
+	[Test]
+	[Arguments("+")]
+	[Arguments("-")]
+	[Arguments("<")]
+	[Arguments(">")]
+	[Arguments("<=")]
+	[Arguments(">=")]
+	[Arguments("==")]
+	[Arguments("!=")]
 	public async Task IncompatibleOperandsExplainTheirDimensions(string operation)
 	{
 		QuantityAnalyzerTest<DimensionMismatchAnalyzer> test = new()
@@ -33,32 +33,32 @@ public sealed class DimensionMismatchAnalyzerTests
 			DiagnosticResult.CompilerError("CS0019").WithLocation(0),
 			new DiagnosticResult("DQ0001", DiagnosticSeverity.Error).WithLocation(0).WithArguments(operation, "Length", "Current")
 		]);
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Theory]
-	[InlineData("""
+	[Test]
+	[Arguments("""
 		public void Calculate(Length length)
 		{
 			Current current = {|#0:length|};
 		}
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public void Calculate(Length length, Current current)
 		{
 			current = {|#0:length|};
 		}
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public Current Calculate(Length length) => {|#0:length|};
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public Current Calculate(Length length)
 		{
 			return {|#0:length|};
 		}
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public void Calculate(Length length)
 		{
 			Accept({|#0:length|});
@@ -67,7 +67,7 @@ public sealed class DimensionMismatchAnalyzerTests
 		{
 		}
 		""", "CS1503")]
-	[InlineData("""
+	[Arguments("""
 		public void Calculate(Length length)
 		{
 			Accept(current: {|#0:length|});
@@ -76,22 +76,22 @@ public sealed class DimensionMismatchAnalyzerTests
 		{
 		}
 		""", "CS1503")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length, Current current) => Current.Min(current, {|#0:length|});
 		""", "CS1503")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length, Current current) => Current.Clamp(current, current, {|#0:length|});
 		""", "CS1503")]
-	[InlineData("""
+	[Arguments("""
 		public Current Value { get; } = {|#0:Length.FromMetres(1)|};
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public Current Value => {|#0:Length.FromMetres(1)|};
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public Current this[int index] => {|#0:Length.FromMetres(1)|};
 		""", "CS0029")]
-	[InlineData("""
+	[Arguments("""
 		public Consumer(Current current)
 		{
 		}
@@ -110,35 +110,35 @@ public sealed class DimensionMismatchAnalyzerTests
 			DiagnosticResult.CompilerError(compilerError).WithLocation(0),
 			new DiagnosticResult("DQ0002", DiagnosticSeverity.Error).WithLocation(0).WithArguments("Current", "Length")
 		]);
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Theory]
-	[InlineData("""
+	[Test]
+	[Arguments("""
 		public object Calculate(Length length, Length other) => length + other;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length, Current current) => length * current;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length, Current current) => length / current;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Energy energy, Torque torque) => energy + torque;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public Current? Calculate() => null;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public Current Calculate() => default;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length) => length;
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public object Calculate(Length length) => length + {|CS0103:missing|};
 		""")]
-	[InlineData("""
+	[Arguments("""
 		public void Calculate(Length length)
 		{
 			Accept(length);
@@ -161,12 +161,12 @@ public sealed class DimensionMismatchAnalyzerTests
 				}
 				"""
 		};
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Theory]
-	[InlineData("+=")]
-	[InlineData("-=")]
+	[Test]
+	[Arguments("+=")]
+	[Arguments("-=")]
 	public async Task CompoundAssignmentsExplainIncompatibleDimensions(string operation)
 	{
 		QuantityAnalyzerTest<DimensionMismatchAnalyzer> test = new()
@@ -185,10 +185,10 @@ public sealed class DimensionMismatchAnalyzerTests
 			DiagnosticResult.CompilerError("CS0019").WithLocation(0),
 			new DiagnosticResult("DQ0001", DiagnosticSeverity.Error).WithLocation(0).WithArguments(operation, "Length", "Current")
 		]);
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task NullableOperandsStillExplainDimensions()
 	{
 		QuantityAnalyzerTest<DimensionMismatchAnalyzer> test = new()
@@ -204,10 +204,10 @@ public sealed class DimensionMismatchAnalyzerTests
 			DiagnosticResult.CompilerError("CS0019").WithLocation(0),
 			new DiagnosticResult("DQ0001", DiagnosticSeverity.Error).WithLocation(0).WithArguments("+", "Length", "Current")
 		]);
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ExistingUserOperatorIsRespected()
 	{
 		QuantityAnalyzerTest<DimensionMismatchAnalyzer> test = new()
@@ -226,10 +226,10 @@ public sealed class DimensionMismatchAnalyzerTests
 				}
 				"""
 		};
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task UnrelatedCompilationWithoutLibraryDoesNotCrash()
 	{
 		CSharpAnalyzerTest<DimensionMismatchAnalyzer, DefaultVerifier> test = new()
@@ -237,6 +237,6 @@ public sealed class DimensionMismatchAnalyzerTests
 			ReferenceAssemblies = ReferenceAssemblies.Net.Net100
 		};
 		test.TestState.Sources.Add(("Consumer.cs", ""));
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 }

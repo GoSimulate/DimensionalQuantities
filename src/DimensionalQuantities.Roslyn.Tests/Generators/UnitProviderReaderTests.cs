@@ -4,14 +4,14 @@ using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Units;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(UnitProviderReaderTests))]
 public sealed class UnitProviderReaderTests
 {
-	[Fact]
-	public void InvalidPowerDenominatorReportsDiagnostic()
+	[Test]
+	public async Task InvalidPowerDenominatorReportsDiagnostic()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -26,13 +26,15 @@ public sealed class UnitProviderReaderTests
 			}
 			""";
 		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
-		Assert.Multiple(
-			() => Assert.Empty(units),
-			() => Assert.Equal("DQ0008", Assert.Single(diagnostics).Id));
+		using (Assert.Multiple())
+		{
+			await Assert.That(units).IsEmpty();
+			await Assert.That((await Assert.That(diagnostics).HasSingleItem()).Id).IsEqualTo("DQ0008");
+		}
 	}
 
-	[Fact]
-	public void RationalFactorPowerAndScaleAreReadFromDeclarations()
+	[Test]
+	public async Task RationalFactorPowerAndScaleAreReadFromDeclarations()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -47,15 +49,17 @@ public sealed class UnitProviderReaderTests
 			}
 			""";
 		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
-		UnitConversionSpec result = Assert.Single(units);
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Equal(new Rational(1, 2), result.Units[0].Expression.Terms[0].Power),
-			() => Assert.Equal(4, result.Units[0].Expression.Terms[0].Unit.Scale));
+		UnitConversionSpec result = (await Assert.That(units).HasSingleItem());
+		using (Assert.Multiple())
+		{
+			await Assert.That(diagnostics).IsEmpty();
+			await Assert.That(result.Units[0].Expression.Terms[0].Power).IsEqualTo(new Rational(1, 2));
+			await Assert.That(result.Units[0].Expression.Terms[0].Unit.Scale).IsEqualTo(4);
+		}
 	}
 
-	[Fact]
-	public void MultipleAliasesForSameQuantityShareOneUnitDefinition()
+	[Test]
+	public async Task MultipleAliasesForSameQuantityShareOneUnitDefinition()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -71,15 +75,17 @@ public sealed class UnitProviderReaderTests
 			}
 			""";
 		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
-		UnitConversionSpec result = Assert.Single(units);
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Single(result.Units),
-			() => Assert.Equal("Pascal", result.ExtensionName));
+		UnitConversionSpec result = (await Assert.That(units).HasSingleItem());
+		using (Assert.Multiple())
+		{
+			await Assert.That(diagnostics).IsEmpty();
+			await Assert.That(result.Units).HasSingleItem();
+			await Assert.That(result.ExtensionName).IsEqualTo("Pascal");
+		}
 	}
 
-	[Fact]
-	public void AffineOffsetIsReadForAnAdditionalUnit()
+	[Test]
+	public async Task AffineOffsetIsReadForAnAdditionalUnit()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -100,18 +106,20 @@ public sealed class UnitProviderReaderTests
 			}
 			""";
 		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
-		UnitDefinition unit = Assert.Single(Assert.Single(units).Units);
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Null(unit.OffsetBeforeScale),
-			() => Assert.Equal(459.67, Assert.Single(unit.AdditionalConversions).OffsetBeforeScale));
+		UnitDefinition unit = (await Assert.That((await Assert.That(units).HasSingleItem()).Units).HasSingleItem());
+		using (Assert.Multiple())
+		{
+			await Assert.That(diagnostics).IsEmpty();
+			await Assert.That(unit.OffsetBeforeScale).IsNull();
+			await Assert.That((await Assert.That(unit.AdditionalConversions).HasSingleItem()).OffsetBeforeScale).IsEqualTo(459.67);
+		}
 	}
 
-	[Theory]
-	[InlineData("[UnitFactor(typeof(Celsius), Power = 2)]", "")]
-	[InlineData("[UnitFactor(typeof(Celsius), PrefixExponent = 3)]", "")]
-	[InlineData("[UnitFactor(typeof(Celsius))]", "[UnitFactor(typeof(Metre))]")]
-	public void AffineUnitsRejectPoweredPrefixedAndCompoundDeclarations(string factor, string additionalFactor)
+	[Test]
+	[Arguments("[UnitFactor(typeof(Celsius), Power = 2)]", "")]
+	[Arguments("[UnitFactor(typeof(Celsius), PrefixExponent = 3)]", "")]
+	[Arguments("[UnitFactor(typeof(Celsius))]", "[UnitFactor(typeof(Metre))]")]
+	public async Task AffineUnitsRejectPoweredPrefixedAndCompoundDeclarations(string factor, string additionalFactor)
 	{
 		string source = $$"""
 			using DimensionalQuantities.Units.Declarations;
@@ -130,13 +138,15 @@ public sealed class UnitProviderReaderTests
 			}
 			""";
 		(IReadOnlyList<UnitConversionSpec> units, List<Diagnostic> diagnostics) = Read(source);
-		Assert.Multiple(
-			() => Assert.Empty(units),
-			() => Assert.Equal("DQ0008", Assert.Single(diagnostics).Id));
+		using (Assert.Multiple())
+		{
+			await Assert.That(units).IsEmpty();
+			await Assert.That((await Assert.That(diagnostics).HasSingleItem()).Id).IsEqualTo("DQ0008");
+		}
 	}
 
-	[Fact]
-	public void OneDeclarationCanAssociateDistinctQuantityTypes()
+	[Test]
+	public async Task OneDeclarationCanAssociateDistinctQuantityTypes()
 	{
 		const string source = """
 			using DimensionalQuantities.Units.Declarations;
@@ -157,10 +167,15 @@ public sealed class UnitProviderReaderTests
 			QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Length: 1)),
 			QuantityTypeNameFormatter.Format(new DimensionalQuantities.Dimensions.Dimension(Time: 1))
 		];
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.All(units, unit => Assert.Equal("Token", unit.ExtensionName)),
-			() => Assert.Equal(expected.Order(StringComparer.Ordinal), units.Select(unit => unit.ReceiverType).Order(StringComparer.Ordinal)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(diagnostics).IsEmpty();
+			foreach (UnitConversionSpec unit in units)
+			{
+				await Assert.That(unit.ExtensionName).IsEqualTo("Token");
+			}
+			await Assert.That(units.Select(unit => unit.ReceiverType).Order(StringComparer.Ordinal)).IsEquivalentTo(expected.Order(StringComparer.Ordinal), TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		}
 	}
 
 	private static (IReadOnlyList<UnitConversionSpec> Units, List<Diagnostic> Diagnostics) Read(string source)

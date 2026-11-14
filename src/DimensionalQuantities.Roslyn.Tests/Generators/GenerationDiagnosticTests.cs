@@ -5,13 +5,13 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Testing;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(GenerationDiagnosticTests))]
 public sealed class GenerationDiagnosticTests
 {
-	[Fact]
+	[Test]
 	public async Task GeneratedAliasWarnsWhenItShadowsAnImportedType()
 	{
 		QuantityGeneratorTest test = new()
@@ -32,10 +32,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning)
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ImportedMetadataTypeShadowingIsDiagnosed()
 	{
 		QuantityGeneratorTest test = new()
@@ -53,10 +53,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning)
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task CollisionWarningPreservesTheGeneratedAliasBinding()
 	{
 		QuantityGeneratorTest test = new()
@@ -77,15 +77,15 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning)
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 		IPropertySymbol property = (IPropertySymbol)test.Compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").Single();
 		INamedTypeSymbol result = ((INamedTypeSymbol)property.Type).OriginalDefinition;
 		INamedTypeSymbol expected = test.Compilation.GetTypeByMetadataName(typeof(Quantity<>).FullName!)!;
 
-		Assert.True(SymbolEqualityComparer.Default.Equals(expected, result));
+		await Assert.That(SymbolEqualityComparer.Default.Equals(expected, result)).IsTrue();
 	}
 
-	[Fact]
+	[Test]
 	public async Task ConflictingGlobalTypeDeclarationWarns()
 	{
 		QuantityGeneratorTest test = new()
@@ -102,10 +102,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning)
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ConflictingDelegateDeclarationWarns()
 	{
 		QuantityGeneratorTest test = new()
@@ -121,10 +121,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(new DiagnosticResult("DQ0006", DiagnosticSeverity.Warning)
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ConflictingExplicitAliasWarns()
 	{
 		QuantityGeneratorTest test = new()
@@ -146,10 +146,10 @@ public sealed class GenerationDiagnosticTests
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1537").WithLocation(0));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task StaticMemberUseOfImportedTypeWarnsWhenShadowed()
 	{
 		QuantityGeneratorTest test = new()
@@ -174,10 +174,10 @@ public sealed class GenerationDiagnosticTests
 			.WithLocation(0).WithMessage("Generated alias 'Current' conflicts with a name in this source"));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0117").WithLocation(1));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task UnusedSameNamedTypeInAnotherNamespaceDoesNotWarn()
 	{
 		QuantityGeneratorTest test = new()
@@ -195,10 +195,10 @@ public sealed class GenerationDiagnosticTests
 			}
 			"""));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task QualifiedReferenceToSameNamedTypeDoesNotWarn()
 	{
 		QuantityGeneratorTest test = new()
@@ -216,12 +216,12 @@ public sealed class GenerationDiagnosticTests
 			}
 			"""));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Theory]
-	[InlineData("NumberTwoOverZero")]
-	[InlineData("NumberBanana")]
+	[Test]
+	[Arguments("NumberTwoOverZero")]
+	[Arguments("NumberBanana")]
 	public async Task InvalidEnglishExponentExplainsUnresolvedRequest(string name)
 	{
 		QuantityGeneratorTest test = new()
@@ -240,10 +240,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task FileLocalAliasElsewhereDoesNotHideInvalidEnglishExponent()
 	{
 		QuantityGeneratorTest test = new()
@@ -266,10 +266,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ValidEnglishExponentDoesNotProduceGenerationDiagnostics()
 	{
 		QuantityGeneratorTest test = new()
@@ -284,10 +284,10 @@ public sealed class GenerationDiagnosticTests
 			}
 			"""));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task UnrelatedMissingNameDoesNotProduceGenerationDiagnostics()
 	{
 		QuantityGeneratorTest test = new()
@@ -304,10 +304,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task UnrelatedPowerTypeDoesNotProduceGenerationDiagnostics()
 	{
 		QuantityGeneratorTest test = new()
@@ -326,10 +326,10 @@ public sealed class GenerationDiagnosticTests
 			"""));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task ExplicitlyBoundExponentDoesNotProduceGenerationDiagnostics()
 	{
 		QuantityGeneratorTest test = new()
@@ -345,10 +345,10 @@ public sealed class GenerationDiagnosticTests
 			}
 			"""));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task BoundInvalidEnglishNameDoesNotProduceGenerationDiagnostics()
 	{
 		QuantityGeneratorTest test = new()
@@ -366,10 +366,10 @@ public sealed class GenerationDiagnosticTests
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0453").WithLocation(0));
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
+	[Test]
 	public async Task InvalidNumericEncodingDoesNotCrashGenerator()
 	{
 		QuantityGeneratorTest test = new()
@@ -389,11 +389,11 @@ public sealed class GenerationDiagnosticTests
 			DiagnosticResult.CompilerError("CS0315").WithLocation(1)
 		]);
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Fact]
-	public void CorrectingAnEnglishExponentRemovesItsDiagnostic()
+	[Test]
+	public async Task CorrectingAnEnglishExponentRemovesItsDiagnostic()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -404,15 +404,17 @@ public sealed class GenerationDiagnosticTests
 			""";
 		CSharpCompilation original = CreateLifecycleCompilation(source);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: new CSharpParseOptions(LanguageVersion.Preview));
-		driver = driver.RunGenerators(original, TestContext.Current.CancellationToken);
+		driver = driver.RunGenerators(original, TestContext.Current!.Execution.CancellationToken);
 		ImmutableArray<Diagnostic> initial = driver.GetRunResult().Diagnostics;
 		CSharpCompilation edited = CreateLifecycleCompilation(source.Replace("NumberBanana", "NumberTwo"));
-		driver = driver.RunGenerators(edited, TestContext.Current.CancellationToken);
+		driver = driver.RunGenerators(edited, TestContext.Current!.Execution.CancellationToken);
 		ImmutableArray<Diagnostic> result = driver.GetRunResult().Diagnostics;
 
-		Assert.Multiple(
-			() => Assert.Contains(initial, diagnostic => diagnostic.Id == "DQ0007"),
-			() => Assert.Empty(result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(initial.Any(diagnostic => diagnostic.Id == "DQ0007")).IsTrue();
+			await Assert.That(result).IsEmpty();
+		}
 	}
 
 	private static async Task<PortableExecutableReference> CreateImportedLibraryReference()
@@ -424,12 +426,12 @@ public sealed class GenerationDiagnosticTests
 			}
 			""";
 		ImmutableArray<MetadataReference> references = await ReferenceAssemblies.Net.Net100.ResolveAsync(
-			LanguageNames.CSharp, TestContext.Current.CancellationToken);
+			LanguageNames.CSharp, TestContext.Current!.Execution.CancellationToken);
 		CSharpCompilation library = CSharpCompilation.Create("OtherLibrary",
 			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],
 			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 		using MemoryStream bytes = new();
-		Microsoft.CodeAnalysis.Emit.EmitResult result = library.Emit(bytes, cancellationToken: TestContext.Current.CancellationToken);
+		Microsoft.CodeAnalysis.Emit.EmitResult result = library.Emit(bytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		if (!result.Success)
 		{
 			throw new InvalidOperationException(string.Join(Environment.NewLine, result.Diagnostics));
@@ -444,7 +446,7 @@ public sealed class GenerationDiagnosticTests
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
 		return CSharpCompilation.Create("Consumer", [CSharpSyntaxTree.ParseText(source,
-			new CSharpParseOptions(LanguageVersion.Preview), "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken)],
+			new CSharpParseOptions(LanguageVersion.Preview), "Consumer.cs", cancellationToken: TestContext.Current!.Execution.CancellationToken)],
 			references, new(OutputKind.DynamicallyLinkedLibrary));
 	}
 }

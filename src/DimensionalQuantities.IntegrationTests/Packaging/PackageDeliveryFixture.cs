@@ -1,23 +1,22 @@
 using Microsoft.Build.Locator;
+using TUnit.Core.Interfaces;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
-public sealed class PackageDeliveryFixture : IDisposable
+public sealed class PackageDeliveryFixture : IAsyncInitializer, IDisposable
 {
-	private readonly string _scratch = Directory.CreateTempSubdirectory("dimensional-quantities-delivery-").FullName;
+	private string _scratch = null!;
 	private readonly Dictionary<string, FileInfo> _packages = new();
 
-	static PackageDeliveryFixture()
+	public Task InitializeAsync()
 	{
 		// MSBuild must be located before any Microsoft.Build type is loaded.
 		if (!MSBuildLocator.IsRegistered)
 		{
 			MSBuildLocator.RegisterDefaults();
 		}
-	}
 
-	public PackageDeliveryFixture()
-	{
+		_scratch = Directory.CreateTempSubdirectory("dimensional-quantities-delivery-").FullName;
 		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 		foreach (string projectName in new[]
 		{
@@ -30,6 +29,8 @@ public sealed class PackageDeliveryFixture : IDisposable
 		{
 			_packages.Add(projectName, PackageTestSupport.PackLibrary(Path.Combine(sourceDirectory, projectName, projectName + ".csproj"), _scratch));
 		}
+
+		return Task.CompletedTask;
 	}
 
 	internal FileInfo GetPackage(string projectName) => _packages[projectName];

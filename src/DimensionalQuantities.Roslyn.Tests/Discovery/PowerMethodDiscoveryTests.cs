@@ -4,99 +4,103 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(PowerMethodDiscoveryTests))]
 public sealed class PowerMethodDiscoveryTests
 {
-	[Theory]
-	[InlineData("Squared", 2, 1)]
-	[InlineData("Cubed", 3, 1)]
-	[InlineData("Pow4", 4, 1)]
-	[InlineData("Pow5", 5, 1)]
-	[InlineData("Pow6", 6, 1)]
-	[InlineData("SquareRoot", 1, 2)]
-	[InlineData("CubeRoot", 1, 3)]
-	[InlineData("Root4", 1, 4)]
-	[InlineData("Root5", 1, 5)]
-	[InlineData("Root6", 1, 6)]
-	public void ReadsTheExponentForEachConvenienceMethod(string name, int numerator, int denominator)
+	[Test]
+	[Arguments("Squared", 2, 1)]
+	[Arguments("Cubed", 3, 1)]
+	[Arguments("Pow4", 4, 1)]
+	[Arguments("Pow5", 5, 1)]
+	[Arguments("Pow6", 6, 1)]
+	[Arguments("SquareRoot", 1, 2)]
+	[Arguments("CubeRoot", 1, 3)]
+	[Arguments("Root4", 1, 4)]
+	[Arguments("Root5", 1, 5)]
+	[Arguments("Root6", 1, 6)]
+	public async Task ReadsTheExponentForEachConvenienceMethod(string name, int numerator, int denominator)
 	{
 		string source = $$"""
 			class Consumer { object Value(object quantity) => quantity.{{name}}(); }
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool success = discovery.TryRead(invocation, out Rational result, out string methodName, TestContext.Current.CancellationToken);
+		bool success = discovery.TryRead(invocation, out Rational result, out string methodName, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(name, methodName));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(methodName).IsEqualTo(name);
+		}
 	}
 
-	[Theory]
-	[InlineData("quantity.Pow7()")]
-	[InlineData("quantity.Root7()")]
-	[InlineData("quantity.Squared(2)")]
-	[InlineData("quantity.Squared<int>()")]
-	[InlineData("quantity.squared()")]
-	public void RejectsUnsupportedMethodCalls(string expression)
+	[Test]
+	[Arguments("quantity.Pow7()")]
+	[Arguments("quantity.Root7()")]
+	[Arguments("quantity.Squared(2)")]
+	[Arguments("quantity.Squared<int>()")]
+	[Arguments("quantity.squared()")]
+	public async Task RejectsUnsupportedMethodCalls(string expression)
 	{
 		string source = $$"""class Consumer { object Value(object quantity) => {{expression}}; }""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current.CancellationToken);
+		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
-	[Theory]
-	[InlineData("class Other { public int Squared() => 7; }", "quantity.Squared()")]
-	[InlineData("class Other { public int Squared() => 7; }", "quantity?.Squared()")]
-	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity.Squared()")]
-	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity?.Squared()")]
-	public void PreservesAlreadyBoundMethods(string declaration, string expression)
+	[Test]
+	[Arguments("class Other { public int Squared() => 7; }", "quantity.Squared()")]
+	[Arguments("class Other { public int Squared() => 7; }", "quantity?.Squared()")]
+	[Arguments("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity.Squared()")]
+	[Arguments("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity?.Squared()")]
+	public async Task PreservesAlreadyBoundMethods(string declaration, string expression)
 	{
 		string source = $$"""{{declaration}} class Consumer { object Value(Other quantity) => {{expression}}; }""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current.CancellationToken);
+		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
-	[Fact]
-	public void ReadsConditionalMemberBindingWithinAChain()
+	[Test]
+	public async Task ReadsConditionalMemberBindingWithinAChain()
 	{
 		const string source = "class Consumer { object Value(object quantity) => quantity?.Squared().ToString(); }";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes()
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes()
 			.OfType<InvocationExpressionSyntax>().Single(call => call.Expression is MemberBindingExpressionSyntax);
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool success = discovery.TryRead(invocation, out Rational exponent, out string methodName, TestContext.Current.CancellationToken);
+		bool success = discovery.TryRead(invocation, out Rational exponent, out string methodName, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(new Rational(2), exponent),
-			() => Assert.Equal("Squared", methodName));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(exponent).IsEqualTo(new Rational(2));
+			await Assert.That(methodName).IsEqualTo("Squared");
+		}
 	}
 
-	[Fact]
-	public void AllowsAConvenienceMethodAlongsideAnOverloadWithRequiredArguments()
+	[Test]
+	public async Task AllowsAConvenienceMethodAlongsideAnOverloadWithRequiredArguments()
 	{
 		const string source = """
 			class Other { }
@@ -105,16 +109,18 @@ public sealed class PowerMethodDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool success = discovery.TryRead(invocation, out Rational result, out string methodName, TestContext.Current.CancellationToken);
+		bool success = discovery.TryRead(invocation, out Rational result, out string methodName, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(2);
 
-		Assert.Multiple(
-			() => Assert.True(success),
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal("Squared", methodName));
+		using (Assert.Multiple())
+		{
+			await Assert.That(success).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(methodName).IsEqualTo("Squared");
+		}
 	}
 
 	private static CSharpCompilation Compile(string source)
@@ -123,7 +129,7 @@ public sealed class PowerMethodDiscoveryTests
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
 			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
 		return CSharpCompilation.Create("PowerMethodConsumer",
-			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken)],
+			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current!.Execution.CancellationToken)],
 			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 }

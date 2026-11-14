@@ -1,16 +1,16 @@
 using DimensionalQuantities.Roslyn.Tests.Framework;
 using Microsoft.CodeAnalysis.Testing;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(CoreConversionBoundaryTests))]
 public sealed class CoreConversionBoundaryTests
 {
-	[Theory]
-	[InlineData("Voltage.{|#0:FromVolts|}(12)", "CS0117")]
-	[InlineData("{|#0:Voltage|}.FromPrefixedUnits(12, 0)", "CS1929")]
-	[InlineData("Voltage.FromSiBaseUnit(12).{|#0:AsVolts|}()", "CS1061")]
-	[InlineData("{|#0:Voltage.FromSiBaseUnit(12)|}.AsPrefixedUnits(0)", "CS1929")]
+	[Test]
+	[Arguments("Voltage.{|#0:FromVolts|}(12)", "CS0117")]
+	[Arguments("{|#0:Voltage|}.FromPrefixedUnits(12, 0)", "CS1929")]
+	[Arguments("Voltage.FromSiBaseUnit(12).{|#0:AsVolts|}()", "CS1061")]
+	[Arguments("{|#0:Voltage.FromSiBaseUnit(12)|}.AsPrefixedUnits(0)", "CS1929")]
 	public async Task CatalogueConversionsRequireAnExtensionPackage(string expression, string error)
 	{
 		QuantityGeneratorTest test = new()
@@ -25,16 +25,16 @@ public sealed class CoreConversionBoundaryTests
 		};
 		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError(error).WithLocation(0));
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 
-	[Theory]
-	[InlineData("Length.FromMilliMetres(12).AsMetres()")]
-	[InlineData("Mass.FromKiloGrams(12).AsGrams()")]
-	[InlineData("Voltage.FromSiBaseUnit(12).AsSiBaseUnit()")]
-	[InlineData("Voltage.FromArbitrarySiComponents(12).AsArbitrarySiComponents()")]
-	[InlineData("(Length.FromMetres(2) * Current.FromAmps(3)).AsPrefixedUnits(3, 0)")]
-	[InlineData("Voltage.FromSiBaseUnit(12).Squared().AsSiBaseUnit()")]
+	[Test]
+	[Arguments("Length.FromMilliMetres(12).AsMetres()")]
+	[Arguments("Mass.FromKiloGrams(12).AsGrams()")]
+	[Arguments("Voltage.FromSiBaseUnit(12).AsSiBaseUnit()")]
+	[Arguments("Voltage.FromArbitrarySiComponents(12).AsArbitrarySiComponents()")]
+	[Arguments("(Length.FromMetres(2) * Current.FromAmps(3)).AsPrefixedUnits(3, 0)")]
+	[Arguments("Voltage.FromSiBaseUnit(12).Squared().AsSiBaseUnit()")]
 	public async Task BaseGenericAndIntermediateConversionsRemainAvailable(string expression)
 	{
 		QuantityGeneratorTest test = new()
@@ -48,6 +48,6 @@ public sealed class CoreConversionBoundaryTests
 			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
 		};
 
-		await test.RunAsync(TestContext.Current.CancellationToken);
+		await test.RunAsync(TestContext.Current!.Execution.CancellationToken);
 	}
 }

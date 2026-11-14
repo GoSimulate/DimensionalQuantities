@@ -3,55 +3,57 @@ using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(TypeSystemNumberReaderTests))]
 public sealed class TypeSystemNumberReaderTests
 {
-	[Fact]
-	public void MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
+	[Test]
+	public async Task MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
 	{
 		CSharpCompilation compilation = CSharpCompilation.Create("MissingRuntimeConsumer");
 
-		InvalidOperationException result = Assert.Throws<InvalidOperationException>(() => new TypeSystemNumberReader(compilation));
+		InvalidOperationException result = (await Assert.That(() => new TypeSystemNumberReader(compilation)).ThrowsExactly<InvalidOperationException>())!;
 
-		Assert.Contains(typeof(Hex<,>).FullName!, result.Message);
+		await Assert.That(result.Message).Contains(typeof(Hex<,>).FullName!);
 	}
 
-	[Theory]
-	[InlineData("TerminalHex0", 0, 1)]
-	[InlineData("TerminalHexF", 15, 1)]
-	[InlineData("Hex<TerminalHex0, TerminalHex1>", 16, 1)]
-	[InlineData("Negative<TerminalHex3>", -3, 1)]
-	[InlineData("Fraction<TerminalHex2, TerminalHex4>", 1, 2)]
-	[InlineData("Fraction<Negative<TerminalHex3>, TerminalHex2>", -3, 2)]
-	public void ReadsNumbersFromTheirTypes(string encoding, int numerator, int denominator)
+	[Test]
+	[Arguments("TerminalHex0", 0, 1)]
+	[Arguments("TerminalHexF", 15, 1)]
+	[Arguments("Hex<TerminalHex0, TerminalHex1>", 16, 1)]
+	[Arguments("Negative<TerminalHex3>", -3, 1)]
+	[Arguments("Fraction<TerminalHex2, TerminalHex4>", 1, 2)]
+	[Arguments("Fraction<Negative<TerminalHex3>, TerminalHex2>", -3, 2)]
+	public async Task ReadsNumbersFromTheirTypes(string encoding, int numerator, int denominator)
 	{
 		CSharpCompilation compilation = Compile($"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {encoding} Value; }}");
 		IFieldSymbol field = (IFieldSymbol)compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").Single();
 		TypeSystemNumberReader reader = new(compilation);
-		bool read = reader.TryRead(field.Type, out Rational result, TestContext.Current.CancellationToken);
+		bool read = reader.TryRead(field.Type, out Rational result, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Multiple(
-			() => Assert.True(read),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(read).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Theory]
-	[InlineData("int")]
-	[InlineData("Missing")]
-	[InlineData("Fraction<TerminalHex1, TerminalHex0>")]
-	[InlineData("Custom")]
-	public void RejectsUnrecognisedNumbersAndZeroDenominators(string encoding)
+	[Test]
+	[Arguments("int")]
+	[Arguments("Missing")]
+	[Arguments("Fraction<TerminalHex1, TerminalHex0>")]
+	[Arguments("Custom")]
+	public async Task RejectsUnrecognisedNumbersAndZeroDenominators(string encoding)
 	{
 		CSharpCompilation compilation = Compile($"using DimensionalQuantities.TypeSystem; public struct Custom : ITypeSystemNumber {{ }} public class Consumer {{ public {encoding} Value; }}");
 		IFieldSymbol field = (IFieldSymbol)compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").Single();
 		TypeSystemNumberReader reader = new(compilation);
-		bool result = reader.TryRead(field.Type, out _, TestContext.Current.CancellationToken);
+		bool result = reader.TryRead(field.Type, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
 	private static CSharpCompilation Compile(string source)

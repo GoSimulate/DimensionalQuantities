@@ -5,30 +5,30 @@ using DimensionalQuantities.Roslyn.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(ArithmeticDiscoveryTests))]
 public sealed class ArithmeticDiscoveryTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Theory]
-	[InlineData("length * time", true)]
-	[InlineData("length / time", false)]
-	public void ReadsBoundQuantityOperands(string expression, bool multiply)
+	[Test]
+	[Arguments("length * time", true)]
+	[Arguments("length / time", false)]
+	public async Task ReadsBoundQuantityOperands(string expression, bool multiply)
 	{
-		ArithmeticOperation operation = Assert.Single(Discover(expression));
+		ArithmeticOperation operation = (await Assert.That(Discover(expression)).HasSingleItem());
 		Dimension left = new(Length: 1);
 		Dimension right = new(Time: 1);
-		Assert.Equal(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
-			left, right, multiply ? left * right : left / right), operation);
+		await Assert.That(operation).IsEqualTo(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
+			left, right, multiply ? left * right : left / right));
 	}
 
-	[Theory]
-	[InlineData("length * time", true)]
-	[InlineData("length / time", false)]
-	public void ReadsNullableQuantityOperands(string expression, bool multiply)
+	[Test]
+	[Arguments("length * time", true)]
+	[Arguments("length / time", false)]
+	public async Task ReadsNullableQuantityOperands(string expression, bool multiply)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -36,15 +36,15 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(Length? length, Time? time) => {{expression}};
 			}
 			""";
-		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
+		ArithmeticOperation operation = (await Assert.That(DiscoverFromSource(source)).HasSingleItem());
 		Dimension left = new(Length: 1);
 		Dimension right = new(Time: 1);
-		Assert.Equal(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
-			left, right, multiply ? left * right : left / right), operation);
+		await Assert.That(operation).IsEqualTo(new(multiply ? ArithmeticOperationKind.Multiply : ArithmeticOperationKind.Divide,
+			left, right, multiply ? left * right : left / right));
 	}
 
-	[Fact]
-	public void NullableQuantityDivisorRequestsTheInverseDimension()
+	[Test]
+	public async Task NullableQuantityDivisorRequestsTheInverseDimension()
 	{
 		const string source = """
 			public static class Consumer
@@ -52,18 +52,18 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(Length? length) => 2d / length;
 			}
 			""";
-		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
-		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)), operation);
+		ArithmeticOperation operation = (await Assert.That(DiscoverFromSource(source)).HasSingleItem());
+		await Assert.That(operation).IsEqualTo(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)));
 	}
 
-	[Theory]
-	[InlineData("double?", "Time")]
-	[InlineData("double?", "Time?")]
-	[InlineData("float?", "Time")]
-	[InlineData("float?", "Time?")]
-	[InlineData("int?", "Time")]
-	[InlineData("int?", "Time?")]
-	public void NullableNumericScalarDivisionRequestsTheInverseDimension(string scalarType, string quantityType)
+	[Test]
+	[Arguments("double?", "Time")]
+	[Arguments("double?", "Time?")]
+	[Arguments("float?", "Time")]
+	[Arguments("float?", "Time?")]
+	[Arguments("int?", "Time")]
+	[Arguments("int?", "Time?")]
+	public async Task NullableNumericScalarDivisionRequestsTheInverseDimension(string scalarType, string quantityType)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -71,23 +71,23 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value({{scalarType}} scalar, {{quantityType}} time) => scalar / time;
 			}
 			""";
-		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
-		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Time: 1), new(Time: -1)), operation);
+		ArithmeticOperation operation = (await Assert.That(DiscoverFromSource(source)).HasSingleItem());
+		await Assert.That(operation).IsEqualTo(new(ArithmeticOperationKind.ScalarDivide, default, new(Time: 1), new(Time: -1)));
 	}
 
-	[Theory]
-	[InlineData("length * missing")]
-	[InlineData("length * 1m")]
-	[InlineData("length * \"text\"")]
-	[InlineData("length + time")]
-	[InlineData("length * scalar")]
-	public void RejectsUnsupportedOperands(string expression)
+	[Test]
+	[Arguments("length * missing")]
+	[Arguments("length * 1m")]
+	[Arguments("length * \"text\"")]
+	[Arguments("length + time")]
+	[Arguments("length * scalar")]
+	public async Task RejectsUnsupportedOperands(string expression)
 	{
-		Assert.Empty(Discover(expression));
+		await Assert.That(Discover(expression)).IsEmpty();
 	}
 
-	[Fact]
-	public void ExistingBoundOperatorControlsTheResult()
+	[Test]
+	public async Task ExistingBoundOperatorControlsTheResult()
 	{
 		const string source = """
 			public static class Custom
@@ -102,11 +102,11 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(Length length, Time time) => length * time;
 			}
 			""";
-		Assert.Empty(DiscoverFromSource(source));
+		await Assert.That(DiscoverFromSource(source)).IsEmpty();
 	}
 
-	[Fact]
-	public void ScalarDivisionRequestsTheInverseDimension()
+	[Test]
+	public async Task ScalarDivisionRequestsTheInverseDimension()
 	{
 		const string source = """
 			public static class Consumer
@@ -114,12 +114,12 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(Length length) => 2d / length;
 			}
 			""";
-		ArithmeticOperation operation = Assert.Single(DiscoverFromSource(source));
-		Assert.Equal(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)), operation);
+		ArithmeticOperation operation = (await Assert.That(DiscoverFromSource(source)).HasSingleItem());
+		await Assert.That(operation).IsEqualTo(new(ArithmeticOperationKind.ScalarDivide, default, new(Length: 1), new(Length: -1)));
 	}
 
-	[Fact]
-	public void DecimalDoesNotBecomeAnImplicitDoubleScalar()
+	[Test]
+	public async Task DecimalDoesNotBecomeAnImplicitDoubleScalar()
 	{
 		const string source = """
 			public static class Consumer
@@ -127,11 +127,11 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(Length length) => 2m / length;
 			}
 			""";
-		Assert.Empty(DiscoverFromSource(source));
+		await Assert.That(DiscoverFromSource(source)).IsEmpty();
 	}
 
-	[Fact]
-	public void NullableDecimalDoesNotBecomeAnImplicitDoubleScalar()
+	[Test]
+	public async Task NullableDecimalDoesNotBecomeAnImplicitDoubleScalar()
 	{
 		const string source = """
 			public static class Consumer
@@ -139,7 +139,7 @@ public sealed class ArithmeticDiscoveryTests
 				public static object Value(decimal? scalar, Time? time) => scalar / time;
 			}
 			""";
-		Assert.Empty(DiscoverFromSource(source));
+		await Assert.That(DiscoverFromSource(source)).IsEmpty();
 	}
 
 	private static ImmutableArray<ArithmeticOperation> Discover(string expression)
@@ -172,7 +172,7 @@ public sealed class ArithmeticDiscoveryTests
 		ImmutableArray<ArithmeticOperation>.Builder operations = ImmutableArray.CreateBuilder<ArithmeticOperation>();
 		foreach (BinaryExpressionSyntax binary in tree.GetRoot().DescendantNodes().OfType<BinaryExpressionSyntax>())
 		{
-			if (ArithmeticDiscovery.TryRead(binary, model, reader, out ArithmeticOperation operation, TestContext.Current.CancellationToken))
+			if (ArithmeticDiscovery.TryRead(binary, model, reader, out ArithmeticOperation operation, TestContext.Current!.Execution.CancellationToken))
 			{
 				operations.Add(operation);
 			}

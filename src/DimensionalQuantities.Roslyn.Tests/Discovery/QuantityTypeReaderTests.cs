@@ -4,26 +4,26 @@ using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(QuantityTypeReaderTests))]
 public sealed class QuantityTypeReaderTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Fact]
-	public void MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
+	[Test]
+	public async Task MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
 	{
 		CSharpCompilation compilation = CSharpCompilation.Create("MissingRuntimeConsumer");
 
-		InvalidOperationException result = Assert.Throws<InvalidOperationException>(() => new QuantityTypeReader(compilation));
+		InvalidOperationException result = (await Assert.That(() => new QuantityTypeReader(compilation)).ThrowsExactly<InvalidOperationException>())!;
 
-		Assert.Contains(typeof(Quantity<>).FullName!, result.Message);
+		await Assert.That(result.Message).Contains(typeof(Quantity<>).FullName!);
 	}
 
-	[Fact]
-	public void ReaderDecodesEveryAxisAndRationalMarker()
+	[Test]
+	public async Task ReaderDecodesEveryAxisAndRationalMarker()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -34,18 +34,20 @@ public sealed class QuantityTypeReaderTests
 			}
 			""";
 		CSharpCompilation compilation = Compile(source);
-		IFieldSymbol field = GetField(compilation, "Value");
+		IFieldSymbol field = await GetField(compilation, "Value");
 		QuantityTypeReader reader = new(compilation);
-		bool read = reader.TryRead(field.Type, out Dimension result, TestContext.Current.CancellationToken);
+		bool read = reader.TryRead(field.Type, out Dimension result, TestContext.Current!.Execution.CancellationToken);
 		Dimension expected = new(19, -2, new Rational(1, 2), 4, 5, 6, 7);
 
-		Assert.Multiple(
-			() => Assert.True(read),
-			() => Assert.Equal(expected, result));
+		using (Assert.Multiple())
+		{
+			await Assert.That(read).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+		}
 	}
 
-	[Fact]
-	public void ReaderRejectsUnrelatedAndUnresolvedTypes()
+	[Test]
+	public async Task ReaderRejectsUnrelatedAndUnresolvedTypes()
 	{
 		const string source = """
 			namespace Other { public class Quantity<T> { } }
@@ -58,18 +60,20 @@ public sealed class QuantityTypeReaderTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		QuantityTypeReader reader = new(compilation);
-		bool unrelated = reader.TryRead(GetField(compilation, "Unrelated").Type, out _, TestContext.Current.CancellationToken);
-		bool plain = reader.TryRead(GetField(compilation, "Plain").Type, out _, TestContext.Current.CancellationToken);
-		bool unresolved = reader.TryRead(GetField(compilation, "Unresolved").Type, out _, TestContext.Current.CancellationToken);
+		bool unrelated = reader.TryRead((await GetField(compilation, "Unrelated")).Type, out _, TestContext.Current!.Execution.CancellationToken);
+		bool plain = reader.TryRead((await GetField(compilation, "Plain")).Type, out _, TestContext.Current!.Execution.CancellationToken);
+		bool unresolved = reader.TryRead((await GetField(compilation, "Unresolved")).Type, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.Multiple(
-			() => Assert.False(unrelated),
-			() => Assert.False(plain),
-			() => Assert.False(unresolved));
+		using (Assert.Multiple())
+		{
+			await Assert.That(unrelated).IsFalse();
+			await Assert.That(plain).IsFalse();
+			await Assert.That(unresolved).IsFalse();
+		}
 	}
 
-	private static IFieldSymbol GetField(CSharpCompilation compilation, string name) =>
-		Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(compilation.GetTypeByMetadataName("Consumer")!.GetMembers(name)));
+	private static async Task<IFieldSymbol> GetField(CSharpCompilation compilation, string name) =>
+		(await Assert.That(await Assert.That(compilation.GetTypeByMetadataName("Consumer")!.GetMembers(name)).HasSingleItem()).IsAssignableTo<IFieldSymbol>())!;
 
 	private static CSharpCompilation Compile(string source)
 	{

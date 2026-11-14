@@ -1,11 +1,11 @@
 using System.Reflection;
 using Microsoft.Build.Utilities.ProjectCreation;
-using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
-[Collection("MSBuild")]
-public sealed class PackageInteroperabilityTests : IClassFixture<PackageInteroperabilityFixture>, IDisposable
+[NotInParallel]
+[ClassDataSource<PackageInteroperabilityFixture>(Shared = SharedType.PerClass)]
+public sealed class PackageInteroperabilityTests : IDisposable
 {
 	private readonly PackageInteroperabilityFixture _fixture;
 	private readonly PackageConsumerWorkspace _workspace;
@@ -16,8 +16,8 @@ public sealed class PackageInteroperabilityTests : IClassFixture<PackageInterope
 		_workspace = fixture.CreateWorkspace();
 	}
 
-	[Fact]
-	public void AffineTemperatureConversionsAndDeltasWorkAcrossPackages()
+	[Test]
+	public async Task AffineTemperatureConversionsAndDeltasWorkAcrossPackages()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -68,16 +68,18 @@ public sealed class PackageInteroperabilityTests : IClassFixture<PackageInterope
 		double[] difference = (double[])type.GetMethod("DifferenceInEachUnit")!.Invoke(null, null)!;
 		double[] absolute = (double[])type.GetMethod("AbsoluteRoundTrips")!.Invoke(null, null)!;
 
-		Assert.Multiple(
-			() => Assert.Equal([10d, 18d, 10d, 18d], difference),
-			() => Assert.Equal(20d, absolute[0], 12),
-			() => Assert.Equal(68d, absolute[1], 12),
-			() => Assert.Equal(20d, absolute[2], 12),
-			() => Assert.Equal(68d, absolute[3], 12));
+		using (Assert.Multiple())
+		{
+			await Assert.That(difference).IsEquivalentTo((double[])[10d, 18d, 10d, 18d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(Math.Round(absolute[0], 12)).IsEqualTo(Math.Round(20d, 12));
+			await Assert.That(Math.Round(absolute[1], 12)).IsEqualTo(Math.Round(68d, 12));
+			await Assert.That(Math.Round(absolute[2], 12)).IsEqualTo(Math.Round(20d, 12));
+			await Assert.That(Math.Round(absolute[3], 12)).IsEqualTo(Math.Round(68d, 12));
+		}
 	}
 
-	[Fact]
-	public void IndependentPackagesShareQuantitiesAndConsumerCanExtendArithmetic()
+	[Test]
+	public async Task IndependentPackagesShareQuantitiesAndConsumerCanExtendArithmetic()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		Package core = PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -152,22 +154,24 @@ public sealed class PackageInteroperabilityTests : IClassFixture<PackageInterope
 		Type intermediateFromB = consumer.GetMethod("CreateIntermediate")!.ReturnType;
 		Type intermediateAccepted = consumer.GetMethod("ReadIntermediate")!.GetParameters().Single().ParameterType;
 
-		Assert.Multiple(
-			() => Assert.Equal(producedType, independentlyProducedType),
-			() => Assert.Equal(producedType, acceptedType),
-			() => Assert.Equal(intermediateFromA, intermediateFromB),
-			() => Assert.Equal(intermediateFromA, intermediateAccepted),
-			() => Assert.Equal(6, InvokeDouble(application, "Direct")),
-			() => Assert.Equal(12, InvokeDouble(application, "Collection")),
-			() => Assert.Equal(6, InvokeDouble(application, "Contained")),
-			() => Assert.Equal(0.006, InvokeDouble(application, "Prefixed"), 12),
-			() => Assert.Equal(24, InvokeDouble(application, "Product")),
-			() => Assert.Equal(6, InvokeDouble(application, "Intermediate")),
-			() => Assert.Equal(24, InvokeDouble(application, "IntermediateProduct")));
+		using (Assert.Multiple())
+		{
+			await Assert.That(independentlyProducedType).IsEqualTo(producedType);
+			await Assert.That(acceptedType).IsEqualTo(producedType);
+			await Assert.That(intermediateFromB).IsEqualTo(intermediateFromA);
+			await Assert.That(intermediateAccepted).IsEqualTo(intermediateFromA);
+			await Assert.That(InvokeDouble(application, "Direct")).IsEqualTo(6);
+			await Assert.That(InvokeDouble(application, "Collection")).IsEqualTo(12);
+			await Assert.That(InvokeDouble(application, "Contained")).IsEqualTo(6);
+			await Assert.That(Math.Round(InvokeDouble(application, "Prefixed"), 12)).IsEqualTo(Math.Round(0.006, 12));
+			await Assert.That(InvokeDouble(application, "Product")).IsEqualTo(24);
+			await Assert.That(InvokeDouble(application, "Intermediate")).IsEqualTo(6);
+			await Assert.That(InvokeDouble(application, "IntermediateProduct")).IsEqualTo(24);
+		}
 	}
 
-	[Fact]
-	public void AllUnitPackagesWorkInALibraryAndItsPackagedConsumer()
+	[Test]
+	public async Task AllUnitPackagesWorkInALibraryAndItsPackagedConsumer()
 	{
 		using PackageRepository repository = PackageRepository.Create(_workspace.Directory, new Uri("https://api.nuget.org/v3/index.json"));
 		PackageTestSupport.AddPackedPackage(repository, _fixture.GetPackage("DimensionalQuantities"));
@@ -233,14 +237,16 @@ public sealed class PackageInteroperabilityTests : IClassFixture<PackageInterope
 		double[] local = (double[])type.GetMethod("LocalValues")!.Invoke(null, null)!;
 		double[] converted = (double[])type.GetMethod("ConvertedValues")!.Invoke(null, null)!;
 
-		Assert.Multiple(
-			() => Assert.Equal([0.00000001d, 6d, 1d, 10_000d], local),
-			() => Assert.Equal(5, converted.Length),
-			() => Assert.Equal(1d, converted[0]),
-			() => Assert.Equal(1d, converted[1], 12),
-			() => Assert.Equal(6d, converted[2]),
-			() => Assert.Equal(1d, converted[3]),
-			() => Assert.Equal(1d, converted[4]));
+		using (Assert.Multiple())
+		{
+			await Assert.That(local).IsEquivalentTo((double[])[0.00000001d, 6d, 1d, 10_000d], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(converted.Length).IsEqualTo(5);
+			await Assert.That(converted[0]).IsEqualTo(1d);
+			await Assert.That(Math.Round(converted[1], 12)).IsEqualTo(Math.Round(1d, 12));
+			await Assert.That(converted[2]).IsEqualTo(6d);
+			await Assert.That(converted[3]).IsEqualTo(1d);
+			await Assert.That(converted[4]).IsEqualTo(1d);
+		}
 	}
 
 	private static double InvokeDouble(Type type, string method, params object[] arguments)

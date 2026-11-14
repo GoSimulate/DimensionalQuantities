@@ -1,6 +1,5 @@
 using DimensionalQuantities.Units;
 using DimensionalQuantities.Numerics;
-using Xunit;
 
 namespace DimensionalQuantities.Tests.Units;
 
@@ -9,47 +8,47 @@ public sealed class UnitExpressionTests
 	private static readonly AtomicUnit _newton = new("Newton", "Newtons", "N");
 	private static readonly AtomicUnit _volt = new("Volt", "Volts", "V");
 	private static readonly AtomicUnit _watt = new("Watt", "Watts", "W");
-	[Theory]
-	[InlineData(1, "Metres")]
-	[InlineData(2, "SquareMetres")]
-	[InlineData(3, "CubicMetres")]
-	[InlineData(5, "Power5Metres")]
-	public void GetNameFormatsAtomicPowers(int power, string expected)
+	[Test]
+	[Arguments(1, "Metres")]
+	[Arguments(2, "SquareMetres")]
+	[Arguments(3, "CubicMetres")]
+	[Arguments(5, "Power5Metres")]
+	public async Task GetNameFormatsAtomicPowers(int power, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power));
 		string result = original.GetName();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(1, 2, "SquareRootMetres")]
-	[InlineData(3, 2, "SquareRootCubicMetres")]
-	[InlineData(2, 3, "CubeRootSquareMetres")]
-	[InlineData(1, 4, "Root4Metres")]
-	[InlineData(-1, 2, "InverseSquareRootMetre")]
-	public void GetNameFormatsFractionalPowers(int numerator, int denominator, string expected)
+	[Test]
+	[Arguments(1, 2, "SquareRootMetres")]
+	[Arguments(3, 2, "SquareRootCubicMetres")]
+	[Arguments(2, 3, "CubeRootSquareMetres")]
+	[Arguments(1, 4, "Root4Metres")]
+	[Arguments(-1, 2, "InverseSquareRootMetre")]
+	public async Task GetNameFormatsFractionalPowers(int numerator, int denominator, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator)));
 		string result = original.GetName();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(1, 12, "Root12Amps")]
-	[InlineData(4, 5, "Root5Power4Amps")]
-	[InlineData(-3, 2, "InverseSquareRootCubicAmp")]
-	public void GetNameFormatsHigherAndInverseRationalPowers(int numerator, int denominator, string expected)
+	[Test]
+	[Arguments(1, 12, "Root12Amps")]
+	[Arguments(4, 5, "Root5Power4Amps")]
+	[Arguments(-3, 2, "InverseSquareRootCubicAmp")]
+	public async Task GetNameFormatsHigherAndInverseRationalPowers(int numerator, int denominator, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp, new Rational(numerator, denominator)));
 		string result = original.GetName();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameKeepsFractionalPowersWithTheirFactorsInOrderedCompound()
+	[Test]
+	public async Task GetNameKeepsFractionalPowersWithTheirFactorsInOrderedCompound()
 	{
 		UnitExpression original = new(
 			new UnitTerm(AtomicUnits.Metre, new Rational(1, 2)),
@@ -58,241 +57,247 @@ public sealed class UnitExpressionTests
 		string result = original.GetName();
 		string expected = "SquareRootMetreAmpsPerSquareRootCubicSecond";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameFormatsCompoundNumeratorAndDenominator()
+	[Test]
+	public async Task GetNameFormatsCompoundNumeratorAndDenominator()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Second, -1));
 		string result = original.GetName();
 		string expected = "AmpsPerSecond";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNamePluralisesOnlyTheLastNumeratorFactor()
+	[Test]
+	public async Task GetNamePluralisesOnlyTheLastNumeratorFactor()
 	{
 		UnitExpression original = new(new UnitTerm(_newton), new UnitTerm(AtomicUnits.Metre));
 		string result = original.GetName();
 		string expected = "NewtonMetres";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameFormatsInverseWithSingularUnitName()
+	[Test]
+	public async Task GetNameFormatsInverseWithSingularUnitName()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Second, -1));
 		string result = original.GetName();
 		string expected = "InverseSecond";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNamePreservesKelvinSpelling()
+	[Test]
+	public async Task GetNamePreservesKelvinSpelling()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Kelvin));
 		string result = original.GetName();
 		string expected = "Kelvin";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameFormatsKilogramsWithFixedPrefixCasing()
+	[Test]
+	public async Task GetNameFormatsKilogramsWithFixedPrefixCasing()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3));
 		string result = original.GetName();
 		string expected = "Kilograms";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameCapitalisesThePrefixOfAVariableFactor()
+	[Test]
+	public async Task GetNameCapitalisesThePrefixOfAVariableFactor()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3));
 		string result = original.GetName(variableFactorIndex: 0);
 		string expected = "KiloGrams";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameFormatsReferenceAwareCurrentDensityDenominator()
+	[Test]
+	public async Task GetNameFormatsReferenceAwareCurrentDensityDenominator()
 	{
 		UnitExpression currentDensityReference = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
 		UnitExpression currentDensity = currentDensityReference.WithPrefix(1, -3);
 		string currentDensityResult = currentDensity.GetName(currentDensityReference);
 		string expected = "AmpsPerSquareMilliMetre";
 
-		Assert.Equal(expected, currentDensityResult);
+		await Assert.That(currentDensityResult).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameFormatsReferenceAwareMassDensityDenominator()
+	[Test]
+	public async Task GetNameFormatsReferenceAwareMassDensityDenominator()
 	{
 		UnitExpression reference = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: 3), new UnitTerm(AtomicUnits.Metre, -3));
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram), new UnitTerm(AtomicUnits.Metre, -3, -2));
 		string result = original.GetName(reference);
 		string expected = "GramsPerCubicCentiMetre";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(1, 0, "m")]
-	[InlineData(2, 0, "m²")]
-	[InlineData(3, 0, "m³")]
-	[InlineData(1, -3, "mm")]
-	public void GetSymbolFormatsUnitPowerAndPrefix(int power, int prefixExponent, string expected)
+	[Test]
+	[Arguments(1, 0, "m")]
+	[Arguments(2, 0, "m²")]
+	[Arguments(3, 0, "m³")]
+	[Arguments(1, -3, "mm")]
+	public async Task GetSymbolFormatsUnitPowerAndPrefix(int power, int prefixExponent, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power, prefixExponent));
 		string result = original.GetSymbol();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(1, 2, "m¹⁄²")]
-	[InlineData(3, 2, "m³⁄²")]
-	[InlineData(-1, 2, "m⁻¹⁄²")]
-	public void GetSymbolFormatsFractionalPowers(int numerator, int denominator, string expected)
+	[Test]
+	[Arguments(1, 2, "m¹⁄²")]
+	[Arguments(3, 2, "m³⁄²")]
+	[Arguments(-1, 2, "m⁻¹⁄²")]
+	public async Task GetSymbolFormatsFractionalPowers(int numerator, int denominator, string expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator)));
 		string result = original.GetSymbol();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetSymbolFormatsInverseAndCompoundUnits()
+	[Test]
+	public async Task GetSymbolFormatsInverseAndCompoundUnits()
 	{
 		UnitExpression inverse = new(new UnitTerm(AtomicUnits.Second, -1));
 		UnitExpression compound = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2, -3));
 		string inverseResult = inverse.GetSymbol();
 		string compoundResult = compound.GetSymbol();
 
-		Assert.Multiple(
-			() => Assert.Equal("s⁻¹", inverseResult),
-			() => Assert.Equal("A/mm²", compoundResult));
+		using (Assert.Multiple())
+		{
+			await Assert.That(inverseResult).IsEqualTo("s⁻¹");
+			await Assert.That(compoundResult).IsEqualTo("A/mm²");
+		}
 	}
 
-	[Theory]
-	[InlineData(1, -3, -3)]
-	[InlineData(1, 3, 3)]
-	[InlineData(2, -3, -6)]
-	[InlineData(-2, -3, 6)]
-	[InlineData(3, -3, -9)]
-	[InlineData(-3, -3, 9)]
-	public void GetSiScaleExponentAppliesMetrePrefixPowerAndSign(int power, int prefixExponent, int expected)
+	[Test]
+	[Arguments(1, -3, -3)]
+	[Arguments(1, 3, 3)]
+	[Arguments(2, -3, -6)]
+	[Arguments(-2, -3, 6)]
+	[Arguments(3, -3, -9)]
+	[Arguments(-3, -3, 9)]
+	public async Task GetSiScaleExponentAppliesMetrePrefixPowerAndSign(int power, int prefixExponent, int expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, power, prefixExponent));
 		Rational result = original.GetSiScaleExponent();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(1, 2, -3, -3, 2)]
-	[InlineData(-1, 2, -3, 3, 2)]
-	[InlineData(3, 2, -3, -9, 2)]
-	public void GetSiScaleExponentAppliesFractionalPower(int numerator, int denominator, int prefixExponent, int expectedNumerator, int expectedDenominator)
+	[Test]
+	[Arguments(1, 2, -3, -3, 2)]
+	[Arguments(-1, 2, -3, 3, 2)]
+	[Arguments(3, 2, -3, -9, 2)]
+	public async Task GetSiScaleExponentAppliesFractionalPower(int numerator, int denominator, int prefixExponent, int expectedNumerator, int expectedDenominator)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Metre, new Rational(numerator, denominator), prefixExponent));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = new(expectedNumerator, expectedDenominator);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetSiScaleExponentCombinesFractionalGramOffsetAndPrefixedDenominator()
+	[Test]
+	public async Task GetSiScaleExponentCombinesFractionalGramOffsetAndPrefixedDenominator()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, new Rational(1, 2)), new UnitTerm(AtomicUnits.Second, -1, -3));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = new(3, 2);
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(3, 3)]
-	[InlineData(-3, -3)]
-	[InlineData(-27, -27)]
-	[InlineData(30, 30)]
-	[InlineData(-30, -30)]
-	public void GetSiScaleExponentAppliesVoltagePrefix(int prefixExponent, int expected)
+	[Test]
+	[Arguments(3, 3)]
+	[Arguments(-3, -3)]
+	[Arguments(-27, -27)]
+	[Arguments(30, 30)]
+	[Arguments(-30, -30)]
+	public async Task GetSiScaleExponentAppliesVoltagePrefix(int prefixExponent, int expected)
 	{
 		UnitExpression original = new(new UnitTerm(_volt, prefixExponent: prefixExponent));
 		Rational result = original.GetSiScaleExponent();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Theory]
-	[InlineData(0, -3)]
-	[InlineData(3, 0)]
-	[InlineData(-3, -6)]
-	public void GetSiScaleExponentAccountsForGramBasePrefixOffset(int prefixExponent, int expected)
+	[Test]
+	[Arguments(0, -3)]
+	[Arguments(3, 0)]
+	[Arguments(-3, -6)]
+	public async Task GetSiScaleExponentAccountsForGramBasePrefixOffset(int prefixExponent, int expected)
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Gram, prefixExponent: prefixExponent));
 		Rational result = original.GetSiScaleExponent();
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetSiScaleExponentCombinesReciprocalFactors()
+	[Test]
+	public async Task GetSiScaleExponentCombinesReciprocalFactors()
 	{
 		UnitExpression ampPerSquareMillimetre = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2, -3));
 		UnitExpression gramPerCubicCentimetre = new(new UnitTerm(AtomicUnits.Gram), new UnitTerm(AtomicUnits.Metre, -3, -2));
 		Rational currentDensityResult = ampPerSquareMillimetre.GetSiScaleExponent();
 		Rational massDensityResult = gramPerCubicCentimetre.GetSiScaleExponent();
 
-		Assert.Multiple(
-			() => Assert.Equal(6, currentDensityResult),
-			() => Assert.Equal(3, massDensityResult));
+		using (Assert.Multiple())
+		{
+			await Assert.That(currentDensityResult).IsEqualTo(6);
+			await Assert.That(massDensityResult).IsEqualTo(3);
+		}
 	}
 
-	[Fact]
-	public void GetSiScaleExponentCancelsKilogramInWattsPerKilogram()
+	[Test]
+	public async Task GetSiScaleExponentCancelsKilogramInWattsPerKilogram()
 	{
 		UnitExpression original = new(new UnitTerm(_watt), new UnitTerm(AtomicUnits.Gram, -1, 3));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = Rational.Zero;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetSiScaleExponentIncludesKilowattPrefix()
+	[Test]
+	public async Task GetSiScaleExponentIncludesKilowattPrefix()
 	{
 		UnitExpression original = new(new UnitTerm(_watt, prefixExponent: 3), new UnitTerm(AtomicUnits.Gram, -1, 3));
 		Rational result = original.GetSiScaleExponent();
 		Rational expected = 3;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void WithPrefixChangesOnlyTheSelectedTermAndPreservesOriginal()
+	[Test]
+	public async Task WithPrefixChangesOnlyTheSelectedTermAndPreservesOriginal()
 	{
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
 		UnitExpression result = original.WithPrefix(1, -3);
 		UnitExpression expected = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2, -3));
 		UnitExpression expectedOriginal = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
 
-		Assert.Multiple(
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(expectedOriginal, original));
+		using (Assert.Multiple())
+		{
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(original).IsEqualTo(expectedOriginal);
+		}
 	}
 
-	[Fact]
-	public void GetScaleCombinesNonDecimalFactorsAndNegativePowers()
+	[Test]
+	public async Task GetScaleCombinesNonDecimalFactorsAndNegativePowers()
 	{
 		AtomicUnit foot = new("Foot", "Feet", "ft", Scale: 0.3048);
 		AtomicUnit minute = new("Minute", "Minutes", "min", Scale: 60);
@@ -300,28 +305,28 @@ public sealed class UnitExpressionTests
 		double result = original.GetScale();
 		double expected = 0.001548384;
 
-		Assert.Equal(expected, result, 12);
+		await Assert.That(Math.Round(result, 12)).IsEqualTo(Math.Round(expected, 12));
 	}
 
-	[Fact]
-	public void GetScaleAppliesFractionalPowers()
+	[Test]
+	public async Task GetScaleAppliesFractionalPowers()
 	{
 		AtomicUnit unit = new("Sample", "Samples", "x", Scale: 16);
 		UnitExpression original = new(new UnitTerm(unit, new Rational(3, 2)));
 		double result = original.GetScale();
 		double expected = 64;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	[Fact]
-	public void GetNameAcceptsAReferenceWithDifferentFactors()
+	[Test]
+	public async Task GetNameAcceptsAReferenceWithDifferentFactors()
 	{
 		UnitExpression reference = new(new UnitTerm(AtomicUnits.Amp));
 		UnitExpression original = new(new UnitTerm(AtomicUnits.Amp), new UnitTerm(AtomicUnits.Metre, -2));
 		string result = original.GetName(reference);
 		string expected = "AmpsPerSquareMetre";
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 }

@@ -4,29 +4,29 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Discovery;
 
+[NotInParallel(nameof(PowerDiscoveryTests))]
 public sealed class PowerDiscoveryTests
 {
-	[Fact]
-	public void MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
+	[Test]
+	public async Task MissingRuntimeReferenceThrowsWithTheRequiredTypeName()
 	{
-		SyntaxTree tree = CSharpSyntaxTree.ParseText("class Consumer { }", cancellationToken: TestContext.Current.CancellationToken);
+		SyntaxTree tree = CSharpSyntaxTree.ParseText("class Consumer { }", cancellationToken: TestContext.Current!.Execution.CancellationToken);
 		CSharpCompilation compilation = CSharpCompilation.Create("MissingRuntimeConsumer", [tree]);
 		SemanticModel model = compilation.GetSemanticModel(tree);
 
-		InvalidOperationException result = Assert.Throws<InvalidOperationException>(() => new PowerDiscovery(model));
+		InvalidOperationException result = (await Assert.That(() => new PowerDiscovery(model)).ThrowsExactly<InvalidOperationException>())!;
 
-		Assert.Contains(typeof(Power<>).FullName!, result.Message);
+		await Assert.That(result.Message).Contains(typeof(Power<>).FullName!);
 	}
 
-	[Theory]
-	[InlineData("Power<Fraction<TerminalHex2, TerminalHex4>>", "", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
-	[InlineData("Power<Half>", "using Half = DimensionalQuantities.TypeSystem.Fraction<DimensionalQuantities.TypeSystem.TerminalHex2, DimensionalQuantities.TypeSystem.TerminalHex4>;", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
-	[InlineData("Root", "using Root = DimensionalQuantities.TypeSystem.Power<DimensionalQuantities.TypeSystem.Fraction<DimensionalQuantities.TypeSystem.TerminalHex2, DimensionalQuantities.TypeSystem.TerminalHex4>>;", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
-	public void ReadsTheExponentWithoutChangingItsDeclaredType(string powerTypeName, string alias, string expectedExponentTypeName)
+	[Test]
+	[Arguments("Power<Fraction<TerminalHex2, TerminalHex4>>", "", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
+	[Arguments("Power<Half>", "using Half = DimensionalQuantities.TypeSystem.Fraction<DimensionalQuantities.TypeSystem.TerminalHex2, DimensionalQuantities.TypeSystem.TerminalHex4>;", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
+	[Arguments("Root", "using Root = DimensionalQuantities.TypeSystem.Power<DimensionalQuantities.TypeSystem.Fraction<DimensionalQuantities.TypeSystem.TerminalHex2, DimensionalQuantities.TypeSystem.TerminalHex4>>;", "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex2, global::DimensionalQuantities.TypeSystem.TerminalHex4>")]
+	public async Task ReadsTheExponentWithoutChangingItsDeclaredType(string powerTypeName, string alias, string expectedExponentTypeName)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -35,23 +35,25 @@ public sealed class PowerDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerDiscovery discovery = new(compilation.GetSemanticModel(tree));
-		bool read = discovery.TryRead(invocation, out Rational result, out string exponentTypeName, TestContext.Current.CancellationToken);
+		bool read = discovery.TryRead(invocation, out Rational result, out string exponentTypeName, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(1, 2);
 
-		Assert.Multiple(
-			() => Assert.True(read),
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(expectedExponentTypeName, exponentTypeName));
+		using (Assert.Multiple())
+		{
+			await Assert.That(read).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(exponentTypeName).IsEqualTo(expectedExponentTypeName);
+		}
 	}
 
-	[Theory]
-	[InlineData("NumberTwo", 2, 1, "global::DimensionalQuantities.TypeSystem.TerminalHex2")]
-	[InlineData("NumberHalf", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
-	[InlineData("NumberTwoQuarters", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
-	[InlineData("NumberMinusTwo", -2, 1, "global::DimensionalQuantities.TypeSystem.Negative<global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
-	public void ReadsUnresolvedEnglishExponentNames(string name, int numerator, int denominator, string expectedTypeName)
+	[Test]
+	[Arguments("NumberTwo", 2, 1, "global::DimensionalQuantities.TypeSystem.TerminalHex2")]
+	[Arguments("NumberHalf", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	[Arguments("NumberTwoQuarters", 1, 2, "global::DimensionalQuantities.TypeSystem.Fraction<global::DimensionalQuantities.TypeSystem.TerminalHex1, global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	[Arguments("NumberMinusTwo", -2, 1, "global::DimensionalQuantities.TypeSystem.Negative<global::DimensionalQuantities.TypeSystem.TerminalHex2>")]
+	public async Task ReadsUnresolvedEnglishExponentNames(string name, int numerator, int denominator, string expectedTypeName)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -59,28 +61,30 @@ public sealed class PowerDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerDiscovery discovery = new(compilation.GetSemanticModel(tree));
 
-		bool read = discovery.TryRead(invocation, out Rational result, out string typeName, TestContext.Current.CancellationToken);
+		bool read = discovery.TryRead(invocation, out Rational result, out string typeName, TestContext.Current!.Execution.CancellationToken);
 		Rational expected = new(numerator, denominator);
 
-		Assert.Multiple(
-			() => Assert.True(read),
-			() => Assert.Equal(expected, result),
-			() => Assert.Equal(expectedTypeName, typeName));
+		using (Assert.Multiple())
+		{
+			await Assert.That(read).IsTrue();
+			await Assert.That(result).IsEqualTo(expected);
+			await Assert.That(typeName).IsEqualTo(expectedTypeName);
+		}
 	}
 
-	[Theory]
-	[InlineData("Other.Power<TerminalHex2>.Of(quantity)")]
-	[InlineData("Power<NumberNotANumber>.Of(quantity)")]
-	[InlineData("Power<NumberOneOverZero>.Of(quantity)")]
-	[InlineData("Power<NumberThree>.Of(quantity)")]
-	[InlineData("Power<Other.NumberTwo>.Of(quantity)")]
-	[InlineData("Power<TerminalHex2>.Other(quantity)")]
-	[InlineData("Power<TerminalHex2>.Of(quantity, quantity)")]
-	[InlineData("Power<TerminalHex2>.Of()")]
-	public void RejectsUnrelatedAndUnsupportedCalls(string expression)
+	[Test]
+	[Arguments("Other.Power<TerminalHex2>.Of(quantity)")]
+	[Arguments("Power<NumberNotANumber>.Of(quantity)")]
+	[Arguments("Power<NumberOneOverZero>.Of(quantity)")]
+	[Arguments("Power<NumberThree>.Of(quantity)")]
+	[Arguments("Power<Other.NumberTwo>.Of(quantity)")]
+	[Arguments("Power<TerminalHex2>.Other(quantity)")]
+	[Arguments("Power<TerminalHex2>.Of(quantity, quantity)")]
+	[Arguments("Power<TerminalHex2>.Of()")]
+	public async Task RejectsUnrelatedAndUnsupportedCalls(string expression)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -90,11 +94,11 @@ public sealed class PowerDiscoveryTests
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
-		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current!.Execution.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerDiscovery discovery = new(compilation.GetSemanticModel(tree));
-		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current.CancellationToken);
+		bool result = discovery.TryRead(invocation, out _, out _, TestContext.Current!.Execution.CancellationToken);
 
-		Assert.False(result);
+		await Assert.That(result).IsFalse();
 	}
 
 	private static CSharpCompilation Compile(string source)

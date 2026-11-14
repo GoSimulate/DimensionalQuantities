@@ -1,4 +1,5 @@
 using System.Reflection;
+using Assembly = System.Reflection.Assembly;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
@@ -7,16 +8,16 @@ using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
 
+[NotInParallel(nameof(PowerSourceEmitterTests))]
 public sealed class PowerSourceEmitterTests
 {
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
-	[Fact]
-	public void DifferentPowersReturnTheExpectedQuantityTypes()
+	[Test]
+	public async Task DifferentPowersReturnTheExpectedQuantityTypes()
 	{
 		Dimension length = new(Length: 1);
 		PowerOperation[] operations =
@@ -42,14 +43,14 @@ public sealed class PowerSourceEmitterTests
 				}
 			}
 			""";
-		Assembly assembly = CompileAndEmit(source, plan);
+		Assembly assembly = await CompileAndEmit(source, plan);
 		double result = (double)assembly.GetType("Consumer")!.GetMethod("Value")!.Invoke(null, null)!;
 		double expected = 40;
 
-		Assert.Equal(expected, result);
+		await Assert.That(result).IsEqualTo(expected);
 	}
 
-	private static Assembly CompileAndEmit(string source, QuantityGenerationPlan plan)
+	private static async Task<Assembly> CompileAndEmit(string source, QuantityGenerationPlan plan)
 	{
 		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
 		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
@@ -63,13 +64,13 @@ public sealed class PowerSourceEmitterTests
 		SyntaxTree additionalQuantities = CSharpSyntaxTree.ParseText(QuantitySourceEmitter.Emit(plan.AdditionalQuantities), _parseOptions, path: "AdditionalQuantities.g.cs");
 		SyntaxTree powers = CSharpSyntaxTree.ParseText(PowerSourceEmitter.Emit(plan), _parseOptions, path: "Powers.g.cs");
 		CSharpCompilation compilation = input.AddSyntaxTrees(knownQuantities, additionalQuantities, powers);
-		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+		Diagnostic[] errors = compilation.GetDiagnostics(TestContext.Current!.Execution.CancellationToken)
 			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-		Assert.Empty(errors);
+		await Assert.That(errors).IsEmpty();
 
 		using MemoryStream assemblyBytes = new();
-		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+		EmitResult emit = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current!.Execution.CancellationToken);
+		await Assert.That(emit.Success).IsTrue().Because(string.Join(Environment.NewLine, emit.Diagnostics));
 		return Assembly.Load(assemblyBytes.ToArray());
 	}
 }
