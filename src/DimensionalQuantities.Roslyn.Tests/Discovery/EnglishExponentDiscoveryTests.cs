@@ -1,6 +1,5 @@
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
-using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,7 +19,10 @@ public sealed class EnglishExponentDiscoveryTests
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
-			class Consumer { object Value(object quantity) => Power<{{name}}>.Of(quantity); }
+			class Consumer
+			{
+				object Value(object quantity) => Power<{{name}}>.Of(quantity);
+			}
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
@@ -44,10 +46,23 @@ public sealed class EnglishExponentDiscoveryTests
 	[InlineData("Power<NumberOneOverZero>.Of(quantity)", "")]
 	[InlineData("Power<Other.NumberTwo>.Of(quantity)", "")]
 	[InlineData("Power<NumberTwo<int>>.Of(quantity)", "")]
-	[InlineData("Power<NumberTwo>.Of(quantity)", "struct NumberTwo { }")]
-	[InlineData("Power<NumberTwo>.Of(quantity)", "using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;")]
+	[InlineData("Power<NumberTwo>.Of(quantity)", """
+		struct NumberTwo
+		{
+		}
+		""")]
+	[InlineData("Power<NumberTwo>.Of(quantity)", """
+		using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;
+		""")]
 	[InlineData("Power<TerminalHex2>.Of(quantity)", "")]
-	[InlineData("Other.Power<NumberTwo>.Of(quantity)", "namespace Other { struct Power<T> { } }")]
+	[InlineData("Other.Power<NumberTwo>.Of(quantity)", """
+		namespace Other
+		{
+			struct Power<T>
+			{
+			}
+		}
+		""")]
 	[InlineData("Power<NumberTwo>.Other(quantity)", "")]
 	[InlineData("Power<NumberTwo>.Of(quantity, quantity)", "")]
 	public void IgnoresNamesThatShouldNotBecomeGeneratedAliases(string expression, string declarations)
@@ -55,7 +70,10 @@ public sealed class EnglishExponentDiscoveryTests
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
 			{{declarations}}
-			class Consumer { object Value(object quantity) => {{expression}}; }
+			class Consumer
+			{
+				object Value(object quantity) => {{expression}};
+			}
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
@@ -74,9 +92,22 @@ public sealed class EnglishExponentDiscoveryTests
 			using DimensionalQuantities.TypeSystem;
 			using First;
 			using Second;
-			namespace First { public struct NumberTwo { } }
-			namespace Second { public struct NumberTwo { } }
-			class Consumer { object Value(object quantity) => Power<NumberTwo>.Of(quantity); }
+			namespace First
+			{
+				public struct NumberTwo
+				{
+				}
+			}
+			namespace Second
+			{
+				public struct NumberTwo
+				{
+				}
+			}
+			class Consumer
+			{
+				object Value(object quantity) => Power<NumberTwo>.Of(quantity);
+			}
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
@@ -88,12 +119,5 @@ public sealed class EnglishExponentDiscoveryTests
 		Assert.False(result);
 	}
 
-	private static CSharpCompilation Compile(string source)
-	{
-		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
-			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		return CSharpCompilation.Create("EnglishExponentConsumer", [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],
-			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-	}
+	private static CSharpCompilation Compile(string source) => ReaderCompilation.Create(source, allowErrors: true);
 }

@@ -53,10 +53,10 @@ public sealed class MetadataQuantityDiscoveryTests
 		const string librarySource = """
 			using DimensionalQuantities.TypeSystem;
 			using Q = DimensionalQuantities.TypeSystem.Quantity<DimensionalQuantities.TypeSystem.Dimension<
-				DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0,
-				DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex1,
-				DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
-				DimensionalQuantities.TypeSystem.TerminalHex0>>;
+			DimensionalQuantities.TypeSystem.TerminalHex1, DimensionalQuantities.TypeSystem.TerminalHex0,
+			DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex1,
+			DimensionalQuantities.TypeSystem.TerminalHex0, DimensionalQuantities.TypeSystem.TerminalHex0,
+			DimensionalQuantities.TypeSystem.TerminalHex0>>;
 			public static class Library
 			{
 				public static Q Create() => default;
@@ -81,8 +81,24 @@ public sealed class MetadataQuantityDiscoveryTests
 			throw new InvalidOperationException(string.Join(Environment.NewLine, emitted.Diagnostics));
 		}
 
-		return CSharpCompilation.Create("MetadataConsumer",
-			[CSharpSyntaxTree.ParseText($"public class Consumer {{ public object Value() => {expression}; }}", options)],
+		CSharpCompilation consumer = CSharpCompilation.Create("MetadataConsumer",
+			[CSharpSyntaxTree.ParseText($$"""
+				public class Consumer
+				{
+					public object Value() => {{expression}};
+				}
+				""", options)],
 			[.. references, MetadataReference.CreateFromImage(stream.ToArray())], new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+		if (expression != "Library.Missing()")
+		{
+			Diagnostic[] errors = consumer.GetDiagnostics(TestContext.Current.CancellationToken)
+				.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+			if (errors.Length > 0)
+			{
+				throw new InvalidOperationException(string.Join(Environment.NewLine, errors.Select(error => error.ToString())));
+			}
+		}
+
+		return consumer;
 	}
 }

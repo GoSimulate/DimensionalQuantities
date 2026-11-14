@@ -9,15 +9,16 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <PackageReference Include="System.Composition.AttributedModel" Version="10.0.14" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DimensionalQuantities/DimensionalQuantities.csproj" />
-    <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <Analyzer Include="../DimensionalQuantities/bin/$(Configuration)/netstandard2.0/DimensionalQuantities.dll" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Build" Version="18.11.0" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
-    <PackageReference Include="MSBuild.ProjectCreation" Version="20.0.0" />
+    <ProjectReference Include="../DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" />
+    <ProjectReference Include="../DimensionalQuantities.Roslyn.CodeFixes/DimensionalQuantities.Roslyn.CodeFixes.csproj" />
+    <ProjectReference Include="../DimensionalQuantities.Extensions.Metric/DimensionalQuantities.Extensions.Metric.csproj" />
+    <ProjectReference Include="../DimensionalQuantities.Extensions.Imperial/DimensionalQuantities.Extensions.Imperial.csproj" />
+    <ProjectReference Include="../DimensionalQuantities.Extensions.Nautical/DimensionalQuantities.Extensions.Nautical.csproj" />
+    <ProjectReference Include="../DimensionalQuantities.Extensions.CgsEmag/DimensionalQuantities.Extensions.CgsEmag.csproj" />
   </ItemGroup>
 </Project>

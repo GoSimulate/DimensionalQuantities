@@ -1,6 +1,5 @@
 using DimensionalQuantities.Numerics;
 using DimensionalQuantities.Roslyn.Discovery;
-using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,7 +23,10 @@ public sealed class PowerMethodDiscoveryTests
 	public void ReadsTheExponentForEachConvenienceMethod(string name, int numerator, int denominator)
 	{
 		string source = $$"""
-			class Consumer { object Value(object quantity) => quantity.{{name}}(); }
+			class Consumer
+			{
+				object Value(object quantity) => quantity.{{name}}();
+			}
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
@@ -48,7 +50,12 @@ public sealed class PowerMethodDiscoveryTests
 	[InlineData("quantity.squared()")]
 	public void RejectsUnsupportedMethodCalls(string expression)
 	{
-		string source = $$"""class Consumer { object Value(object quantity) => {{expression}}; }""";
+		string source = $$"""
+			class Consumer
+			{
+				object Value(object quantity) => {{expression}};
+			}
+			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
 		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
@@ -60,14 +67,46 @@ public sealed class PowerMethodDiscoveryTests
 	}
 
 	[Theory]
-	[InlineData("class Other { public int Squared() => 7; }", "quantity.Squared()")]
-	[InlineData("class Other { public int Squared() => 7; }", "quantity?.Squared()")]
-	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity.Squared()")]
-	[InlineData("class Other { } static class Extensions { public static int Squared(this Other value) => 7; }", "quantity?.Squared()")]
+	[InlineData("""
+		class Other
+		{
+			public int Squared() => 7;
+		}
+		""", "quantity.Squared()")]
+	[InlineData("""
+		class Other
+		{
+			public int Squared() => 7;
+		}
+		""", "quantity?.Squared()")]
+	[InlineData("""
+		class Other
+		{
+		}
+		static class Extensions
+		{
+			public static int Squared(this Other value) => 7;
+		}
+		""", "quantity.Squared()")]
+	[InlineData("""
+		class Other
+		{
+		}
+		static class Extensions
+		{
+			public static int Squared(this Other value) => 7;
+		}
+		""", "quantity?.Squared()")]
 	public void PreservesAlreadyBoundMethods(string declaration, string expression)
 	{
-		string source = $$"""{{declaration}} class Consumer { object Value(Other quantity) => {{expression}}; }""";
-		CSharpCompilation compilation = Compile(source);
+		string source = $$"""
+			{{declaration}}
+			class Consumer
+			{
+				object Value(Other quantity) => {{expression}};
+			}
+			""";
+		CSharpCompilation compilation = ReaderCompilation.Create(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
 		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
 		PowerMethodDiscovery discovery = new(compilation.GetSemanticModel(tree));
@@ -80,7 +119,12 @@ public sealed class PowerMethodDiscoveryTests
 	[Fact]
 	public void ReadsConditionalMemberBindingWithinAChain()
 	{
-		const string source = "class Consumer { object Value(object quantity) => quantity?.Squared().ToString(); }";
+		const string source = """
+		class Consumer
+		{
+			object Value(object quantity) => quantity?.Squared().ToString();
+		}
+		""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
 		InvocationExpressionSyntax invocation = tree.GetRoot(TestContext.Current.CancellationToken).DescendantNodes()
@@ -99,9 +143,17 @@ public sealed class PowerMethodDiscoveryTests
 	public void AllowsAConvenienceMethodAlongsideAnOverloadWithRequiredArguments()
 	{
 		const string source = """
-			class Other { }
-			static class Extensions { public static int Squared(this Other value, int factor) => factor; }
-			class Consumer { object Value(Other quantity) => quantity.Squared(); }
+			class Other
+			{
+			}
+			static class Extensions
+			{
+				public static int Squared(this Other value, int factor) => factor;
+			}
+			class Consumer
+			{
+				object Value(Other quantity) => quantity.Squared();
+			}
 			""";
 		CSharpCompilation compilation = Compile(source);
 		SyntaxTree tree = compilation.SyntaxTrees.Single();
@@ -117,13 +169,5 @@ public sealed class PowerMethodDiscoveryTests
 			() => Assert.Equal("Squared", methodName));
 	}
 
-	private static CSharpCompilation Compile(string source)
-	{
-		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
-			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		return CSharpCompilation.Create("PowerMethodConsumer",
-			[CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview), cancellationToken: TestContext.Current.CancellationToken)],
-			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-	}
+	private static CSharpCompilation Compile(string source) => ReaderCompilation.Create(source, allowErrors: true);
 }

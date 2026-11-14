@@ -28,7 +28,13 @@ public sealed class TypeSystemNumberReaderTests
 	[InlineData("Fraction<Negative<TerminalHex3>, TerminalHex2>", -3, 2)]
 	public void ReadsNumbersFromTheirTypes(string encoding, int numerator, int denominator)
 	{
-		CSharpCompilation compilation = Compile($"using DimensionalQuantities.TypeSystem; public class Consumer {{ public {encoding} Value; }}");
+		CSharpCompilation compilation = ReaderCompilation.Create($$"""
+			using DimensionalQuantities.TypeSystem;
+			public class Consumer
+			{
+				public {{encoding}} Value;
+			}
+			""");
 		IFieldSymbol field = (IFieldSymbol)compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").Single();
 		TypeSystemNumberReader reader = new(compilation);
 		bool read = reader.TryRead(field.Type, out Rational result, TestContext.Current.CancellationToken);
@@ -40,13 +46,22 @@ public sealed class TypeSystemNumberReaderTests
 	}
 
 	[Theory]
-	[InlineData("int")]
-	[InlineData("Missing")]
-	[InlineData("Fraction<TerminalHex1, TerminalHex0>")]
-	[InlineData("Custom")]
-	public void RejectsUnrecognisedNumbersAndZeroDenominators(string encoding)
+	[InlineData("int", false)]
+	[InlineData("Missing", true)]
+	[InlineData("Fraction<TerminalHex1, TerminalHex0>", true)]
+	[InlineData("Custom", false)]
+	public void RejectsUnrecognisedNumbersAndZeroDenominators(string encoding, bool allowErrors)
 	{
-		CSharpCompilation compilation = Compile($"using DimensionalQuantities.TypeSystem; public struct Custom : ITypeSystemNumber {{ }} public class Consumer {{ public {encoding} Value; }}");
+		CSharpCompilation compilation = ReaderCompilation.Create($$"""
+			using DimensionalQuantities.TypeSystem;
+			public struct Custom : ITypeSystemNumber
+			{
+			}
+			public class Consumer
+			{
+				public {{encoding}} Value;
+			}
+			""", allowErrors);
 		IFieldSymbol field = (IFieldSymbol)compilation.GetTypeByMetadataName("Consumer")!.GetMembers("Value").Single();
 		TypeSystemNumberReader reader = new(compilation);
 		bool result = reader.TryRead(field.Type, out _, TestContext.Current.CancellationToken);
@@ -54,12 +69,4 @@ public sealed class TypeSystemNumberReaderTests
 		Assert.False(result);
 	}
 
-	private static CSharpCompilation Compile(string source)
-	{
-		string[] assemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
-		IEnumerable<PortableExecutableReference> references = assemblies.Select(path => MetadataReference.CreateFromFile(path))
-			.Append(MetadataReference.CreateFromFile(typeof(Quantity<>).Assembly.Location));
-		return CSharpCompilation.Create("PowerDiscoveryConsumer", [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],
-			references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-	}
 }

@@ -21,8 +21,8 @@
   </Folder>
   <Folder Name="/Roslyn/">
     <Project Path="DimensionalQuantities.Roslyn.CodeFixes/DimensionalQuantities.Roslyn.CodeFixes.csproj" />
-    <Project Path="DimensionalQuantities.Roslyn.Tests/DimensionalQuantities.Roslyn.Tests.csproj" />
     <Project Path="DimensionalQuantities.Roslyn/DimensionalQuantities.Roslyn.csproj" />
+    <Project Path="DimensionalQuantities.Roslyn.Tests/DimensionalQuantities.Roslyn.Tests.csproj" />
   </Folder>
   <Project Path="DimensionalQuantities.IntegrationTests/DimensionalQuantities.IntegrationTests.csproj" />
 </Solution>
