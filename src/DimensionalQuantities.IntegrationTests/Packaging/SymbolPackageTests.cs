@@ -6,30 +6,26 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Build.Locator;
 using Xunit;
 
 namespace DimensionalQuantities.IntegrationTests.Packaging;
 
 [Collection("MSBuild")]
-public sealed class SymbolPackageTests : IDisposable
+public sealed class SymbolPackageTests : IClassFixture<SymbolPackageFixture>
 {
 	private static readonly Guid _sourceLinkKind = new("CC110556-A091-4D38-9FEC-25AB9A351A6A");
 	private static readonly Guid _embeddedSourceKind = new("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
-	private readonly string _scratch = Directory.CreateTempSubdirectory("dimensional-quantities-symbols-").FullName;
+	private readonly SymbolPackageFixture _fixture;
 
-	static SymbolPackageTests()
+	public SymbolPackageTests(SymbolPackageFixture fixture)
 	{
-		if (!MSBuildLocator.IsRegistered)
-		{
-			MSBuildLocator.RegisterDefaults();
-		}
+		_fixture = fixture;
 	}
 
 	[Fact]
 	public void CoreSymbolPackageMatchesRuntimeAndAnalyzerAssemblies()
 	{
-		(FileInfo package, FileInfo symbols) = Pack("DimensionalQuantities");
+		(FileInfo package, FileInfo symbols) = GetArchives("DimensionalQuantities");
 		using ZipArchive binaries = ZipFile.OpenRead(package.FullName);
 		using ZipArchive symbolArchive = ZipFile.OpenRead(symbols.FullName);
 		string commit = GetCurrentCommit();
@@ -57,7 +53,7 @@ public sealed class SymbolPackageTests : IDisposable
 	public void ExtensionSymbolPackageMatchesAssemblyAndEmbedsGeneratedSource(string extension)
 	{
 		string projectName = "DimensionalQuantities.Extensions." + extension;
-		(FileInfo package, FileInfo symbols) = Pack(projectName);
+		(FileInfo package, FileInfo symbols) = GetArchives(projectName);
 		using ZipArchive binaries = ZipFile.OpenRead(package.FullName);
 		using ZipArchive symbolArchive = ZipFile.OpenRead(symbols.FullName);
 		SymbolDetails details = ReadSymbolDetails(binaries, symbolArchive, "lib/netstandard2.0/" + projectName,
@@ -74,16 +70,10 @@ public sealed class SymbolPackageTests : IDisposable
 			() => Assert.Equal(generatedSource, details.EmbeddedGeneratedSource));
 	}
 
-	private (FileInfo Package, FileInfo Symbols) Pack(string projectName)
+	private (FileInfo Package, FileInfo Symbols) GetArchives(string projectName)
 	{
-		string sourceDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-		FileInfo package = PackageTestSupport.PackLibrary(Path.Combine(sourceDirectory, projectName, projectName + ".csproj"), _scratch);
-		FileInfo symbols = new(Path.ChangeExtension(package.FullName, ".snupkg"));
-		if (!symbols.Exists)
-		{
-			throw new FileNotFoundException("Pack did not create the expected symbol package.", symbols.FullName);
-		}
-		return (package, symbols);
+		FileInfo package = _fixture.GetPackage(projectName);
+		return (package, new FileInfo(Path.ChangeExtension(package.FullName, ".snupkg")));
 	}
 
 	private static SymbolDetails ReadSymbolDetails(ZipArchive binaries, ZipArchive symbols, string stem, string? generatedFileName = null)
@@ -168,6 +158,4 @@ public sealed class SymbolPackageTests : IDisposable
 	}
 
 	private sealed record SymbolDetails(Guid AssemblyGuid, uint AssemblyStamp, Guid PdbGuid, uint PdbStamp, string[] SourceUrls, byte[]? EmbeddedGeneratedSource);
-
-	public void Dispose() => Directory.Delete(_scratch, recursive: true);
 }

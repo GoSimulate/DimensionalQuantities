@@ -4,12 +4,14 @@ using System.Text;
 using DimensionalQuantities.Dimensions;
 using DimensionalQuantities.Roslyn.Discovery;
 using DimensionalQuantities.Roslyn.Generators;
+using DimensionalQuantities.Roslyn.Tests.Framework;
 using DimensionalQuantities.TypeSystem;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.Testing;
 using Xunit;
 
 namespace DimensionalQuantities.Roslyn.Tests.Generators;
@@ -19,7 +21,7 @@ public sealed class QuantityGeneratorTests
 	private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.Preview);
 
 	[Fact]
-	public void BaseAliasesHaveUnprefixedFactoriesAndAccessors()
+	public async Task BaseAliasesHaveUnprefixedFactoriesAndAccessors()
 	{
 		const string source = """
 			public static class Consumer
@@ -39,11 +41,11 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 
-		Compile(source);
+		await Compile(source);
 	}
 
 	[Fact]
-	public void SemanticPipelineResolvesPostInitialisationQuantityAliasesAndFactories()
+	public async Task SemanticPipelineResolvesPostInitialisationQuantityAliasesAndFactories()
 	{
 		const string source = """
 			public static class Consumer
@@ -51,7 +53,13 @@ public sealed class QuantityGeneratorTests
 				public static Length Use(Length input) => Length.FromMetres(2);
 			}
 			""";
-		CSharpCompilation result = Compile(source, new SemanticProbeGenerator());
+		SemanticProbeTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Compilation result = test.Compilation;
 		INamedTypeSymbol probe = result.GetTypeByMetadataName("SemanticProbe")!;
 		IFieldSymbol aliasResolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("AliasResolved")));
 		IFieldSymbol factoryResolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("FactoryResolved")));
@@ -62,7 +70,7 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void CatalogueAliasesAreAvailableToConsumers()
+	public async Task CatalogueAliasesAreAvailableToConsumers()
 	{
 		const string source = """
 			public static class Consumer
@@ -81,7 +89,7 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 
-		Compile(source);
+		await Compile(source);
 	}
 
 	[Theory]
@@ -104,16 +112,16 @@ public sealed class QuantityGeneratorTests
 	[InlineData("(Current.FromAmps(2) * Current.FromAmps(3)) / 2", "CurrentSquared", 3)]
 	[InlineData("(2 + 3) * Current.FromAmps(2) * Current.FromAmps(3)", "CurrentSquared", 30)]
 	[InlineData("(2 * 3) * Current.FromAmps(2) * Current.FromAmps(3)", "CurrentSquared", 36)]
-	public void QuantityArithmeticProducesTheExpectedTypeAndSiMagnitude(string arithmetic, string resultType, double expected)
+	public async Task QuantityArithmeticProducesTheExpectedTypeAndSiMagnitude(string arithmetic, string resultType, double expected)
 	{
 		string expression = $"(({resultType})({arithmetic})).AsSiBaseUnit()";
-		double result = Evaluate<double>(expression);
+		double result = await Evaluate<double>(expression);
 
 		Assert.Equal(expected, result);
 	}
 
 	[Fact]
-	public void QuantityArithmeticAcceptsTypedMethodParametersAndReturns()
+	public async Task QuantityArithmeticAcceptsTypedMethodParametersAndReturns()
 	{
 		const string source = """
 			public static class Consumer
@@ -124,11 +132,11 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 
-		Compile(source);
+		await Compile(source);
 	}
 
 	[Fact]
-	public void RepeatedConsumerOperationIsEmittedOnce()
+	public async Task RepeatedConsumerOperationIsEmittedOnce()
 	{
 		const string source = """
 			public static class Consumer
@@ -137,14 +145,14 @@ public sealed class QuantityGeneratorTests
 				public static Area Second(Length left, Length right) => left * right;
 			}
 			""";
-		CSharpCompilation compilation = Compile(source);
+		CSharpCompilation compilation = await Compile(source);
 		INamedTypeSymbol extensions = compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")!;
 		Assert.Single(extensions.GetMembers().OfType<IMethodSymbol>(), method => method.MetadataName == "op_Multiply");
 	}
 
 
 	[Fact]
-	public void ArithmeticReadsFieldAndMethodReturnTypes()
+	public async Task ArithmeticReadsFieldAndMethodReturnTypes()
 	{
 		const string source = """
 			public static class Consumer
@@ -154,11 +162,11 @@ public sealed class QuantityGeneratorTests
 				public static Power Calculate() => Input * Input * GetResistance();
 			}
 			""";
-		Compile(source);
+		await Compile(source);
 	}
 
 	[Fact]
-	public void DimensionPreservingScalarArithmeticUsesCoreOperatorsOnly()
+	public async Task DimensionPreservingScalarArithmeticUsesCoreOperatorsOnly()
 	{
 		const string source = """
 			public static class Consumer
@@ -166,7 +174,7 @@ public sealed class QuantityGeneratorTests
 				public static Current Scale(Current original, double factor) => factor * original / 2;
 			}
 			""";
-		CSharpCompilation compilation = Compile(source);
+		CSharpCompilation compilation = await Compile(source);
 
 		Assert.Null(compilation.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions"));
 	}
@@ -258,25 +266,26 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void GeneratorIgnoresUnrelatedAndIncompleteArithmetic()
+	public async Task GeneratorIgnoresUnrelatedAndIncompleteArithmetic()
 	{
 		const string source = """
 			public static class Consumer
 			{
 				public static int Number(int left, int right) => left * right;
-				public static object Incomplete(Length length) => length * Missing;
+				public static object Incomplete(Length length) => length * {|#0:Missing|};
 			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(source);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> generatorDiagnostics,
-			TestContext.Current.CancellationToken);
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0103").WithLocation(0));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Compilation output = test.Compilation;
 
-		Assert.Multiple(
-			() => Assert.Empty(generatorDiagnostics),
-			() => Assert.Null(output.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions")));
+		Assert.Null(output.GetTypeByMetadataName("DimensionalQuantities.Generated.ArithmeticExtensions"));
 	}
-
 
 
 	[Fact]
@@ -294,7 +303,12 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 		string editedSource = source.Replace("current * length", "length * length", StringComparison.Ordinal);
-		const string removedSource = "public static class Consumer { public static double Value() => 0; }";
+		const string removedSource = """
+			public static class Consumer
+			{
+				public static double Value() => 0;
+			}
+			""";
 		CSharpCompilation input = CreateInputCompilation(source);
 		SyntaxTree originalTree = Assert.Single(input.SyntaxTrees);
 		SyntaxTree editedTree = CSharpSyntaxTree.ParseText(editedSource, _parseOptions, path: "Consumer.cs", cancellationToken: TestContext.Current.CancellationToken);
@@ -346,7 +360,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Current.FromAmps(2) - Current.FromMilliAmps(500)", "AsAmps", 1.5)]
 	[InlineData("-Current.FromMilliAmps(500)", "AsAmps", -0.5)]
 	[InlineData("Energy.FromSiBaseUnit(2) + Torque.FromSiBaseUnit(3)", "AsSiBaseUnit", 5)]
-	public void SameDimensionArithmeticUsesCoreOperatorsWithoutGeneratedOverloads(string expression, string accessor, double expected)
+	public async Task SameDimensionArithmeticUsesCoreOperatorsWithoutGeneratedOverloads(string expression, string accessor, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -354,8 +368,8 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => ({{expression}}).{{accessor}}();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
-		CSharpCompilation compilation = Compile(source);
+		CSharpCompilation compilation = await Compile(source);
+		double result = EvaluateCompilation<double>(compilation);
 
 		Assert.Multiple(
 			() => Assert.Equal(expected, result),
@@ -366,7 +380,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("firstSquared + secondSquared", 52)]
 	[InlineData("firstSquared - secondSquared", 20)]
 	[InlineData("-firstSquared", -36)]
-	public void SameDimensionArithmeticThroughInferredLocalsCompilesAndExecutes(string expression, double expected)
+	public async Task SameDimensionArithmeticThroughInferredLocalsCompilesAndExecutes(string expression, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -384,7 +398,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result);
 	}
@@ -393,9 +407,9 @@ public sealed class QuantityGeneratorTests
 	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) + Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromSiBaseUnit(4)).AsSiBaseUnit()", 52)]
 	[InlineData("((Current.FromAmps(3) * Current.FromAmps(3) - Current.FromAmps(2) * Current.FromAmps(2)) * Resistance.FromSiBaseUnit(4)).AsSiBaseUnit()", 20)]
 	[InlineData("(-(Current.FromAmps(3) * Current.FromAmps(3))).AsSiBaseUnit()", -9)]
-	public void SameDimensionArithmeticAroundNestedProductsCompilesAndExecutes(string expression, double expected)
+	public async Task SameDimensionArithmeticAroundNestedProductsCompilesAndExecutes(string expression, double expected)
 	{
-		double result = Evaluate<double>(expression);
+		double result = await Evaluate<double>(expression);
 
 		Assert.Equal(expected, result);
 	}
@@ -405,22 +419,25 @@ public sealed class QuantityGeneratorTests
 	[InlineData("current - length")]
 	[InlineData("current + 2")]
 	[InlineData("2 - current")]
-	public void InvalidSameDimensionArithmeticRemainsACompilerError(string expression)
+	public async Task InvalidSameDimensionArithmeticRemainsACompilerError(string expression)
 	{
 		string source = $$"""
 			public static class Consumer
 			{
-				public static object Value(Current current, Length length) => {{expression}};
+				public static object Value(Current current, Length length) => {|#0:{{expression}}|};
 			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(source);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = output.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0019").WithLocation(0));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Diagnostic[] errors = test.Compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Equal("CS0019", Assert.Single(errors).Id));
+		Assert.Equal("CS0019", Assert.Single(errors).Id);
 	}
 
 	[Theory]
@@ -430,9 +447,9 @@ public sealed class QuantityGeneratorTests
 	[InlineData("(2 / Current.FromAmps(3)) * Current.FromAmps(3)", 2)]
 	[InlineData("(Current.FromAmps(3) * Current.FromAmps(3)) / (Current.FromAmps(2) * Current.FromAmps(2))", 2.25)]
 	[InlineData("(Length.FromMetres(3) / Length.FromMetres(1)) + (Current.FromAmps(4) / Current.FromAmps(2))", 5)]
-	public void CancelledDimensionsCompileAndExecuteAsDouble(string expression, double expected)
+	public async Task CancelledDimensionsCompileAndExecuteAsDouble(string expression, double expected)
 	{
-		double result = Evaluate<double>(expression);
+		double result = await Evaluate<double>(expression);
 
 		Assert.Equal(expected, result);
 	}
@@ -444,7 +461,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("var inverse = 2 / first; var ratio = first * inverse;", "(time / ratio).AsSeconds()", 2)]
 	[InlineData("var inverse = 2 / first; var ratio = first * inverse; var scaled = (ratio + 1) * first;", "(scaled * time).AsSiBaseUnit()", 36)]
 	[InlineData("var ratio = first / second; var inverseTime = ratio / time;", "inverseTime.AsSiBaseUnit()", 0.375)]
-	public void CancelledLocalsCanBeUsedAsScalarOperands(string declarations, string expression, double expected)
+	public async Task CancelledLocalsCanBeUsedAsScalarOperands(string declarations, string expression, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -459,7 +476,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result);
 	}
@@ -475,7 +492,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Fraction<TerminalHex1, TerminalHex3>", -8, -2)]
 	[InlineData("Fraction<TerminalHex2, TerminalHex3>", -8, 4)]
 	[InlineData("Fraction<Negative<TerminalHex1>, TerminalHex3>", -8, -0.5)]
-	public void EncodedPowersCompileAndExecute(string exponent, double value, double expected)
+	public async Task EncodedPowersCompileAndExecute(string exponent, double value, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -484,7 +501,7 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Power<{{exponent}}>.Of(Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}})).AsSiBaseUnit();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result, 12);
 	}
@@ -498,7 +515,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("NumberTwoOverThree", -8, 4)]
 	[InlineData("NumberMinusOneOverThree", -8, -0.5)]
 	[InlineData("NumberMillionth", 1, 1)]
-	public void EnglishPowersCompileAndExecute(string exponent, double value, double expected)
+	public async Task EnglishPowersCompileAndExecute(string exponent, double value, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -507,20 +524,27 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Power<{{exponent}}>.Of(Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}})).AsSiBaseUnit();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result, 12);
 	}
 
 	[Fact]
-	public void GeneratesEnglishAliasesOnlyWhenUsedByPowerCalls()
+	public async Task GeneratesEnglishAliasesOnlyWhenUsedByPowerCalls()
 	{
-		CSharpCompilation unused = Compile("class Consumer { }");
+		CSharpCompilation unused = await Compile("""
+			class Consumer
+			{
+			}
+			""");
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
-			class Consumer { object Value(Length value) => Power<NumberTwo>.Of(value); }
+			class Consumer
+			{
+				object Value(Length value) => Power<NumberTwo>.Of(value);
+			}
 			""";
-		CSharpCompilation used = Compile(source);
+		CSharpCompilation used = await Compile(source);
 		string[] unusedNames = unused.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
 			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
 		string[] usedNames = used.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
@@ -538,21 +562,40 @@ public sealed class QuantityGeneratorTests
 	[InlineData("typeof(NumberTwo)")]
 	[InlineData("Power<NumberTwo>.Other(value)")]
 	[InlineData("Other.Power<NumberTwo>.Of(value)")]
-	public void EnglishNamesOutsideSupportedPowerCallsRemainUnresolved(string expression)
+	public async Task EnglishNamesOutsideSupportedPowerCallsRemainUnresolved(string expression)
 	{
+		string markedExpression = expression.Replace("NumberTwo", "{|#0:NumberTwo|}", StringComparison.Ordinal)
+			.Replace(".Other", ".{|#1:Other|}", StringComparison.Ordinal);
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
-			namespace Other { public struct Power<T> { public static object Of(object value) => value; } }
-			class Consumer { object Value(Length value) => {{expression}}; }
+			namespace Other
+			{
+				public struct Power<T>
+				{
+					public static object Of(object value) => value;
+				}
+			}
+			class Consumer
+			{
+				object Value(Length value) => {{markedExpression}};
+			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(source);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
+		if (expression == "Power<NumberTwo>.Other(value)")
+		{
+			test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0117").WithLocation(1));
+		}
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Compilation output = test.Compilation;
 		string[] aliases = output.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings)
 			.Where(directive => directive.Alias is not null).Select(directive => directive.Alias!.Name.Identifier.ValueText).ToArray();
 
 		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
 			() => Assert.DoesNotContain("NumberTwo", aliases),
 			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("NumberTwo", StringComparison.Ordinal)));
 	}
@@ -562,7 +605,10 @@ public sealed class QuantityGeneratorTests
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
-			class Consumer { object Value(Length value) => Power<NumberTwo>.Of(value); }
+			class Consumer
+			{
+				object Value(Length value) => Power<NumberTwo>.Of(value);
+			}
 			""";
 		CSharpCompilation input = CreateInputCompilation(source);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
@@ -582,7 +628,7 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void EnglishPowersWorkWithNestedCallsArithmeticAndLocals()
+	public async Task EnglishPowersWorkWithNestedCallsArithmeticAndLocals()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -598,13 +644,13 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(15, result);
 	}
 
 	[Fact]
-	public void EnglishLookingUserAliasKeepsItsDeclaredExponent()
+	public async Task EnglishLookingUserAliasKeepsItsDeclaredExponent()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -614,31 +660,42 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Power<NumberTwo>.Of(Length.FromMetres(3)).AsSiBaseUnit();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(27, result);
 	}
 
 	[Fact]
-	public void ExplicitAliasInAnotherFileReservesTheName()
+	public async Task ExplicitAliasInAnotherFileReservesTheName()
 	{
 		const string generatedAliasSource = """
 			using DimensionalQuantities.TypeSystem;
-			class First { public Area Value(Length value) => Power<NumberTwo>.Of(value); }
+			class First
+			{
+				public Area Value(Length value) => {|#1:Power<{|#0:NumberTwo|}>|}.Of(value);
+			}
 			""";
 		const string explicitAliasSource = """
 			using DimensionalQuantities.TypeSystem;
 			using NumberTwo = DimensionalQuantities.TypeSystem.TerminalHex3;
-			class Second { public Volume Value(Length value) => Power<NumberTwo>.Of(value); }
+			class Second
+			{
+				public Volume Value(Length value) => Power<NumberTwo>.Of(value);
+			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(generatedAliasSource).AddSyntaxTrees(
-			CSharpSyntaxTree.ParseText(explicitAliasSource, _parseOptions, path: "Second.cs", cancellationToken: TestContext.Current.CancellationToken));
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", generatedAliasSource));
+		test.TestState.Sources.Add(("Second.cs", explicitAliasSource));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Compilation output = test.Compilation;
 		Diagnostic[] errors = output.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
 		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
 			() => Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains("NumberTwo", StringComparison.Ordinal)),
 			() => Assert.DoesNotContain(errors, diagnostic => diagnostic.Location.SourceTree?.FilePath == "Second.cs"),
 			() => Assert.DoesNotContain(output.SyntaxTrees.SelectMany(tree => tree.GetCompilationUnitRoot(TestContext.Current.CancellationToken).Usings),
@@ -646,7 +703,7 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void EquivalentEnglishNamesShareTheEncodedTypeAndPowerOverload()
+	public async Task EquivalentEnglishNamesShareTheEncodedTypeAndPowerOverload()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -663,11 +720,11 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 
-		Assert.True(EvaluateSource<bool>(source));
+		Assert.True(await EvaluateSource<bool>(source));
 	}
 
 	[Fact]
-	public void EnglishZerothPowerReturnsDouble()
+	public async Task EnglishZerothPowerReturnsDouble()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -677,11 +734,11 @@ public sealed class QuantityGeneratorTests
 			}
 			""";
 
-		Assert.Equal(1, EvaluateSource<double>(source));
+		Assert.Equal(1, await EvaluateSource<double>(source));
 	}
 
 	[Fact]
-	public void PowersReturnExistingQuantityTypesWhenCalledThroughAliases()
+	public async Task PowersReturnExistingQuantityTypesWhenCalledThroughAliases()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -702,7 +759,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 		double expected = 51;
 
 		Assert.Equal(expected, result);
@@ -715,7 +772,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("var result = Power<TerminalHex2>.Of(current * resistance);", "result.AsSiBaseUnit()", 144)]
 	[InlineData("var result = Power<Fraction<TerminalHex1, TerminalHex2>>.Of(Power<TerminalHex2>.Of(current));", "((Current)result).AsAmps()", 3)]
 	[InlineData("var identity = Power<TerminalHex0>.Of(current); var result = identity * current * resistance;", "((Voltage)result).AsSiBaseUnit()", 12)]
-	public void PowersWorkWithArithmeticAndLocalVariables(string declarations, string expression, double expected)
+	public async Task PowersWorkWithArithmeticAndLocalVariables(string declarations, string expression, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -730,13 +787,13 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result, 12);
 	}
 
 	[Fact]
-	public void ZerothPowerReturnsDouble()
+	public async Task ZerothPowerReturnsDouble()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -745,7 +802,7 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Power<TerminalHex0>.Of(Length.FromMetres(3));
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(1, result);
 	}
@@ -753,22 +810,31 @@ public sealed class QuantityGeneratorTests
 	[Theory]
 	[InlineData("Two")]
 	[InlineData("NumberNotANumber", "DQ0007")]
-	public void UnsupportedExponentNamesRemainCompilerErrors(string name, params string[] expectedDiagnosticIds)
+	public async Task UnsupportedExponentNamesRemainCompilerErrors(string name, params string[] expectedDiagnosticIds)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
 			public static class Consumer
 			{
-				public static object Value(Length length) => Power<{{name}}>.Of(length);
+				public static object Value(Length length) => {|#1:Power<{|#0:{{name}}|}>|}.Of(length);
 			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(source);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		foreach (string diagnosticId in expectedDiagnosticIds)
+		{
+			test.ExpectedDiagnostics.Add(new DiagnosticResult(diagnosticId, DiagnosticSeverity.Error)
+				.WithLocation(0).WithMessage($"English exponent '{name}' cannot be resolved"));
+		}
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS1929").WithLocation(1));
+		await test.RunAsync(TestContext.Current.CancellationToken);
 
-		Assert.Multiple(
-			() => Assert.Equal(expectedDiagnosticIds, diagnostics.Select(diagnostic => diagnostic.Id)),
-			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains(name, StringComparison.Ordinal)));
+		Assert.Contains(test.Compilation.GetDiagnostics(TestContext.Current.CancellationToken),
+			diagnostic => diagnostic.Id == "CS0246" && diagnostic.GetMessage().Contains(name, StringComparison.Ordinal));
 	}
 
 	[Theory]
@@ -821,7 +887,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Root4", 16, 2)]
 	[InlineData("Root5", 32, 2)]
 	[InlineData("Root6", 64, 2)]
-	public void ConveniencePowersCompileAndExecute(string method, double value, double expected)
+	public async Task ConveniencePowersCompileAndExecute(string method, double value, double expected)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -829,13 +895,13 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Length.FromMetres({{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}}).{{method}}().AsSiBaseUnit();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result, 12);
 	}
 
 	[Fact]
-	public void ConveniencePowersShareQuantityTypesWithGenericPowersAndArithmetic()
+	public async Task ConveniencePowersShareQuantityTypesWithGenericPowersAndArithmetic()
 	{
 		const string source = """
 			using DimensionalQuantities.TypeSystem;
@@ -857,7 +923,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(57, result, 12);
 	}
@@ -867,7 +933,7 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Power<NumberHalf>.Of(current.Squared()) * resistance", 12)]
 	[InlineData("Power<NumberTwo>.Of(current).SquareRoot() * resistance", 12)]
 	[InlineData("(current * resistance).Squared().SquareRoot()", 12)]
-	public void ConveniencePowersWorkInsideNestedExpressions(string expression, double expected)
+	public async Task ConveniencePowersWorkInsideNestedExpressions(string expression, double expected)
 	{
 		string source = $$"""
 			using DimensionalQuantities.TypeSystem;
@@ -882,13 +948,13 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(expected, result, 12);
 	}
 
 	[Fact]
-	public void GeneratesOnlyTheRequestedIntermediateConvenienceOverloadOnce()
+	public async Task GeneratesOnlyTheRequestedIntermediateConvenienceOverloadOnce()
 	{
 		const string source = """
 			class Consumer
@@ -897,7 +963,7 @@ public sealed class QuantityGeneratorTests
 				object Second(Length length, Current current) => (length * current).Squared();
 			}
 			""";
-		CSharpCompilation output = Compile(source);
+		CSharpCompilation output = await Compile(source);
 		string[] convenienceNames = ["Squared", "Cubed", "Pow4", "Pow5", "Pow6", "SquareRoot", "CubeRoot", "Root4", "Root5", "Root6"];
 		string[] result = ReadConvenienceMethods(output, new(Length: 1, ElectricCurrent: 1)).Where(convenienceNames.Contains).ToArray();
 		string[] expected = ["Squared"];
@@ -906,9 +972,9 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void BaseAndCatalogueHelpersAreAvailableWithoutConsumerCode()
+	public async Task BaseAndCatalogueHelpersAreAvailableWithoutConsumerCode()
 	{
-		CSharpCompilation result = Compile(string.Empty);
+		CSharpCompilation result = await Compile(string.Empty);
 		string[] expected = ["Squared", "Cubed", "Pow4", "Pow5", "Pow6", "SquareRoot", "CubeRoot", "Root4", "Root5", "Root6"];
 		Dimension[] dimensions = QuantityDiscovery.Discover([]).KnownQuantities.Select(quantity => quantity.Dimension).ToArray();
 
@@ -916,7 +982,7 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void InferredCatalogueQuantityReusesItsDefaultConvenienceMethod()
+	public async Task InferredCatalogueQuantityReusesItsDefaultConvenienceMethod()
 	{
 		const string source = """
 			public static class Consumer
@@ -929,13 +995,13 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(81, result);
 	}
 
 	[Fact]
-	public void CatalogueConvenienceMethodsAreBoundBeforeDemandGeneration()
+	public async Task CatalogueConvenienceMethodsAreBoundBeforeDemandGeneration()
 	{
 		const string source = """
 			public static class Consumer
@@ -943,7 +1009,13 @@ public sealed class QuantityGeneratorTests
 				public static object Value(Voltage voltage) => voltage.Squared();
 			}
 			""";
-		CSharpCompilation result = Compile(source, new SemanticProbeGenerator());
+		SemanticProbeTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Compilation result = test.Compilation;
 		INamedTypeSymbol probe = result.GetTypeByMetadataName("SemanticProbe")!;
 		IFieldSymbol resolved = Assert.IsAssignableFrom<IFieldSymbol>(Assert.Single(probe.GetMembers("FactoryResolved")));
 
@@ -951,22 +1023,31 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void ExistingQuantityExtensionMethodKeepsItsBehaviour()
+	public async Task ExistingQuantityExtensionMethodKeepsItsBehaviour()
 	{
 		const string source = """
-			public static class UserMethods { public static double Squared(this Length value) => 42; }
-			public static class Consumer { public static double Value() => Length.FromMetres(3).Squared(); }
+			public static class UserMethods
+			{
+				public static double Squared(this Length value) => 42;
+			}
+			public static class Consumer
+			{
+				public static double Value() => Length.FromMetres(3).Squared();
+			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(42, result);
 	}
 
 	[Fact]
-	public void ConvenienceMethodCoexistsWithAnExistingOverload()
+	public async Task ConvenienceMethodCoexistsWithAnExistingOverload()
 	{
 		const string source = """
-			public static class UserMethods { public static double Squared(this Length value, int factor) => value.AsMetres() * factor; }
+			public static class UserMethods
+			{
+				public static double Squared(this Length value, int factor) => value.AsMetres() * factor;
+			}
 			public static class Consumer
 			{
 				public static double[] Value()
@@ -976,7 +1057,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double[] result = EvaluateSource<double[]>(source);
+		double[] result = await EvaluateSource<double[]>(source);
 		double[] expected = [9, 12];
 
 		Assert.Equal(expected, result);
@@ -985,22 +1066,37 @@ public sealed class QuantityGeneratorTests
 	[Theory]
 	[InlineData("(3d).Squared()", "CS1929")]
 	[InlineData("Length.FromMetres(3).Pow7()", "CS1061")]
-	public void UnsupportedConvenienceCallsRemainCompilerErrors(string expression, string diagnosticId)
+	public async Task UnsupportedConvenienceCallsRemainCompilerErrors(string expression, string diagnosticId)
 	{
-		string source = $$"""class Consumer { object Value() => {{expression}}; }""";
-		CSharpCompilation input = CreateInputCompilation(source);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+		string markedExpression = expression == "(3d).Squared()"
+			? "({|#0:3d|}).Squared()"
+			: "Length.FromMetres(3).{|#0:Pow7|}()";
+		string source = $$"""
+			class Consumer
+			{
+				object Value() => {{markedExpression}};
+			}
+			""";
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError(diagnosticId).WithLocation(0));
+		await test.RunAsync(TestContext.Current.CancellationToken);
 
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Contains(output.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == diagnosticId));
+		Assert.Contains(test.Compilation.GetDiagnostics(TestContext.Current.CancellationToken), diagnostic => diagnostic.Id == diagnosticId);
 	}
 
 	[Fact]
 	public void RemovingIntermediateConvenienceCallsRemovesTheirGeneratedMethods()
 	{
-		const string source = "class Consumer { object Value(Length length, Current current) => (length * current).Squared(); }";
+		const string source = """
+			class Consumer
+			{
+				object Value(Length length, Current current) => (length * current).Squared();
+			}
+			""";
 		CSharpCompilation input = CreateInputCompilation(source);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
@@ -1013,7 +1109,6 @@ public sealed class QuantityGeneratorTests
 			() => Assert.DoesNotContain("Squared", remainingMethods),
 			() => Assert.Empty(diagnostics));
 	}
-
 
 
 	[Fact]
@@ -1076,8 +1171,18 @@ public sealed class QuantityGeneratorTests
 	[Fact]
 	public void EditingMemberDefinitionRemovesObsoleteDependentOperations()
 	{
-		const string source = "class Inputs { public static LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3); }";
-		const string consumer = "class Consumer { object Value(Time time) => Inputs.Stored * time; }";
+		const string source = """
+			class Inputs
+			{
+				public static LengthCurrent Stored => Length.FromMetres(2) * Current.FromAmps(3);
+			}
+			""";
+		const string consumer = """
+			class Consumer
+			{
+				object Value(Time time) => Inputs.Stored * time;
+			}
+			""";
 		string edited = source.Replace("LengthCurrent", "LengthTime", StringComparison.Ordinal).Replace("Current.FromAmps", "Time.FromSeconds", StringComparison.Ordinal);
 		SyntaxTree memberTree = CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
 		CSharpCompilation input = CreateInputCompilation(consumer).AddSyntaxTrees(memberTree);
@@ -1097,8 +1202,18 @@ public sealed class QuantityGeneratorTests
 	[Fact]
 	public void EditingMethodDefinitionRefreshesUnchangedConsumers()
 	{
-		const string source = "class Inputs { public static LengthCurrent Make() => Length.FromMetres(2) * Current.FromAmps(3); }";
-		const string consumer = "class Consumer { object Value(Time time) => Inputs.Make() * time; }";
+		const string source = """
+			class Inputs
+			{
+				public static LengthCurrent Make() => Length.FromMetres(2) * Current.FromAmps(3);
+			}
+			""";
+		const string consumer = """
+			class Consumer
+			{
+				object Value(Time time) => Inputs.Make() * time;
+			}
+			""";
 		string edited = source.Replace("LengthCurrent", "LengthTime", StringComparison.Ordinal).Replace("Current.FromAmps", "Time.FromSeconds", StringComparison.Ordinal);
 		SyntaxTree memberTree = CSharpSyntaxTree.ParseText(source, _parseOptions, path: "Inputs.cs", cancellationToken: TestContext.Current.CancellationToken);
 		CSharpCompilation input = CreateInputCompilation(consumer).AddSyntaxTrees(memberTree);
@@ -1117,7 +1232,7 @@ public sealed class QuantityGeneratorTests
 	[Theory]
 	[InlineData(false, 216)]
 	[InlineData(true, 72)]
-	public void WindingLossHelpersPreserveUnitsAndRoundTripResistance(bool delta, double expectedLoss)
+	public async Task WindingLossHelpersPreserveUnitsAndRoundTripResistance(bool delta, double expectedLoss)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1145,7 +1260,7 @@ public sealed class QuantityGeneratorTests
 				}
 			}
 			""";
-		double[] result = EvaluateSource<double[]>(source);
+		double[] result = await EvaluateSource<double[]>(source);
 
 		Assert.Multiple(
 			() => Assert.Equal(expectedLoss, result[0], 12),
@@ -1154,7 +1269,7 @@ public sealed class QuantityGeneratorTests
 
 
 	[Fact]
-	public void TypeOnlyDeclarationsGenerateQuantitiesInPublicApisAndCollections()
+	public async Task TypeOnlyDeclarationsGenerateQuantitiesInPublicApisAndCollections()
 	{
 		const string source = """
 			public record Measurement(LengthCurrent Value);
@@ -1167,13 +1282,13 @@ public sealed class QuantityGeneratorTests
 				public LengthCurrent Identity(LengthCurrent value) => value;
 			}
 			""";
-		CSharpCompilation result = Compile(source);
+		CSharpCompilation result = await Compile(source);
 
 		Assert.NotNull(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void TypeOnlyParameterSuppliesDimensionsToArithmeticWithoutAnInitialiser()
+	public async Task TypeOnlyParameterSuppliesDimensionsToArithmeticWithoutAnInitialiser()
 	{
 		const string source = """
 			public static class Consumer
@@ -1182,48 +1297,80 @@ public sealed class QuantityGeneratorTests
 				public static double Value() => Multiply(LengthCurrent.FromSiBaseUnit(6), Time.FromSeconds(4)).AsSiBaseUnit();
 			}
 			""";
-		double result = EvaluateSource<double>(source);
+		double result = await EvaluateSource<double>(source);
 
 		Assert.Equal(24, result);
 	}
 
 
-
-
-
-
 	[Theory]
-	[InlineData("public class LengthCurrent { }")]
-	[InlineData("using LengthCurrent = System.Int32;")]
-	public void ExistingTypesAndAliasesAreNotReplacedByQuantityNames(string declaration)
+	[InlineData("""
+		public class LengthCurrent
+		{
+		}
+		""")]
+	[InlineData("""
+		using LengthCurrent = System.Int32;
+		""")]
+	public async Task ExistingTypesAndAliasesAreNotReplacedByQuantityNames(string declaration)
 	{
-		string source = $$"""{{declaration}} class Consumer { object Value(LengthCurrent value) => value; }""";
-		CSharpCompilation result = Compile(source);
+		string source = $$"""
+			{{declaration}}
+			class Consumer
+			{
+				object Value(LengthCurrent value) => value;
+			}
+			""";
+		CSharpCompilation result = await Compile(source);
 
 		Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void QuantityLookingVariableNamesDoNotRequestTypes()
+	public async Task QuantityLookingVariableNamesDoNotRequestTypes()
 	{
-		const string source = "class Consumer { int Value() { int LengthCurrent = 7; return LengthCurrent; } }";
-		CSharpCompilation result = Compile(source);
+		const string source = """
+			class Consumer
+			{
+				int Value()
+				{
+					int LengthCurrent = 7;
+					return LengthCurrent;
+				}
+			}
+			""";
+		CSharpCompilation result = await Compile(source);
 
 		Assert.Null(result.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void TypeNameDiscoveryPreservesExplicitAliasesInOtherFiles()
+	public async Task TypeNameDiscoveryPreservesExplicitAliasesInOtherFiles()
 	{
-		const string source = "class First { public LengthCurrent Value; }";
-		const string aliasSource = "using LengthCurrent = System.Int32; class Second { public int Value(LengthCurrent value) => value; }";
-		CSharpCompilation input = CreateInputCompilation(source).AddSyntaxTrees(CSharpSyntaxTree.ParseText(aliasSource, _parseOptions, path: "Alias.cs", cancellationToken: TestContext.Current.CancellationToken));
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+		const string source = """
+			class First
+			{
+				public {|#0:LengthCurrent|} Value;
+			}
+			""";
+		const string aliasSource = """
+			using LengthCurrent = System.Int32;
+			class Second
+			{
+				public int Value(LengthCurrent value) => value;
+			}
+			""";
+		QuantityGeneratorTest test = new()
+		{
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.TestState.Sources.Add(("Alias.cs", aliasSource));
+		test.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError("CS0246").WithLocation(0));
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		Diagnostic[] errors = test.Compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
 
 		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
 			() => Assert.Contains(errors, error => error.Id == "CS0246" && error.Location.SourceTree?.FilePath == "Consumer.cs"),
 			() => Assert.DoesNotContain(errors, error => error.Location.SourceTree?.FilePath == "Alias.cs"));
 	}
@@ -1231,7 +1378,12 @@ public sealed class QuantityGeneratorTests
 	[Fact]
 	public void RemovingTypeOnlyDeclarationsRemovesTheirQuantities()
 	{
-		const string source = "class Consumer { public LengthCurrent Identity(LengthCurrent value) => value; }";
+		const string source = """
+			class Consumer
+			{
+				public LengthCurrent Identity(LengthCurrent value) => value;
+			}
+			""";
 		CSharpCompilation input = CreateInputCompilation(source);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
@@ -1249,9 +1401,9 @@ public sealed class QuantityGeneratorTests
 	[InlineData("Library.Property")]
 	[InlineData("Library.Values()[0]")]
 	[InlineData("Library.Measure().Value")]
-	public void ReferencedQuantityValuesGetLocalConversionsWithoutArithmetic(string expression)
+	public async Task ReferencedQuantityValuesGetLocalConversionsWithoutArithmetic(string expression)
 	{
-		PortableExecutableReference library = CreateLibraryReference("""
+		PortableExecutableReference library = await CreateLibraryReference("""
 			public static class Library
 			{
 				public static LengthCurrent Create() => Length.FromMetres(2) * Current.FromAmps(3);
@@ -1260,39 +1412,55 @@ public sealed class QuantityGeneratorTests
 				public static System.Collections.Generic.List<LengthCurrent> Values() => new() { Create() };
 				public static Measurement Measure() => new();
 			}
-			public sealed class Measurement { public LengthCurrent Value => Library.Create(); }
+			public sealed class Measurement
+			{
+				public LengthCurrent Value => Library.Create();
+			}
 			""");
-		CSharpCompilation input = CreateInputCompilation($"public class Consumer {{ public double Value() => {expression}.AsPrefixedUnits(3, 0); }}").AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		CSharpCompilation result = await Compile($$"""
+			public class Consumer
+			{
+				public double Value() => {{expression}}.AsPrefixedUnits(3, 0);
+			}
+			""", library);
 
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Empty(errors),
-			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+		Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void ReferencedCollectionTypesRequestTheirNestedQuantity()
+	public async Task ReferencedCollectionTypesRequestTheirNestedQuantity()
 	{
-		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static System.Collections.Generic.List<LengthCurrent[]> Values() => new(); }");
-		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Values(); }").AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public static class Library
+			{
+				public static System.Collections.Generic.List<LengthCurrent[]> Values() => new();
+			}
+			""");
+		CSharpCompilation result = await Compile("""
+			public class Consumer
+			{
+				public object Value() => Library.Values();
+			}
+			""", library);
 
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+		Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void RemovingMetadataUsageRemovesItsLocallyGeneratedConversions()
+	public async Task RemovingMetadataUsageRemovesItsLocallyGeneratedConversions()
 	{
-		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
-		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Create(); }").AddReferences(library);
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public static class Library
+			{
+				public static LengthCurrent Create() => default;
+			}
+			""");
+		CSharpCompilation input = CreateInputCompilation("""
+			public class Consumer
+			{
+				public object Value() => Library.Create();
+			}
+			""").AddReferences(library);
 		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
 		driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation original, out _, TestContext.Current.CancellationToken);
 
@@ -1305,77 +1473,107 @@ public sealed class QuantityGeneratorTests
 	}
 
 	[Fact]
-	public void ReferencedClassesWithQuantityNamesAreNotTreatedAsQuantities()
+	public async Task ReferencedClassesWithQuantityNamesAreNotTreatedAsQuantities()
 	{
-		PortableExecutableReference library = CreateLibraryReference("public class LengthCurrent { } public static class Library { public static LengthCurrent Create() => new(); }");
-		CSharpCompilation input = CreateInputCompilation("public class Consumer { public object Value() => Library.Create(); }").AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public class LengthCurrent
+			{
+			}
+			public static class Library
+			{
+				public static LengthCurrent Create() => new();
+			}
+			""");
+		CSharpCompilation result = await Compile("""
+			public class Consumer
+			{
+				public object Value() => Library.Create();
+			}
+			""", library);
 
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Null(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions")));
+		Assert.Null(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthCurrentExtensions"));
 	}
 
 	[Fact]
-	public void MetadataDiscoveryPreservesExplicitConsumerAliases()
+	public async Task MetadataDiscoveryPreservesExplicitConsumerAliases()
 	{
-		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
-		CSharpCompilation input = CreateInputCompilation("using LengthCurrent = System.Int32; public class Consumer { public object Value() => Library.Create(); public LengthCurrent Count => 1; }").AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Empty(errors));
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public static class Library
+			{
+				public static LengthCurrent Create() => default;
+			}
+			""");
+		await Compile("""
+			using LengthCurrent = System.Int32;
+			public class Consumer
+			{
+				public object Value() => Library.Create();
+				public LengthCurrent Count => 1;
+			}
+			""", library);
 	}
 
 	[Theory]
-	[InlineData("public class LengthCurrent { public int Marker { get; init; } }", "LengthCurrent", "new() { Marker = 7 }")]
-	[InlineData("namespace LengthCurrent { public class Item { } }", "LengthCurrent.Item", "new()")]
-	public void MetadataDiscoveryPreservesExistingConsumerTypesAndNamespaces(string declaration, string type, string value)
+	[InlineData("""
+		public class LengthCurrent
+		{
+			public int Marker
+			{
+				get;
+				init;
+			}
+		}
+		""", "LengthCurrent", "new() { Marker = 7 }")]
+	[InlineData("""
+		namespace LengthCurrent
+		{
+			public class Item
+			{
+			}
+		}
+		""", "LengthCurrent.Item", "new()")]
+	public async Task MetadataDiscoveryPreservesExistingConsumerTypesAndNamespaces(string declaration, string type, string value)
 	{
-		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthCurrent Create() => default; }");
-		string source = $$"""{{declaration}} public class Consumer { public object Value() => Library.Create(); public {{type}} Item => {{value}}; }""";
-		CSharpCompilation input = CreateInputCompilation(source).AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
-
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Empty(errors));
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public static class Library
+			{
+				public static LengthCurrent Create() => default;
+			}
+			""");
+		string source = $$"""
+			{{declaration}}
+			public class Consumer
+			{
+				public object Value() => Library.Create();
+				public {{type}} Item => {{value}};
+			}
+			""";
+		await Compile(source, library);
 	}
 
 	[Fact]
-	public void ReferencedGenericResultsGetConversionsAfterTheirArgumentsResolve()
+	public async Task ReferencedGenericResultsGetConversionsAfterTheirArgumentsResolve()
 	{
-		PortableExecutableReference library = CreateLibraryReference("public static class Library { public static LengthTime Convert<T>(T value) => default; }");
+		PortableExecutableReference library = await CreateLibraryReference("""
+			public static class Library
+			{
+				public static LengthTime Convert<T>(T value) => default;
+			}
+			""");
 		const string source = """
 			public static class Consumer
 			{
 				public static double Value(Length length, Current current) => Library.Convert(length * current).AsPrefixedUnits(0, 0);
 			}
 			""";
-		CSharpCompilation input = CreateInputCompilation(source).AddReferences(library);
-		GeneratorDriver driver = CSharpGeneratorDriver.Create([new QuantityGenerator().AsSourceGenerator()], parseOptions: _parseOptions);
+		CSharpCompilation result = await Compile(source, library);
 
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation result, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
-		Diagnostic[] errors = result.GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-
-		Assert.Multiple(
-			() => Assert.Empty(diagnostics),
-			() => Assert.Empty(errors),
-			() => Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions")));
+		Assert.NotNull(result.Assembly.GetTypeByMetadataName("DimensionalQuantities.Generated.LengthTimeExtensions"));
 	}
 
-	private static PortableExecutableReference CreateLibraryReference(string source)
+	private static async Task<PortableExecutableReference> CreateLibraryReference(string source)
 	{
-		CSharpCompilation library = Compile(source).WithAssemblyName("ReferencedQuantities");
+		CSharpCompilation library = (await Compile(source)).WithAssemblyName("ReferencedQuantities");
 		using MemoryStream stream = new();
 		EmitResult emitted = library.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
 		if (!emitted.Success)
@@ -1397,7 +1595,7 @@ public sealed class QuantityGeneratorTests
 			.Select(method => method.Identifier.ValueText).ToArray();
 	}
 
-	private static T Evaluate<T>(string expression)
+	private static async Task<T> Evaluate<T>(string expression)
 	{
 		string source = $$"""
 			public static class Consumer
@@ -1405,34 +1603,39 @@ public sealed class QuantityGeneratorTests
 				public static global::{{typeof(T).FullName}} Value() => {{expression}};
 			}
 			""";
-		return EvaluateSource<T>(source);
+		return await EvaluateSource<T>(source);
 	}
 
-	private static T EvaluateSource<T>(string source)
+	private static async Task<T> EvaluateSource<T>(string source)
 	{
-		CSharpCompilation compilation = Compile(source);
+		CSharpCompilation compilation = await Compile(source);
+		return EvaluateCompilation<T>(compilation);
+	}
+
+	private static T EvaluateCompilation<T>(Compilation compilation)
+	{
 		using MemoryStream assemblyBytes = new();
 		EmitResult emitResult = compilation.Emit(assemblyBytes, cancellationToken: TestContext.Current.CancellationToken);
-		Assert.True(emitResult.Success, string.Join(Environment.NewLine, emitResult.Diagnostics));
+		if (!emitResult.Success)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, emitResult.Diagnostics));
+		}
 		Assembly assembly = Assembly.Load(assemblyBytes.ToArray());
 		MethodInfo method = assembly.GetType("Consumer")!.GetMethod("Value")!;
 		return Assert.IsType<T>(method.Invoke(null, null));
 	}
 
-	private static CSharpCompilation Compile(string source, IIncrementalGenerator? additionalGenerator = null)
+	private static async Task<CSharpCompilation> Compile(string source, params MetadataReference[] references)
 	{
-		CSharpCompilation input = CreateInputCompilation(source);
-		ISourceGenerator[] generators = additionalGenerator is null
-			? [new QuantityGenerator().AsSourceGenerator()]
-			: [new QuantityGenerator().AsSourceGenerator(), additionalGenerator.AsSourceGenerator()];
-		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: _parseOptions);
-		driver.RunGeneratorsAndUpdateCompilation(input, out Compilation output, out ImmutableArray<Diagnostic> generatorDiagnostics);
-		Diagnostic[] compilationErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
-			.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
-		Assert.Multiple(
-			() => Assert.True(generatorDiagnostics.IsEmpty, string.Join(Environment.NewLine, generatorDiagnostics)),
-			() => Assert.True(compilationErrors.Length == 0, string.Join(Environment.NewLine, compilationErrors)));
-		return (CSharpCompilation)output;
+		QuantityGeneratorTest test = new()
+		{
+			// These tests inspect compilation or execution, rather than snapshotting the default catalogue.
+			TestBehaviors = TestBehaviors.SkipGeneratedSourcesCheck
+		};
+		test.TestState.Sources.Add(("Consumer.cs", source));
+		test.TestState.AdditionalReferences.AddRange(references);
+		await test.RunAsync(TestContext.Current.CancellationToken);
+		return (CSharpCompilation)test.Compilation;
 	}
 
 	private static CSharpCompilation CreateInputCompilation(string source)
@@ -1447,8 +1650,18 @@ public sealed class QuantityGeneratorTests
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}
 
+	private sealed class SemanticProbeTest : QuantityGeneratorTest
+	{
+		protected override IEnumerable<Type> GetSourceGenerators() =>
+			base.GetSourceGenerators().Append(typeof(SemanticProbeGenerator));
+	}
+
 	private sealed class SemanticProbeGenerator : IIncrementalGenerator
 	{
+		public SemanticProbeGenerator()
+		{
+		}
+
 		public void Initialize(IncrementalGeneratorInitializationContext context)
 		{
 			IncrementalValuesProvider<(bool IsInvocation, bool Resolved)> observed = context.SyntaxProvider.CreateSyntaxProvider(
@@ -1470,7 +1683,13 @@ public sealed class QuantityGeneratorTests
 			{
 				bool aliasResolved = symbols.Any(symbol => !symbol.IsInvocation && symbol.Resolved);
 				bool factoryResolved = symbols.Any(symbol => symbol.IsInvocation && symbol.Resolved);
-				string source = $"internal static class SemanticProbe {{ public const bool AliasResolved = {aliasResolved.ToString().ToLowerInvariant()}; public const bool FactoryResolved = {factoryResolved.ToString().ToLowerInvariant()}; }}";
+				string source = $$"""
+					internal static class SemanticProbe
+					{
+						public const bool AliasResolved = {{aliasResolved.ToString().ToLowerInvariant()}};
+						public const bool FactoryResolved = {{factoryResolved.ToString().ToLowerInvariant()}};
+					}
+					""";
 				output.AddSource("SemanticProbe.g.cs", SourceText.From(source, Encoding.UTF8));
 			});
 		}
